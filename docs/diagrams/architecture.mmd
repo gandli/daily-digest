@@ -1,0 +1,67 @@
+graph TB
+    subgraph TG["Telegram"]
+        U["用户 gandli<br/>白名单 chat_id"]
+        TA["Telegram Bot API<br/>api.telegram.org"]
+    end
+
+    subgraph CF["Cloudflare 免费层 (单 Worker)"]
+        subgraph ENTRY["入口"]
+            CRON["⏰ scheduled<br/>cron: 30 0 * * *<br/>北京时间 08:30 每日一次"]
+            WH["🌐 fetch handler<br/>POST /telegram webhook"]
+        end
+
+        subgraph CORE["共享管线 (纯函数)"]
+            SEC["验签<br/>X-Telegram-Bot-Api-Secret-Token<br/>timingSafeEqual"]
+            GUARD["chat id 白名单守卫"]
+            ROUTE["命令路由<br/>/trending · /help · 兜底提示"]
+            SRCS["sources 数组 = 注册表<br/>v1: trendingSource"]
+            FETCH["fetchTrending()<br/>刮 github.com/trending<br/>HTMLRewriter 解析 top10"]
+            TRANS["translateBatch()<br/>Workers AI 批量翻译<br/>失败→MyMemory→英文原文"]
+            RENDER["renderMessage()<br/>紧凑格式+标签<br/>#trending #d日期 #语言"]
+            SEND["sendTelegram()<br/>HTML parse_mode<br/>超4096按源拆分"]
+            ARCH["archiveToGitHub()<br/>Contents API PUT commit<br/>archive/trending/日期.md"]
+        end
+
+        CACHE[("KV binding: CACHE<br/>当日结果缓存")]
+        AI["Workers AI binding: AI<br/>翻译模型"]
+
+        GW["wrangler.jsonc<br/>KV + ai + crons + observability"]
+    end
+
+    subgraph GH["GitHub"]
+        TREND["github.com/trending<br/>数据源 (HTML 刮取)"]
+        ARCHIVE["gandli/github-trending-archive<br/>每日存档 commit"]
+        REPO["bot 源码 repo<br/>PR 工作流 → main → Actions 自动 deploy"]
+    end
+
+    subgraph EXT["外部服务 (回退链)"]
+        MM["MyMemory API<br/>免key翻译回退"]
+        DW["deepwiki.com/owner/repo<br/>消息内链接, 不集成"]
+    end
+
+    %% cron 流
+    CRON -->|"每天1次"| FETCH
+    FETCH -->|"GET HTML"| TREND
+    FETCH -->|"条目数组"| TRANS
+    TRANS -->|"批量 prompt"| AI
+    TRANS -.->|"AI失败回退"| MM
+    TRANS -->|"中文条目"| RENDER
+    RENDER -->|"渲染文本"| SEND
+    SEND -->|"sendMessage HTTPS"| TA
+    TA -->|"每日一条消息"| U
+    RENDER -->|"markdown"| ARCH
+    ARCH -->|"PUT /contents"| ARCHIVE
+    RENDER -->|"写当日缓存"| CACHE
+    SEND -.->|"链接仅展示"| DW
+
+    %% webhook 流
+    U -->|"/trending 命令"| TA
+    TA -->|"POST webhook"| WH
+    WH -->|"先应答200<br/>waitUntil 后台处理"| SEC
+    SEC --> GUARD
+    GUARD --> ROUTE
+    ROUTE -->|"读缓存命中直接发"| CACHE
+    ROUTE -->|"未命中走管线"| FETCH
+
+    %% 部署流
+    REPO -.->|"wrangler-action deploy"| GW
