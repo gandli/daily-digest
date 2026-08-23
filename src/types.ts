@@ -9,8 +9,11 @@ export interface Env {
   CHAT_ID: string;
   WEBHOOK_SECRET: string;
   GH_TOKEN: string;
-  GH_ARCHIVE_REPO?: string; // 默认 gandli/daily-digest-archive
-  TELEGRAPH_TOKEN?: string; // 可选,缺失则无 📁 链接
+  TELEGRAPH_TOKEN?: string;
+  GH_ARCHIVE_REPO?: string;
+  LLM_BASE_URL?: string;
+  LLM_API_KEY?: string;
+  LLM_MODEL?: string;
 }
 
 export type SourceItem = {

@@ -15,10 +15,15 @@ export async function translateBatch(
   } catch (e) {
     errors.push(`workersAI: ${String(e).slice(0, 120)}`);
     try {
-      zh = await viaMyMemory(descs);
-    } catch (e2) {
-      errors.push(`myMemory: ${String(e2).slice(0, 120)}`);
-      zh = null;
+      zh = await via9Router(env, descs);
+    } catch (e1) {
+      errors.push(`9router: ${String(e1).slice(0, 120)}`);
+      try {
+        zh = await viaMyMemory(descs);
+      } catch (e2) {
+        errors.push(`myMemory: ${String(e2).slice(0, 120)}`);
+        zh = null;
+      }
     }
   }
   if (!zh) return items; // 英文原文兜底
@@ -42,6 +47,64 @@ async function viaWorkersAI(env: Env, descs: string[]): Promise<string[]> {
   );
   if (results.filter(Boolean).length < Math.ceil(descs.length / 2)) throw new Error('AI translate incomplete');
   return results;
+}
+
+// 9Router 自建网关(OpenAI 兼容)。免费模型池, 从 CF 出口无封锁。
+// ponytail: 单次调用批量翻10条; 网关响应尾部可能带 SSE 杂质, 用首尾大括号截取容错
+async function via9Router(env: Env, descs: string[]): Promise<string[]> {
+  const base = env.LLM_BASE_URL;
+  if (!base) throw new Error('no LLM_BASE_URL');
+  const prompt =
+    '将以下每行英文翻译为简体中文, 只输出翻译结果, 保持相同的行数和编号格式:\n' +
+    descs.map((d, i) => `${i + 1}. ${d}`).join('\n');
+  const res = await fetch(`${base}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...(env.LLM_API_KEY ? { Authorization: `Bearer ${env.LLM_API_KEY}` } : {}),
+    },
+    body: JSON.stringify({
+      model: env.LLM_MODEL || '1.freemodel',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 2000,
+    }),
+  });
+  if (!res.ok) throw new Error(`llm ${res.status}`);
+  const raw = await res.text();
+  const s = raw.indexOf('{');
+  const e = raw.lastIndexOf('}');
+  if (s < 0 || e <= s) throw new Error('llm bad body');
+  const j = JSON.parse(raw.slice(s, e + 1)) as { choices?: { message?: { content?: string } }[] };
+  const text = j.choices?.[0]?.message?.content ?? '';
+  const map = new Map<number, string>();
+  for (const line of text.split('\n')) {
+    const m = line.match(/^\s*(\d+)[.、)]\s*(.+)$/);
+    if (m) map.set(parseInt(m[1], 10) - 1, m[2].trim());
+  }
+  const result = descs.map((_, i) => map.get(i) ?? '');
+  if (result.filter(Boolean).length < Math.ceil(descs.length / 2)) {
+    throw new Error(`llm incomplete (${result.filter(Boolean).length}/${descs.length})`);
+  }
+  return result;
+}
+
+// 谷歌翻译免 key 端点(dict-chrome-ex)。非官方, 随时可能失效——失败即落下一层。
+// ponytail: 逐条串行; 429/封禁时靠 MyMemory 兜底
+async function viaGoogle(descs: string[]): Promise<string[]> {
+  const out: string[] = [];
+  for (const d of descs) {
+    const url =
+      `https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=en&tl=zh-CN&q=` +
+      encodeURIComponent(d.slice(0, 400));
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' } });
+    if (!res.ok) throw new Error(`google ${res.status}`);
+    const j = (await res.json()) as unknown;
+    // 响应形态: ["译文"] 或 [["原文","译文",...]]
+    if (Array.isArray(j) && j.length && Array.isArray(j[0])) out.push(String(j[0][1] ?? ''));
+    else if (Array.isArray(j) && j.length) out.push(String(j[0]));
+    else throw new Error('google bad shape');
+  }
+  return out;
 }
 
 // MyMemory 单条调用(批量=拼接会破坏对齐),匿名额度约5000字符/天,10条短句够用。
