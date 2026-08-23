@@ -71,9 +71,9 @@ export default {
       return new Response('not found', { status: 404 });
     }
 
-    // a) 验签(常量时间比较)
+    // a) 验签(常量时间比较); secret 未配置时 fail-closed 全拒
     const got = req.headers.get('X-Telegram-Bot-Api-Secret-Token') ?? '';
-    if (!(await safeEqual(got, env.WEBHOOK_SECRET))) {
+    if (!env.WEBHOOK_SECRET || !(await safeEqual(got, env.WEBHOOK_SECRET))) {
       return new Response('forbidden', { status: 403 });
     }
 
