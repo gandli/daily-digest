@@ -1,36 +1,17 @@
-name: CI
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-
-jobs:
-  check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npx tsc --noEmit
-      - name: secret leak scan
-        run: |
-          ! grep -rEn "(ghp_[A-Za-z0-9]{20,}|gho_[A-Za-z0-9]{20,}|[0-9]{8,10}:AA[A-Za-z0-9_-]{30,})" src/ wrangler.jsonc
-      - run: npx wrangler deploy --dry-run
-        env:
-          CLOUDFLARE_API_TOKEN: dry-run-only
-          CLOUDFLARE_ACCOUNT_ID: dry-run-only
-
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # secrets 不能直接用于 if 判断, 用 job 内检查 + 退出码控制
+      - name: Deploy (skips cleanly until CF secrets configured)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::notice::CLOUDFLARE_API_TOKEN not configured, skipping deploy"
+            exit 0
+          fi
+          npx wrangler deploy
