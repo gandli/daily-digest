@@ -1,5 +1,6 @@
 import type { SourceItem } from './types';
 
+const unesc = (s: string) => s.replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"');
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const fmtK = (n?: number) => (n === undefined ? '' : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 
@@ -13,7 +14,7 @@ export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl
       const stars = it.stars !== undefined ? ` ⭐ ${fmtK(it.stars)}${today}` : '';
       return (
         `${i + 1}. <b><a href="${esc(it.url)}">${esc(it.title)}</a></b>${stars}${langTag}\n` +
-        `${esc(it.descZh || it.desc)}\n` +
+        `${esc(unesc(it.descZh || it.desc))}\n` +
         `<a href="https://deepwiki.com/${esc(it.title)}">📖 deepwiki</a>`
       );
     })
@@ -42,7 +43,7 @@ export function renderMarkdown(dateStr: string, items: SourceItem[], telegraphUr
       (it, i) =>
         `${i + 1}. **[${it.title}](${it.url})** ⭐ ${fmtK(it.stars)}${
           it.starsToday ? ` (+${fmtK(it.starsToday)})` : ''
-        }${it.lang ? ` · ${it.lang}` : ''}\n   - ${it.descZh || it.desc}`,
+        }${it.lang ? ` · ${it.lang}` : ''}\n   - ${unesc(it.descZh || it.desc)}`,
     )
     .join('\n');
   return (
