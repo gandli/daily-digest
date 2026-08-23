@@ -65,6 +65,28 @@ export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
     if (req.method === 'GET') {
+      // /preview: 数据管线自检(抓取→翻译→渲染, 不发消息)。仅未配凭证时开放。
+      if (url.pathname === '/preview' && !env.BOT_TOKEN) {
+        const dateStr = shanghaiDate();
+        let items: SourceItem[] = [];
+        for (const s of sources) items = items.concat(await s.fetch(env));
+        const tErrors: string[] = [];
+        const translated = await translateBatch(env, items, tErrors);
+        const nodes = renderTelegraphNodes(translated);
+        let telegraphUrl: string | null = null;
+        if (env.TELEGRAPH_TOKEN) {
+          telegraphUrl = await createTelegraphPage(env.TELEGRAPH_TOKEN, dateStr, nodes);
+        }
+        return Response.json({
+          date: dateStr,
+          count: translated.length,
+          translatedCount: translated.filter((i) => i.descZh).length,
+          translateErrors: tErrors,
+          message: renderMessage(dateStr, translated, telegraphUrl ?? undefined),
+          markdown: renderMarkdown(dateStr, translated),
+          items: translated,
+        });
+      }
       return new Response('daily-digest worker running\n', { headers: { 'content-type': 'text/plain' } });
     }
     if (url.pathname !== '/telegram' || req.method !== 'POST') {
