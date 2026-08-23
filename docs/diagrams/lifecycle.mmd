@@ -1,0 +1,26 @@
+stateDiagram-v2
+    [*] --> 空闲
+
+    空闲 --> 抓取中 : cron 08:30 触发
+    空闲 --> 推送中 : /trending 且缓存命中
+    空闲 --> 抓取中 : /trending 且缓存 miss
+
+    抓取中 --> 翻译中 : HTMLRewriter 得 top10
+    抓取中 --> 失败 : 页面改版/网络错误
+
+    state 翻译中 {
+        [*] --> WorkersAI
+        WorkersAI --> MyMemory : AI 调用失败
+        MyMemory --> 英文原文 : 回退也失败
+        WorkersAI --> 完成
+        MyMemory --> 完成
+        英文原文 --> 完成
+    }
+
+    翻译中 --> 已渲染 : 中文描述就绪
+    已渲染 --> 推送中 : sendMessage<br/>每日一条 ≤4096字符
+    推送中 --> 已存档 : ctx.waitUntil<br/>GitHub commit + KV 写缓存
+    已存档 --> 空闲 : 等待下次触发
+
+    失败 --> 推送中 : 发简短错误提示给你
+    失败 --> 空闲 : cron 场景静默重试次日
