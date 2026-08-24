@@ -212,7 +212,12 @@ export async function archiveUrl(env: Env, chatId: string, url: string): Promise
   const stamp = `${today()}-${Date.now() % 86400000}`;
   try {
     await archiveToGitHub(env, stamp, `# Web Archive · ${url}\n\n${clipped}\n\n---\n由 daily-digest bot 自动生成`);
-    await sendTelegram(env.BOT_TOKEN, chatId, `✅ 已存档 ${new URL(url).hostname} → archive/${today().slice(0, 4)}/${stamp}.md`);
+    const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
+    await sendTelegram(
+      env.BOT_TOKEN,
+      chatId,
+      `✅ 已存档 ${new URL(url).hostname}\n📁 https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`,
+    );
   } catch (e) {
     console.error('archiveUrl failed', String(e).slice(0, 120));
     await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ 转换成功但存档失败(GitHub 写入异常), 请稍后再试。');
