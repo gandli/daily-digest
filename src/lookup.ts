@@ -17,6 +17,20 @@ export async function seenToday(env: Env, repo: string): Promise<boolean> {
   return false;
 }
 
+/** 存档成功后写 /search 索引(archive:idx:<repo> → {repo, date, descZh})。 */
+export async function indexArchivedItems(env: Env, items: SourceItem[], dateStr: string): Promise<void> {
+  for (const it of items) {
+    try {
+      await env.CACHE.put(
+        `archive:idx:${it.title.toLowerCase()}`,
+        JSON.stringify({ repo: it.title, date: dateStr, descZh: isChinese(it.descZh) ? it.descZh : undefined }),
+      );
+    } catch {
+      /* 索引失败不影响主流程 */
+    }
+  }
+}
+
 /** 从文本提取 GitHub 仓库链接或裸 owner/repo。优先 github.com 域; 兜底裸 owner/repo(排除文件名形态)。 */
 export function extractRepo(text: string): string | null {
   const strip = (s: string) => s.replace(/[。.,,;；]$/, '');
@@ -118,6 +132,7 @@ export async function lookupRepo(env: Env, chatId: string, repo: string): Promis
     const ogPath = await archiveOgImage(env, item.title);
     const md = renderMarkdown(today(), [item], undefined, ogPath ? new Map([[item.title, ogPath]]) : undefined);
     await archiveToGitHub(env, `${today()}-${Date.now() % 86400000}`, md);
+    await indexArchivedItems(env, [item], `${today()}-${Date.now() % 86400000}`); // /search 索引
   } catch {
     /* 存档失败静默 */
   }
