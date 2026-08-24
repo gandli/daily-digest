@@ -69,10 +69,11 @@ export async function archiveTweet(
   }
   await sendTelegram(env.BOT_TOKEN, chatId, renderTweetHtml(tweet));
   const stamp = `${shanghaiDate()}-${Date.now() % 86400000}`;
+  const tUrl = tweet.url ?? `https://x.com/${handle}/status/${id}`;
   const md = [
     `# X Post · @${tweet.author?.screen_name ?? handle}`,
     '',
-    `- 原链: ${tweet.url ?? `https://x.com/${handle}/status/${id}`}`,
+    `- 原链: ${tUrl}`,
     `- 作者: ${tweet.author?.name ?? ''} (@${tweet.author?.screen_name ?? handle})`,
     `- 时间: ${tweet.created_at ?? ''}`,
     `- 数据: ❤️ ${tweet.likes ?? '-'} · 🔁 ${tweet.retweets ?? '-'} · 💬 ${tweet.replies ?? '-'}`,
@@ -87,9 +88,21 @@ export async function archiveTweet(
   ].join('\n');
   try {
     await archiveDatedToGitHub(env, stamp, md);
+    // Telegraph 存档(单帖一页; 失败静默——增强非必需)
+    let tgLine = '';
+    if (env.TELEGRAPH_TOKEN) {
+      const nodes: unknown[] = [
+        { tag: 'p', children: [`@${tweet.author?.screen_name ?? handle} · ${tweet.created_at ?? ''}`] },
+        { tag: 'p', children: [tweet.text ?? ''] },
+        ...(tweet.media?.all ?? []).map((m) => ({ tag: 'figure' as const, children: [{ tag: 'img' as const, attrs: { src: m.thumbnail_url ?? m.url ?? '' } }] })),
+        { tag: 'p', children: [{ tag: 'a', attrs: { href: tUrl }, children: ['原帖'] }] },
+      ];
+      const pageUrl = await createTelegraphPage(env.TELEGRAPH_TOKEN, `X · @${handle} · ${stamp.slice(0, 10)}`, nodes);
+      if (pageUrl) tgLine = `\n📄 Telegraph: ${pageUrl}`;
+    }
     await indexArchivedItems(env, [{ title: `x/@${handle}`, url: tweet.url ?? '', desc: '', descZh: tweet.text?.slice(0, 120) } as SourceItem], stamp);
     const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
-    await sendTelegram(env.BOT_TOKEN, chatId, `📁 存档: https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`);
+    await sendTelegram(env.BOT_TOKEN, chatId, `📁 存档: https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md${tgLine}`);
   } catch (e) {
     console.error('archiveTweet store failed', String(e).slice(0, 100));
     await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ 已取到帖子但存档失败(GitHub 写入异常)。');
@@ -270,7 +283,7 @@ export default {
       } else if (tweet) {
         ctx.waitUntil(archiveTweet(env, chatId, tweet.handle, tweet.id));
       } else if (url) {
-        ctx.waitUntil(archiveUrl(env, chatId, url));
+        ctx.waitUntil(archiveUrl(env, chatId, url, ctx));
       } else {
         ctx.waitUntil(sendTelegram(env.BOT_TOKEN, chatId, HELP));
       }
