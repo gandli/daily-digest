@@ -16,10 +16,10 @@ export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl
     const topicTags = (it.topics ?? []).map((t) => `#${t}`).join(' ');
     const tags = [`#trending`, topicTags].filter(Boolean).join(' ');
     const body =
-      `🚀 <b><a href="${esc(it.url)}">${esc(it.title)}</a></b>${stars}${langTag}\n` + // 标题层
-      `📝 ${esc(unesc(it.descZh || it.desc))}\n` + // 一句话描述层
+      `<b><a href="${esc(it.url)}">${esc(it.title)}</a></b>${stars}${langTag}\n` + // 标题层
+      `${esc(unesc(it.descZh || it.desc))}\n` + // 描述层
       `\n` + // wiki 已并入 descZh, 不再单独一层
-      `🔗 <a href="https://deepwiki.com/${esc(it.title)}">deepwiki</a> · <a href="https://zread.ai/${esc(it.title)}">zread</a>\n` +
+      `<a href="https://deepwiki.com/${esc(it.title)}">deepwiki</a> · <a href="https://zread.ai/${esc(it.title)}">zread</a>\n` +
       (tags ? `${tags}` : '');
     // ponytail: wikiDesc 极端超长时仍可能超4096——截断到安全长度
     let msg = head + body + (i === items.length - 1 ? footer : '');
