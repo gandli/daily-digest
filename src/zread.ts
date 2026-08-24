@@ -2,27 +2,53 @@
 // 免 key(robots.txt User-agent:* Allow:/)。Accept-Language: zh-CN 拿中文版。失败不抛——增强层。
 const ZREAD_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126';
 
-/** 提取"是什么"定义句: 优先取 "概览/Overview" 标题后的概述段 → 含仓库名的最长定义段 → 退回最长 */
+/** 提取"是什么"定义句: 优先取 "概览/概述/Overview/简介" 标题(含 ## 与 ** 形态)后的概述段 → 含仓库名的最长定义段 → 退回最长 */
 export function extractDesc(payload: string, maxLen: number, subject?: string): string | null {
   const tail = payload.slice(30000);
   const end = tail.indexOf('\nSources: ');
   const body = end > 0 ? tail.slice(0, end) : tail.slice(0, 20000);
-  // 按 \n\n 切块, 记录每块是否紧跟概览标题(## 概览 / ## Overview)
   const blocks = body.split('\n\n');
   let expectOverview = false;
   let best: { clean: string; len: number; subj: boolean; ov: boolean } | null = null;
+
+  // 识别概览类标题: ## 概述 / **概述** / ## Overview / ## 简介
+  const ovHead = /^(?:#{1,3}\s*|\*{1,2}\s*)(概览|概述|Overview|简介)(?:\s*\*{1,2})?\s*$/i;
+  // 识别"其他标题"(## xx / **xx**), 遇到则清除 expectOverview
+  const otherHead = /^(?:#{1,3}\s*|\*{1,2}[^*]).*/;
+
   for (let blk of blocks) {
-    blk = blk.trim();
-    // 标题行: 命中概览类 → 下一块是概述段
-    if (/^#{1,3}\s*(概览|概述|Overview|简介)\s*$/i.test(blk)) { expectOverview = true; continue; }
-    if (blk && (/^#{1,3}\s/.test(blk) || /^[-*]/.test(blk))) { expectOverview = false; continue; } // 其他标题重置
-    if (!blk || /^[```|[!]/.test(blk)) continue;
-    if (blk.includes('.js') || blk.includes('static/') || blk.includes('$')) continue; // RSC 杂讯
-    if (/^\d+[.)]/.test(blk) || /^\d+\s*\|/.test(blk)) continue; // 编号目录/表格行
-    const clean = blk.replace(/`[^`]*`/g, '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[#*>|!]/g, '').replace(/\n/g, ' ').trim();
+    const lines = blk.trim().split('\n');
+    let bodyText = blk.trim();
+    // 标题行可能与正文同块: "## 概述\n正文..."。若首行是概览标题, 摘出标题, 剩余作正文; 同时标记后续块待概览
+    if (lines.length) {
+      const first = lines[0].trim();
+      if (ovHead.test(first)) {
+        expectOverview = true;
+        bodyText = lines.slice(1).join('\n').trim();
+        if (!bodyText) continue; // 纯标题行, 等下一块
+      } else if (otherHead.test(first) && lines.length >= 1 && blk.trim().length < 80) {
+        // 其他标题(独立一行) → 清概览标记
+        expectOverview = false;
+        continue;
+      }
+    }
+
+    if (!bodyText || /^[```|[!]/.test(bodyText)) continue;
+    if (bodyText.includes('.js') || bodyText.includes('static/') || bodyText.includes('$')) continue; // RSC 杂讯
+    if (/^\d+[.)]/.test(bodyText) || /^\d+\s*\|/.test(bodyText)) continue; // 编号目录/表格行
+
+    const clean = bodyText
+      .replace(/`[^`]*`/g, '')
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/[#*>|!]/g, '')
+      .replace(/\n/g, ' ')
+      .trim();
     const cjk = (clean.match(/[\u4e00-\u9fff]/g) ?? []).length;
     if (cjk < 15 || cjk < clean.length * 0.3) continue; // 必须中文为主
-    if (!/(是一个|是一套|是一款|旨在|专注于|让你|帮助你|解决了|用于构建|用于管理|核心思路|本质上|由 .* 开发)/.test(clean)) continue;
+    // 定位动词: 概述段放宽(只需"是…"), 非概述段需强动词——避免概述段被跳过而误选架构概览
+    const isDef = /(是一个|是一套|是一款|旨在|专注于|让你|帮助你|解决了|用于构建|用于管理|核心思路|本质上|由 .* 开发)/.test(clean);
+    if (!isDef && !(expectOverview && /^[^，。]{2,40}是/.test(clean))) continue;
+
     const cand = {
       clean, len: clean.length,
       subj: subject ? clean.toLowerCase().includes(subject.toLowerCase()) : false,

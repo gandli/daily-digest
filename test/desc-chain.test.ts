@@ -42,11 +42,18 @@ describe('extractDesc: zread 中文提取', () => {
     expect(d!).not.toContain('策展器');      // 不误选次要子系统长段
   });
 
-  it('无 subject 命中 → 退回最长定义段(原行为)', () => {
+  it('无 subject 命中 → 概览段仍优先(即使非最长)', () => {
     const p = payload('\n## 概览\n\nCodex CLI 是 OpenAI 的开源编码 Agent，可在你的计算机上本地运行。\n\n## 进阶\n\nCodex CLI 也是一款极强大的终端工具，它集成了众多高级功能并且支持插件扩展机制，同时还有良好的文档与社区支持。\n');
     const d = extractDesc(p, 280, 'somerepo'); // 无任何块含 somerepo
     expect(d).not.toBeNull();
-    expect(d!).toContain('终端工具'); // 最长定义段胜出
+    expect(d!).toContain('开源编码 Agent'); // 概览段优先(即使"终端工具"更长)
+  });
+
+  it('无"概览/概述"标题 → 退回较长定义段', () => {
+    const p = payload('\n## 原理\n\nCodex CLI 是 OpenAI 的开源编码 Agent，可在你的计算机上本地运行。\n\n## 进阶\n\nCodex CLI 也是一款极强大的终端工具，它集成了众多高级功能并且支持插件扩展机制，同时还有良好的文档与社区支持。\n');
+    const d = extractDesc(p, 280);
+    expect(d).not.toBeNull();
+    expect(d!).toContain('终端工具'); // 无概览段, 退化选较长定义
   });
 
   it('优先"概览/Overview"标题后的概述段', () => {
@@ -59,6 +66,20 @@ describe('extractDesc: zread 中文提取', () => {
     expect(d).not.toBeNull();
     expect(d!).toContain('Agent 支撑操作系统'); // 概览段优先(即使更短)
     expect(d!).not.toContain('纵深防御');        // 不误选更长的原理段
+  });
+
+  it('标题与正文同块: "## 概述\n正文" 也能提取, 且优先于架构概览', () => {
+    // 用户报错场景: vorssaint-utils —— ## 概述 与正文同块; 架构概览作独立块稍长
+    const p = payload(
+      '## 概述\n\n' +
+        'Vorssaint 是一款原生 macOS 菜单栏实用工具，它将一系列付费 Mac 工具整合为一个免费应用。该应用完全使用 Swift 编写，驻留在菜单栏图标之后，提供音量控制、系统监控、窗口管理等功能。\n\n' +
+        '## 架构概览\n\n' +
+        'Vorssaint 作为一款 LSUIElement 辅助应用运行，它没有 Dock 栏图标也没有主窗口，整个用户界面由一个菜单栏状态项承载，遵循带有 Combine 发布者的单例服务模式，每个功能管理器都是全局共享的可观察对象。\n',
+    );
+    const d = extractDesc(p, 280);
+    expect(d).not.toBeNull();
+    expect(d!).toContain('菜单栏实用工具');  // 选中概述段
+    expect(d!).not.toContain('LSUIElement'); // 不误选架构概览段
   });
 });
 
