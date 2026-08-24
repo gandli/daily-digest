@@ -1,4 +1,5 @@
 import type { SourceItem } from './types';
+import { isChinese } from './translate';
 
 const unesc = (s: string) => s.replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"');
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -17,7 +18,7 @@ export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl
     const tags = [`#trending`, topicTags].filter(Boolean).join(' ');
     const body =
       `<b><a href="${esc(it.url)}">${esc(it.title)}</a></b>${stars}${langTag}\n\n` + // 标题层
-      `${esc(unesc(it.descZh || it.desc))}\n\n` + // 描述层
+      `${esc(unesc(isChinese(it.descZh) ? it.descZh! : it.desc))}${isChinese(it.descZh) ? '' : ' <i>(EN)</i>'}\n\n` + // 描述层(非中文守卫)
       `<a href="https://deepwiki.com/${esc(it.title)}">deepwiki</a> · <a href="https://zread.ai/${esc(it.title)}">zread</a>` +
       (tags ? `\n\n${tags}` : '');
     // ponytail: wikiDesc 极端超长时仍可能超4096——截断到安全长度
@@ -34,7 +35,7 @@ export function renderMarkdown(dateStr: string, items: SourceItem[], telegraphUr
       (it, i) =>
         `${i + 1}. **[${it.title}](${it.url})** ⭐ ${fmtK(it.stars)}${
           it.starsToday ? ` (+${fmtK(it.starsToday)})` : ''
-        }${it.lang ? ` · ${it.lang}` : ''}\n   - ${unesc(it.descZh || it.desc)}\n   - [deepwiki](https://deepwiki.com/${it.title}) · [zread](https://zread.ai/${it.title})`,
+        }${it.lang ? ` · ${it.lang}` : ''}\n   - ${unesc(isChinese(it.descZh) ? it.descZh! : it.desc)}${isChinese(it.descZh) ? '' : ' (EN)'}\n   - [deepwiki](https://deepwiki.com/${it.title}) · [zread](https://zread.ai/${it.title})`,
     )
     .join('\n');
   return (

@@ -59,7 +59,35 @@ describe('extractDeepwikiOverview: 英文 overview 提取', () => {
   });
 });
 
-// ---------- 兜底链顺序 ----------
+// ---------- 100% 中文守卫 ----------
+import { isChinese } from '../src/translate';
+
+describe('isChinese: 最终输出守卫', () => {
+
+  it('中文描述 → true', () => {
+    expect(isChinese('ECC 是一款开源的 Agent 支撑操作系统，它将 AI 编程 Agent 转变为协同系统。')).toBe(true);
+  });
+  it('纯英文 → false', () => {
+    expect(isChinese('The agent harness performance optimization system.')).toBe(false);
+  });
+  it('短中文(<5字) → false', () => {
+    expect(isChinese('你好吗')).toBe(false);
+  });
+  it('空/null → false', () => {
+    expect(isChinese('')).toBe(false);
+    expect(isChinese(null)).toBe(false);
+    expect(isChinese(undefined)).toBe(false);
+  });
+
+  it('translateBatch 回填守卫: 非中文翻译结果不回填(模拟)', () => {
+    // 直接验证回填逻辑等价式
+    const zh = ['这是中文描述没有问题', ''];           // 第二条翻译失败返回空串
+    const items = [{ descZh: undefined, desc: 'English fallback' }, { descZh: undefined, desc: 'Another' }];
+    const out = items.map((it, i) => ({ ...it, descZh: isChinese(zh[i]) ? zh[i] : it.descZh ?? undefined }));
+    expect(isChinese(out[0].descZh)).toBe(true);   // 中文回填成功
+    expect(out[1].descZh).toBeUndefined();          // 空串被拒, 不冒充中文
+  });
+});
 describe('兜底链: 最终输出必须中文', () => {
   const makeItem = (title: string, desc: string) =>
     ({ title, url: `https://github.com/${title}`, stars: '1k', desc, descZh: undefined }) as any;

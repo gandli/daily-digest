@@ -2,13 +2,20 @@ import type { Env, SourceItem } from './types';
 import { fetchZreadBatch } from './zread';
 import { fetchDeepwikiBatch } from './deepwiki';
 
+/** 中文判定: CJK 字符 ≥5 且占比 >30% —— 100% 中文守卫的校验器 */
+export function isChinese(s?: string | null): boolean {
+  if (!s) return false;
+  const cjk = (s.match(/[\u4e00-\u9fff]/g) ?? []).length;
+  return cjk >= 5 && cjk > s.length * 0.3;
+}
+
 // 描述解析链(按序兜底): zread wiki 中文 → deepwiki 英文 Overview → 翻译成中文 → repo desc 翻译成中文 → 英文原文
 export async function resolveDescriptions(env: Env, items: SourceItem[]): Promise<void> {
-  // 1. zread wiki 中文(主描述源)
+  // 1. zread wiki 中文(主描述源)——非中文的命中视为无效, 落入下一级
   const wikis = await fetchZreadBatch(items.map((i) => i.title)).catch(() => new Map<string, string>());
   const missing = items.filter((it) => {
     const w = wikis.get(it.title);
-    if (w) { it.descZh = w; return false; }
+    if (w && isChinese(w)) { it.descZh = w; return false; }
     return true;
   });
   console.log(`zread wiki: ${wikis.size}/${items.length}`);
@@ -26,9 +33,13 @@ export async function resolveDescriptions(env: Env, items: SourceItem[]): Promis
   }
 
   // 3. 翻译: 没拿到 zread 中文的条目, 全部走翻译链(deepwiki 英文 或 repo 原 desc)
+  // translateBatch 返回新数组(不可变回填), 必须写回原 items
   const toTranslate = items.filter((i) => !i.descZh);
   if (toTranslate.length) {
-    await translateBatch(env, toTranslate as SourceItem[]); // 内部回填 descZh
+    const done = await translateBatch(env, toTranslate as SourceItem[]);
+    for (let i = 0; i < toTranslate.length; i++) {
+      toTranslate[i].descZh = done[i].descZh;
+    }
   }
 }
 
@@ -65,8 +76,19 @@ export async function translateBatch(
   }
   if (!zh) return items; // 英文原文兜底
 
-  // ponytail: 按 desc 数组对位回填; 存在空描述条目时会错位——v1 数据源保证 desc 非空
-  return items.map((it, i) => ({ ...it, descZh: zh[i] || it.desc }));
+  // 100% 中文守卫: 非中文槽位逐条用 TranSmart 补翻(WorkersAI m2m100 偶发输出英文)
+  const bad = [...new Set(zh!.map((z, i) => (isChinese(z) ? -1 : i)).filter((i) => i >= 0))];
+  if (bad.length && bad.length < items.length) {
+    try {
+      const fix = await viaTranSmart(bad.map((i) => items[i].desc));
+      for (let k = 0; k < bad.length; k++) if (isChinese(fix[k])) zh![bad[k]] = fix[k];
+    } catch {
+      /* TranSmart 也挂则维持守卫拒绝 */
+    }
+  }
+
+  // 最终守卫: 仍非中文的不回填
+  return items.map((it, i) => ({ ...it, descZh: isChinese(zh![i]) ? zh![i] : it.descZh ?? undefined }));
 }
 
 // m2m100-1.2b: 专职翻译模型。llama 系列已于 2026-05 弃用。
