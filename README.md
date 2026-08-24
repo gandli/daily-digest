@@ -23,8 +23,8 @@ GitHub Trending → **Telegram 每日中文摘要 bot**。Cloudflare Workers 免
 | `/archive` | 历史存档链接(GitHub archive 分支) |
 | `/start` `/help` 其他无链接消息 | 使用提示 |
 | 含 GitHub 仓库链接 / `owner/repo` 的消息 | 单仓库查询:GitHub API + deepwiki/zread 中文描述 → OG 图卡片回复,并存档(同日去重) |
-| 含 X/Twitter 帖子链接的消息 | FxEmbed API 取帖子 → 卡片回复 + 存档(`src/fxtweet.ts`) |
-| 含其他网页链接的消息 | 三级免费链转 markdown 存档:`src/urlmd.ts` |
+| 含 X/Twitter 帖子链接的消息 | FxEmbed API 取帖子 → 卡片回复 + **双存档**(archive 分支 + Telegraph 页) |
+| 含其他网页链接的消息 | 三级免费链转 markdown 存档,回复带 **OG 图 + 存档链接**;内容含 repo 链接时自动联动查询(≤3 个) |
 
 ## 🔗 描述获取链
 
@@ -49,7 +49,7 @@ deepwiki 概述(剥模板开场白)
 - `src/fxtweet.ts` X/Twitter 帖子存档(FxEmbed 公共 API)
 - KV 缓存当日 cron 结果;webhook 验签 timingSafeEqual + chat 白名单;/search 用 KV 存档索引
 
-详见 [`docs/GOAL.md`](docs/GOAL.md)(验收标准 A1–A12)。
+详见 [`docs/GOAL.md`](docs/GOAL.md)(验收标准 A1–A14)。
 
 ## 💻 开发
 
@@ -58,7 +58,7 @@ npm install
 npm run dev        # wrangler dev --test-scheduled
 curl http://localhost:8787/__scheduled   # 手动触发 cron 管线
 npx tsc --noEmit   # 类型检查
-npm test           # vitest 55 用例
+npm test           # vitest 77 用例
 ```
 
 ## 🔑 Secrets(wrangler secret put)
@@ -72,3 +72,9 @@ PR 合并 main → GitHub Actions 自动 `wrangler deploy`(需 repo secrets CLOU
 ## 🗺️ v2 路线
 
 网页收藏源、X 帖子源 —— 各写一个 fetch 函数接入 `src/sources/index.ts` 即可,管线零改动。
+
+---
+
+<p align="center">
+  <sub>Cloudflare Workers 免费层 · 无 DB · KV only · 测试 77/77 · CI 自动部署</sub>
+</p>
