@@ -20,7 +20,20 @@ export function extractDeepwikiOverview(payload: string, maxLen = 400): string |
     .replace(/\s+/g, ' ')
     .trim();
   if (!clean || clean.length < 40) return null;
-  return clean.length > maxLen ? clean.slice(0, maxLen - 1) + '…' : clean;
+  // 去掉 deepwiki 模板开场白: "This page/document provides a high-level/comprehensive introduction to X, <真实描述>"
+  // 目标: 取描述(X 之后 / 逗号之后的实义内容), 不要"本页面提供了...介绍"这类无信息开头
+  let stripped = clean;
+  const tpl = /^this\s+(?:page|document|guide|wiki)\s+(?:provides\s+)?(?:a\s+)?(?:comprehensive\s+|high-level\s+)?(?:introduction|overview|description)\s+(?:of|to)\s+/i;
+  const tplm = stripped.match(tpl);
+  if (tplm) {
+    const rest = stripped.slice(tplm[0].length);
+    // 逗号分隔(X, 描述) → 取逗号后; 否则取整段
+    const comma = rest.match(/^[^,，]+[,，]\s*(.+)/s);
+    stripped = comma ? comma[1] : rest;
+  }
+  stripped = stripped.trim();
+  if (!stripped) return null;
+  return stripped.length > maxLen ? stripped.slice(0, maxLen - 1) + '…' : stripped;
 }
 
 /** 从 deepwiki.com /:owner/:repo 抓取 Overview 英文原文 */

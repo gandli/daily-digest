@@ -116,8 +116,9 @@ describe('extractDeepwikiOverview: 英文 overview 提取', () => {
       'x'.repeat(200) + `\nOverview\n\n<details>\n<summary>Relevant source files</summary>\n\n- [a.ts](a.ts)\n</details>\n\n\n\n## Purpose and Scope\n\nThis page provides a high-level introduction to Omarchy, its architecture, core components, and design philosophy. It serves as an entry point for understanding the system.\n\n## Design`;
     const d = extractDeepwikiOverview(payload, 400);
     expect(d).not.toBeNull();
-    expect(d!).toContain('high-level introduction to Omarchy');
+    expect(d!).toContain('its architecture, core components'); // 模板开场白已剥离, 取逗号后描述
     expect(d!).not.toContain('Relevant source files');
+    expect(d!).not.toContain('high-level introduction to'); // 模板句被移除
   });
 
   it('真实结构2(ECC): 冒号标题紧邻 details, 正文紧跟', () => {
