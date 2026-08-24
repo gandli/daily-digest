@@ -10,6 +10,7 @@ export const shanghaiDate = (): string => new Date(Date.now() + 8 * 3600_000).to
 
 const HELP = `📊 daily-digest 使用:
 /trending — 获取今日 GitHub Trending 中文摘要
+/archive — 查看历史存档链接
 每天 08:30(北京时间)自动推送一条。`;
 
 // 共享管线:cron 与 /trending 都走这里。
