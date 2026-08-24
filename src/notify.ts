@@ -16,7 +16,7 @@ export async function registerCommands(token: string): Promise<void> {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       commands: [
-        { command: 'trending', description: '获取今日 GitHub Trending 中文摘要' },
+        { command: 'trending', description: '获取今日 GitHub Trending' },
         { command: 'help', description: '使用说明' },
         { command: 'archive', description: '查看历史存档链接' },
       ],
