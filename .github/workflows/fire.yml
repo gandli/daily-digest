@@ -1,0 +1,7 @@
+name: fire (temp)
+on: workflow_dispatch
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -s -o /tmp/b -w 'HTTP:%{http_code}\n' --max-time 200 "https://daily-digest.gandli-digest.workers.dev/run?token=${{ secrets.DD_RUN_TOKEN_SECRET }}&cache=0" && head -c 100 /tmp/b
