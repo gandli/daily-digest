@@ -7,6 +7,12 @@ export async function archiveToGitHub(env: Env, dateStr: string, markdown: strin
   await putToArchiveBranch(env, path, markdown, `digest: ${dateStr}`);
 }
 
+/** X 帖子等带完整时间戳文件名的存档(lookup.ts 同形态)。 */
+export async function archiveDatedToGitHub(env: Env, stamp: string, markdown: string): Promise<void> {
+  const path = `archive/${stamp.slice(0, 4)}/${stamp}.md`;
+  await putToArchiveBranch(env, path, markdown, `archive: ${stamp}`);
+}
+
 /** archive 分支通用 PUT(创建或覆盖)。失败只记日志。 */
 async function putToArchiveBranch(env: Env, path: string, content: string, message: string): Promise<boolean> {
   const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';

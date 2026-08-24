@@ -3,9 +3,10 @@ import { sources } from './sources';
 import { resolveDescriptions, isChinese } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes } from './render';
 import { sendPerRepoMessages, sendTelegram, registerCommands, safeEqual } from './notify';
-import { archiveToGitHub, createTelegraphPage } from './archive';
+import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage } from './archive';
 import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl } from './lookup';
 import { extractUrl } from './urlmd';
+import { extractTweet, fetchTweet, renderTweetHtml, type FxTweet } from './fxtweet';
 
 // 北京时间日期串 YYYY-MM-DD(UTC+8 无 DST,直接偏移即可)
 export const shanghaiDate = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
@@ -15,6 +16,7 @@ const HELP = `📊 daily-digest 使用:
 /search <关键词> — 搜索历史存档
 /archive — 查看历史存档链接
 发 GitHub 仓库链接 = 单仓查询(自动去重)。
+发 X/Twitter 帖子链接 = 帖子存档。
 发任意网页链接 = 转 markdown 存档。
 每天 08:30(北京时间)自动推送一条。`;
 
@@ -48,6 +50,50 @@ export async function searchArchive(env: Env, chatId: string, query: string): Pr
 }
 
 /** 存档成功后写搜索索引(lookup 单仓与 digest 批量共用)。实现见 lookup.ts(indexArchivedItems)。 */
+
+/**
+ * X 帖子存档: FxEmbed API 拉元数据 → 回复卡片 → archive 分支存档。
+ * API 失败落回通用 URL→markdown 链(x.com 反爬, 多半也失败, 但给用户一致行为)。
+ */
+export async function archiveTweet(
+  env: Env,
+  chatId: string,
+  handle: string,
+  id: string,
+  originalText: string,
+): Promise<void> {
+  const tweet = await fetchTweet(handle, id);
+  if (!tweet) {
+    // ponytail: x.com 直抓基本被墙, 落通用链是诚实降级而非兜底表演
+    await archiveUrl(env, chatId, `https://x.com/${handle}/status/${id}`);
+    return;
+  }
+  await sendTelegram(env.BOT_TOKEN, chatId, renderTweetHtml(tweet));
+  const stamp = `${shanghaiDate()}-${Date.now() % 86400000}`;
+  const md = [
+    `# X Post · @${tweet.author?.screen_name ?? handle}`,
+    '',
+    `- 原链: ${tweet.url ?? `https://x.com/${handle}/status/${id}`}`,
+    `- 作者: ${tweet.author?.name ?? ''} (@${tweet.author?.screen_name ?? handle})`,
+    `- 时间: ${tweet.created_at ?? ''}`,
+    `- 数据: ❤️ ${tweet.likes ?? '-'} · 🔁 ${tweet.retweets ?? '-'} · 💬 ${tweet.replies ?? '-'}`,
+    '',
+    '---',
+    '',
+    tweet.text ?? '',
+    ...(tweet.media?.all ?? []).map((m) => `\n![${m.type ?? 'media'}](${m.url ?? m.thumbnail_url})`),
+    '',
+    '---',
+    '由 daily-digest bot 经 FxEmbed API 自动生成',
+  ].join('\n');
+  try {
+    await archiveDatedToGitHub(env, stamp, md);
+    await indexArchivedItems(env, [{ title: `x/@${handle}`, url: tweet.url ?? '', desc: '', descZh: tweet.text?.slice(0, 120) } as SourceItem], stamp);
+  } catch (e) {
+    console.error('archiveTweet store failed', String(e).slice(0, 100));
+    await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ 已取到帖子但存档失败(GitHub 写入异常)。');
+  }
+}
 
 // 共享管线:cron 与 /trending 都走这里。
 export async function runDigest(env: Env, useCache = true): Promise<number> {
@@ -207,8 +253,9 @@ export default {
       }
       return new Response('ok');
     } else {
-      // GitHub 链接 → 单仓库 lookup; 任意 URL → 转 markdown 存档; 都不是 → 帮助
+      // GitHub 链接 → 单仓库 lookup; X 帖子 → FxEmbed API 存档; 任意 URL → 转 markdown; 都不是 → 帮助
       const repo = extractRepo(text);
+      const tweet = extractTweet(text);
       const url = extractUrl(text);
       if (repo) {
         if (await seenToday(env, repo)) {
@@ -216,6 +263,8 @@ export default {
         } else {
           ctx.waitUntil(lookupRepo(env, chatId, repo));
         }
+      } else if (tweet) {
+        ctx.waitUntil(archiveTweet(env, chatId, tweet.handle, tweet.id, text));
       } else if (url) {
         ctx.waitUntil(archiveUrl(env, chatId, url));
       } else {
