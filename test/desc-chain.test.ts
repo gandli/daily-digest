@@ -28,6 +28,26 @@ describe('extractDesc: zread 中文提取', () => {
     expect(d).not.toContain('static/chunks');
     expect(isZh(d!)).toBe(true);
   });
+
+  it('优先含仓库名的定义段(修复: 不误选次要子系统长段)', () => {
+    // 模拟 hermes-agent: 长"技能是…策展器是…"段(非目标) + 含 "hermes" 的较短定义段(目标)
+    const p = payload(
+      '\n## 核心机制\n\n' +
+        '技能 是程序性记忆——可复用的、Agent 编写的工作流，存储为 Markdown 提示词文件。复杂任务之后，Agent 可以自主创建技能。策展器 是一个后台辅助模型任务，定期审查 Agent 创建的技能，固定有用的技能，归档过时的技能，并合并重复项。技能在使用中自我改进。\n\n' +
+        '## 概览\n\nHermes Agent 是一款开源 AI 智能体框架，它是一款能在本地运行命令行工具。Hermes 由 Nous Research 团队开发。\n',
+    );
+    const d = extractDesc(p, 280, 'hermes'); // subject = 仓库名首段(hermes-agent→hermes), 同真人调用
+    expect(d).not.toBeNull();
+    expect(d!).toContain('Hermes Agent');   // 选中含仓库名的定义段
+    expect(d!).not.toContain('策展器');      // 不误选次要子系统长段
+  });
+
+  it('无 subject 命中 → 退回最长定义段(原行为)', () => {
+    const p = payload('\n## 概览\n\nCodex CLI 是 OpenAI 的开源编码 Agent，可在你的计算机上本地运行。\n\n## 进阶\n\nCodex CLI 也是一款极强大的终端工具，它集成了众多高级功能并且支持插件扩展机制，同时还有良好的文档与社区支持。\n');
+    const d = extractDesc(p, 280, 'somerepo'); // 无任何块含 somerepo
+    expect(d).not.toBeNull();
+    expect(d!).toContain('终端工具'); // 最长定义段胜出
+  });
 });
 
 // ---------- deepwiki 提取(英文, 待翻译) ----------
