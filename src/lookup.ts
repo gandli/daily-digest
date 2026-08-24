@@ -199,7 +199,7 @@ export async function refreshLookupDescriptions(env: Env): Promise<void> {
  * 任意 URL 存档: 三级降级链转 markdown(见 urlmd.ts) → 回复确认 → archive 分支存档。
  * 与 repo lookup 同一套存档/索引设施; 失败给用户明确回复, 不静默。
  */
-export async function archiveUrl(env: Env, chatId: string, url: string): Promise<void> {
+export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: ExecutionContext): Promise<void> {
   // og:image 预取(与转换共用一次下载的代价可忽略; 失败静默——图是增强不是必需)
   let photo: string | undefined;
   try {
@@ -222,6 +222,16 @@ export async function archiveUrl(env: Env, chatId: string, url: string): Promise
   const stamp = `${today()}-${Date.now() % 86400000}`;
   try {
     await archiveToGitHub(env, stamp, `# Web Archive · ${url}\n\n${clipped}\n\n---\n由 daily-digest bot 自动生成`);
+    // 内容含 GitHub repo 链接 → 逐个走 repo lookup(去重防递归; 上限 3 个省子请求)
+    if (ctx) {
+      const repoRefs = [...new Set([...clipped.matchAll(/https?:\/\/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/g)].map((m) => m[1]))]
+        .filter((r) => !/\.md$|\.js$|\.ts$|\.rs$|\.py$/i.test(r))
+        .slice(0, 3);
+      for (const r of repoRefs) {
+        if (await seenToday(env, r)) continue;
+        ctx.waitUntil(lookupRepo(env, chatId, r));
+      }
+    }
     const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
     const confirm = `✅ 已存档 ${new URL(url).hostname}\n📁 https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`;
     // 有 og:image → sendPhoto(图=OG 卡, caption=确认+链接); 无图/发送失败 → 纯文字
