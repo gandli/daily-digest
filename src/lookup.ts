@@ -4,6 +4,7 @@ import { fetchDeepwikiOverview } from './deepwiki';
 import { renderMessage, renderMarkdown } from './render';
 import { sendPerRepoMessages, sendTelegram } from './notify';
 import { archiveToGitHub, archiveOgImage } from './archive';
+import { urlToMarkdown } from './urlmd';
 
 // 北京时间日期串(与 index.ts 一致; 独立内联避免循环依赖)
 const today = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
@@ -192,4 +193,28 @@ export async function refreshLookupDescriptions(env: Env): Promise<void> {
     console.error('refreshLookupDescriptions failed', String(e).slice(0, 80));
   }
   if (refreshed.length) console.log(`lookup desc refreshed: ${refreshed.join(', ')}`);
+}
+
+/**
+ * 任意 URL 存档: 三级降级链转 markdown(见 urlmd.ts) → 回复确认 → archive 分支存档。
+ * 与 repo lookup 同一套存档/索引设施; 失败给用户明确回复, 不静默。
+ */
+export async function archiveUrl(env: Env, chatId: string, url: string): Promise<void> {
+  let md: string;
+  try {
+    md = await urlToMarkdown(env, url, { accountId: env.CF_ACCOUNT_ID, apiToken: env.CF_API_TOKEN });
+  } catch {
+    await sendTelegram(env.BOT_TOKEN, chatId, '❌ 无法转换该 URL(markdown 三级链全失败), 请稍后再试或换链接。');
+    return;
+  }
+  // 截断保护: 超长页面只存前 ~80KB(GitHub 文件无硬限, 但 API PUT 体面优先)
+  const clipped = md.length > 80_000 ? md.slice(0, 80_000) + '\n\n…(truncated)' : md;
+  const stamp = `${today()}-${Date.now() % 86400000}`;
+  try {
+    await archiveToGitHub(env, stamp, `# Web Archive · ${url}\n\n${clipped}\n\n---\n由 daily-digest bot 自动生成`);
+    await sendTelegram(env.BOT_TOKEN, chatId, `✅ 已存档 ${new URL(url).hostname} → archive/${today().slice(0, 4)}/${stamp}.md`);
+  } catch (e) {
+    console.error('archiveUrl failed', String(e).slice(0, 120));
+    await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ 转换成功但存档失败(GitHub 写入异常), 请稍后再试。');
+  }
 }
