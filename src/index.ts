@@ -148,7 +148,7 @@ export default {
     if (text.startsWith('/trending')) {
       ctx.waitUntil(Promise.all([registerCommands(env.BOT_TOKEN), runDigest(env, true)]));
     } else if (text.startsWith('/help') || text === '') {
-      ctx.waitUntil(registerCommands(env.BOT_TOKEN));
+      ctx.waitUntil(Promise.all([registerCommands(env.BOT_TOKEN), sendTelegram(env.BOT_TOKEN, chatId, HELP)]));
       return new Response('ok');
     } else if (text.startsWith('/archive')) {
       const dateStr = shanghaiDate();
