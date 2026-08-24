@@ -38,7 +38,7 @@ export function renderMarkdown(dateStr: string, items: SourceItem[], telegraphUr
           it.starsToday ? ` (+${fmtK(it.starsToday)})` : ''
         }${it.lang ? ` · ${it.lang}` : ''}${
           isChinese(it.descZh) ? `\n   - ${unesc(it.descZh!)}` : '' // 仅来自 zread/deepwiki 的中文, 双缺跳过
-        }\n   - [deepwiki](https://deepwiki.com/${it.title}) · [zread](https://zread.ai/${it.title})`,
+        }\n   - [deepwiki](https://deepwiki.com/${it.title}) · [zread](https://zread.ai/${it.title})\n\n   <img src="https://opengraph.githubassets.com/1/${it.title}" width="400" alt="${it.title} OG 卡">`,
     )
     .join('\n');
   return (
@@ -51,12 +51,16 @@ export function renderMarkdown(dateStr: string, items: SourceItem[], telegraphUr
 
 // Telegraph Node 内容(官方 API 的 Node 数组)。描述守卫与 renderMessage 同规则: 仅中文 descZh, 双缺只留标题行。
 export function renderTelegraphNodes(items: SourceItem[]): unknown[] {
-  return items.map((it) => ({
-    tag: 'p',
-    children: [
-      { tag: 'a', attrs: { href: it.url }, children: [it.title] },
-      // ponytail: 英文原文不上公开页面(中文硬约束), 与 renderMessage/renderMarkdown 一致
-      ...(isChinese(it.descZh) ? [` — ${unesc(it.descZh!)}`] : []),
-    ],
-  }));
+  return items.flatMap((it) => [
+    {
+      tag: 'p',
+      children: [
+        { tag: 'a', attrs: { href: it.url }, children: [it.title] },
+        // ponytail: 英文原文不上公开页面(中文硬约束), 与 renderMessage/renderMarkdown 一致
+        ...(isChinese(it.descZh) ? [` — ${unesc(it.descZh!)}`] : []),
+      ],
+    },
+    // OG 卡图(GitHub 动态生成, URL 引用零子请求; Telegraph 直显)
+    { tag: 'figure', children: [{ tag: 'img', attrs: { src: `https://opengraph.githubassets.com/1/${it.title}` } }] },
+  ]);
 }

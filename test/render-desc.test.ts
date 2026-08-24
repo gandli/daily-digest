@@ -42,3 +42,14 @@ describe('Telegraph 渲染: 中文守卫(P1-A)', () => {
     expect(JSON.stringify(nodes)).toContain('这是一个中文描述。');
   });
 });
+
+describe('存档渲染: OG 图(P3)', () => {
+  const it_ = { title: 'o/r', url: 'https://github.com/o/r', desc: 'x' };
+  it('markdown 存档含 OG 图引用', () => {
+    expect(renderMarkdown('2026-08-24', [it_] as never)).toContain('opengraph.githubassets.com/1/o/r');
+  });
+  it('Telegraph nodes 含 OG img 节点', () => {
+    const nodes = renderTelegraphNodes([it_] as never) as { tag: string }[];
+    expect(nodes.some((n) => n.tag === 'figure')).toBe(true);
+  });
+});
