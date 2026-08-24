@@ -2,7 +2,7 @@ import type { Env, SourceItem } from './types';
 import { sources } from './sources';
 import { translateBatch } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes } from './render';
-import { sendTelegram, safeEqual } from './notify';
+import { sendTelegram, sendOgAlbum, safeEqual } from './notify';
 import { archiveToGitHub, createTelegraphPage } from './archive';
 
 // 北京时间日期串 YYYY-MM-DD(UTC+8 无 DST,直接偏移即可)
@@ -49,7 +49,8 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
     telegraphUrl = await createTelegraphPage(env.TELEGRAPH_TOKEN, dateStr, renderTelegraphNodes(translated));
   }
 
-  // 4. 渲染并发送
+  // 4. 渲染并发送: OG 图相册(增强,失败不阻塞) + 文字消息
+  await sendOgAlbum(env.BOT_TOKEN, env.CHAT_ID, translated);
   const chunks = renderMessage(dateStr, translated, telegraphUrl ?? undefined);
   for (const c of chunks) await sendTelegram(env.BOT_TOKEN, env.CHAT_ID, c);
 
