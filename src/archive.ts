@@ -2,7 +2,7 @@ import type { Env } from './types';
 
 // GitHub 存档 + Telegraph 备份。两者失败都只记日志,不中断管线。
 export async function archiveToGitHub(env: Env, dateStr: string, markdown: string): Promise<void> {
-  const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest-archive';
+  const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest'; // 存档并入主仓(gandli/daily-digest-archive 已合并); 覆写留作备用
   const path = `archive/${dateStr.slice(0, 4)}/${dateStr}.md`;
   const content = btoa(String.fromCharCode(...new TextEncoder().encode(markdown)));
   // 幂等: 先查 sha,存在则 update(PUT 带 sha 覆盖)

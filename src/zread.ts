@@ -31,9 +31,10 @@ export function extractDesc(payload: string, maxLen: number): string | null {
 /** 从 zread.ai /:owner/:repo/wiki 页面的 Next.js RSC payload 里提取 Overview 中文描述 */
 export async function fetchZreadWikiDesc(repo: string, maxLen = 280): Promise<string | null> {
   try {
+    // zread.ai 2026-08 起变慢且风控。优先但尽力而为: 15s 超时兜底最坏情况(串行10个×15s=150s<curl预算), 失败即落 deepwiki/翻译
     const res = await fetch(`https://zread.ai/${repo}/wiki`, {
       headers: { 'User-Agent': ZREAD_UA, 'Accept-Language': 'zh-CN,zh;q=0.9' },
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) return null;
     const html = await res.text();
@@ -49,14 +50,15 @@ export async function fetchZreadWikiDesc(repo: string, maxLen = 280): Promise<st
   }
 }
 
-/** 批量并行抓取 */
+/** 批量抓取——串行限速, 逐个小间隔。 */
+// ponytail: 并发 10 会触发 zread 风控(实测 0/10 全时)。逐个串行+间隔, 降低压力; 代价=慢(10个×可控), 上限可调
 export async function fetchZreadBatch(repos: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
-  await Promise.all(
-    repos.map(async (r) => {
-      const d = await fetchZreadWikiDesc(r);
-      if (d) out.set(r, d);
-    }),
-  );
+  for (const r of repos) {
+    // ponytail: 用 setTimeout 走 Web Worker 兼容; 上次限流重灾区在并发, 串行间隔 800ms 防风控
+    await new Promise((res) => setTimeout(res, 800));
+    const d = await fetchZreadWikiDesc(r);
+    if (d) out.set(r, d);
+  }
   return out;
 }
