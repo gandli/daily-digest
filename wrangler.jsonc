@@ -6,7 +6,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "ai": { "binding": "AI" },
   "kv_namespaces": [
-    { "binding": "CACHE", "id": "856a5ac027374fe99175f0e94bc56ad5" }
+    { "binding": "CACHE", "id": "7325c5e3e6db4dfba95f7ebe64ab3b5a" }
   ],
   "triggers": {
     "crons": ["30 0 * * *"]

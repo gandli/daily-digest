@@ -9,36 +9,49 @@ export async function sendTelegram(token: string, chatId: string, html: string):
   if (!res.ok) console.error(`sendMessage ${res.status}: ${await res.text()}`);
 }
 
-// OG 图相册(每 repo 一图, caption 带标题+星数)。sendMediaGroup 上限 10 张/组。
-// Telegram 服务器代抓图, 偶发 WEBPAGE_CURL_FAILED → 失败项剔除后整组重试一次。
+// OG 图相册。Telegram 代抓 opengraph.githubassets.com 偶发被限速(WEBPAGE_CURL_FAILED),
+// 所以 Worker 自己下载图片, 以 multipart attach:// 上传——可靠。
 export async function sendOgAlbum(
   token: string,
   chatId: string,
   items: { title: string; stars?: number; starsToday?: number }[],
 ): Promise<void> {
   for (let i = 0; i < items.length; i += 10) {
-    let group = items.slice(i, i + 10).map((it, j) => {
-      const today = it.starsToday ? ` (+${it.starsToday} 今日)` : '';
-      return {
-        type: 'photo' as const,
-        media: `https://opengraph.githubassets.com/${i + j + 1}/${it.title}`,
-        caption: `${i + j + 1}. ${it.title}${today}`,
-      };
-    });
-    for (let attempt = 0; attempt < 2 && group.length; attempt++) {
-      const res = await fetch(`${API}/bot${token}/sendMediaGroup`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, media: group }),
-      });
-      if (res.ok) break;
-      const err = (await res.text()).slice(0, 200);
-      console.error(`sendMediaGroup ${res.status}: ${err}`);
-      // WEBPAGE_CURL_FAILED = 某张图 Telegram 抓取失败; message #N → 剔除第 N 张重试
-      const m = err.match(/message #(\d+)/);
-      if (!m || !res.ok) break;
-      group.splice(Number(m[1]) - 1, 1);
-    }
+    const slice = items.slice(i, i + 10);
+    // 并行下载全部图(约60KB/张)
+    const fetched = await Promise.all(
+      slice.map(async (it, j) => {
+        try {
+          const r = await fetch(`https://opengraph.githubassets.com/${i + j + 1}/${it.title}`, {
+            headers: { 'User-Agent': 'daily-digest-bot' },
+          });
+          if (!r.ok) throw new Error(String(r.status));
+          return { it, blob: await r.blob() };
+        } catch (e) {
+          console.error(`og fetch ${it.title}: ${String(e).slice(0, 60)}`);
+          return null;
+        }
+      }),
+    );
+    const ok = fetched.filter((f): f is NonNullable<typeof f> => f !== null);
+    if (!ok.length) continue;
+
+    const form = new FormData();
+    form.append('chat_id', chatId);
+    form.append(
+      'media',
+      JSON.stringify(
+        ok.map(({ it }, j) => ({
+          type: 'photo',
+          media: `attach://p${j}`,
+          caption: `${i + j + 1}. ${it.title}${it.starsToday ? ` (+${it.starsToday} 今日)` : ''}`,
+        })),
+      ),
+    );
+    ok.forEach(({ blob }, j) => form.append(`p${j}`, blob, `og${j}.png`));
+
+    const res = await fetch(`${API}/bot${token}/sendMediaGroup`, { method: 'POST', body: form });
+    if (!res.ok) console.error(`sendMediaGroup ${res.status}: ${(await res.text()).slice(0, 120)}`);
   }
 }
 
