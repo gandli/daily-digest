@@ -62,6 +62,8 @@ export function extractDesc(payload: string, maxLen: number, subject?: string): 
     expectOverview = false;
   }
   if (!best) return null;
+  // ponytail: 临时诊断——记录命中的段开头, 便于观察 zread 到底选了哪种(概述 vs 架构)
+  console.log(`zread-desc: len=${best.clean.length} head=${best.clean.slice(0, 30)}`);
   return best.clean.length > maxLen ? best.clean.slice(0, maxLen - 1) + '…' : best.clean;
 }
 
