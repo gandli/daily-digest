@@ -24,13 +24,13 @@ export async function sendPerRepoMessages(
       form.append('chat_id', chatId);
       form.append('photo', blob, 'og.png');
       form.append('caption', m.html.slice(0, 1020));
-      form.append('parse_mode', 'MarkdownV2');
+      form.append('parse_mode', 'HTML');
       res = await fetch(`${API}/bot${token}/sendPhoto`, { method: 'POST', body: form });
     } else {
       res = await fetch(`${API}/bot${token}/sendMessage`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: m.html, parse_mode: 'MarkdownV2', disable_web_page_preview: true }),
+        body: JSON.stringify({ chat_id: chatId, text: m.html, parse_mode: 'HTML', disable_web_page_preview: true }),
       });
     }
     if (!res.ok) console.error(`sendPhoto ${m.repo} ${res.status}: ${(await res.text()).slice(0, 120)}`);
