@@ -147,7 +147,8 @@ export default {
 
     // 注册命令菜单(幂等)+ 分派命令
     if (text.startsWith('/trending')) {
-      ctx.waitUntil(Promise.all([registerCommands(env.BOT_TOKEN), runDigest(env, true)]));
+      // 强制全管线(useCache=false), 保证带 OG 图——缓存命中只会回纯文本(无 photo)
+      ctx.waitUntil(Promise.all([registerCommands(env.BOT_TOKEN), runDigest(env, false)]));
     } else if (text.startsWith('/help') || text === '') {
       ctx.waitUntil(Promise.all([registerCommands(env.BOT_TOKEN), sendTelegram(env.BOT_TOKEN, chatId, HELP)]));
       return new Response('ok');
