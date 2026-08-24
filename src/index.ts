@@ -2,7 +2,7 @@ import type { Env, SourceItem } from './types';
 import { sources } from './sources';
 import { resolveDescriptions } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes } from './render';
-import { sendPerRepoMessages, sendTelegram, safeEqual } from './notify';
+import { sendPerRepoMessages, sendTelegram, registerCommands, safeEqual } from './notify';
 import { archiveToGitHub, createTelegraphPage } from './archive';
 
 // 北京时间日期串 YYYY-MM-DD(UTC+8 无 DST,直接偏移即可)
@@ -144,8 +144,22 @@ export default {
     // c) 白名单外:不响应任何动作
     if (!chatId || chatId !== env.CHAT_ID) return new Response('ok');
 
+    // 注册命令菜单(幂等)+ 分派命令
     if (text.startsWith('/trending')) {
-      ctx.waitUntil(runDigest(env, true));
+      ctx.waitUntil(Promise.all([registerCommands(env.BOT_TOKEN), runDigest(env, true)]));
+    } else if (text.startsWith('/help') || text === '') {
+      ctx.waitUntil(registerCommands(env.BOT_TOKEN));
+      return new Response('ok');
+    } else if (text.startsWith('/archive')) {
+      const dateStr = shanghaiDate();
+      ctx.waitUntil(
+        sendTelegram(
+          env.BOT_TOKEN,
+          chatId,
+          `📁 历史存档: https://github.com/gandli/daily-digest/tree/archive/archive/${dateStr.slice(0, 4)}`,
+        ),
+      );
+      return new Response('ok');
     } else {
       ctx.waitUntil(sendTelegram(env.BOT_TOKEN, chatId, HELP));
     }

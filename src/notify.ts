@@ -9,6 +9,22 @@ export async function sendTelegram(token: string, chatId: string, html: string):
   if (!res.ok) console.error(`sendMessage ${res.status}: ${await res.text()}`);
 }
 
+// Telegram 机器人命令菜单(bot 输入框 "/" 弹菜单)。幂等,setMyCommands repeated 安全。
+export async function registerCommands(token: string): Promise<void> {
+  const res = await fetch(`${API}/bot${token}/setMyCommands`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      commands: [
+        { command: 'trending', description: '获取今日 GitHub Trending 中文摘要' },
+        { command: 'help', description: '使用说明' },
+        { command: 'archive', description: '查看历史存档链接' },
+      ],
+    }),
+  });
+  if (!res.ok) console.error(`setMyCommands ${res.status}: ${await res.text()}`);
+}
+
 // OG 图 + 文字合一: 每项目一条 sendPhoto(图=GitHub OG 卡, caption=完整条目)。
 // 图下载失败 → 降级纯文字。caption 上限 1024。
 export async function sendPerRepoMessages(
