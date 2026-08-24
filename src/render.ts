@@ -15,6 +15,7 @@ export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl
       return (
         `${i + 1}. <b><a href="${esc(it.url)}">${esc(it.title)}</a></b>${stars}${langTag}\n` +
         `${esc(unesc(it.descZh || it.desc))}\n` +
+        (it.wikiDesc ? `${esc(unesc(it.wikiDesc))}\n` : '') +
         `<a href="https://deepwiki.com/${esc(it.title)}">📖 deepwiki</a> · <a href="https://zread.ai/${esc(it.title)}">🦾 zread</a>`
       );
     })
@@ -43,7 +44,7 @@ export function renderMarkdown(dateStr: string, items: SourceItem[], telegraphUr
       (it, i) =>
         `${i + 1}. **[${it.title}](${it.url})** ⭐ ${fmtK(it.stars)}${
           it.starsToday ? ` (+${fmtK(it.starsToday)})` : ''
-        }${it.lang ? ` · ${it.lang}` : ''}\n   - ${unesc(it.descZh || it.desc)}\n   - [deepwiki](https://deepwiki.com/${it.title}) · [zread](https://zread.ai/${it.title})`,
+        }${it.lang ? ` · ${it.lang}` : ''}\n   - ${unesc(it.descZh || it.desc)}${it.wikiDesc ? `\n   - 📚 ${esc(unesc(it.wikiDesc))}` : ''}\n   - [deepwiki](https://deepwiki.com/${it.title}) · [zread](https://zread.ai/${it.title})`,
     )
     .join('\n');
   return (

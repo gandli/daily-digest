@@ -4,6 +4,7 @@ import { translateBatch } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes } from './render';
 import { sendTelegram, sendOgAlbum, safeEqual } from './notify';
 import { archiveToGitHub, createTelegraphPage } from './archive';
+import { fetchZreadBatch } from './zread';
 
 // 北京时间日期串 YYYY-MM-DD(UTC+8 无 DST,直接偏移即可)
 export const shanghaiDate = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
@@ -40,8 +41,20 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
     return -1;
   }
 
-  // 2. 批量翻译(内部三级回退,不抛出)
+  // 2. 批量翻译(内部多级回退,不抛出)
   const translated = await translateBatch(env, items);
+
+  // 2.5 zread.ai wiki 深度描述(免key网页版, 失败静默)——补足一句话翻译不够的"这repo到底干嘛"
+  try {
+    const wikis = await fetchZreadBatch(translated.map((i) => i.title));
+    for (const it of translated) {
+      const w = wikis.get(it.title);
+      if (w) it.wikiDesc = w;
+    }
+    console.log(`zread wiki: ${wikis.size}/${translated.length}`);
+  } catch (e) {
+    console.error('zread batch failed', String(e).slice(0, 80));
+  }
 
   // 3. Telegraph 备份页(可选,失败静默)
   let telegraphUrl: string | null = null;
