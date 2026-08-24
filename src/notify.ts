@@ -17,35 +17,25 @@ export async function sendPerRepoMessages(
   messages: { html: string; repo: string }[],
 ): Promise<void> {
   for (const m of messages) {
-    const blob = await fetchOgImage(m.repo);
-    let res: Response;
-    if (blob) {
-      const form = new FormData();
-      form.append('chat_id', chatId);
-      form.append('photo', blob, 'og.png');
-      form.append('caption', m.html.slice(0, 1020));
-      form.append('parse_mode', 'HTML');
-      res = await fetch(`${API}/bot${token}/sendPhoto`, { method: 'POST', body: form });
-    } else {
-      res = await fetch(`${API}/bot${token}/sendMessage`, {
+    // TG 服务端代抓 OG 图(photo=URL)——省 Worker 子请求(10张图×1 = 10个), 代抓失败自动降级纯文字
+    const res = await fetch(`${API}/bot${token}/sendPhoto`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        photo: `https://opengraph.githubassets.com/1/${m.repo}`,
+        caption: m.html.slice(0, 1020),
+        parse_mode: 'HTML',
+      }),
+    });
+    if (!res.ok) {
+      console.error(`sendPhoto ${m.repo} ${res.status}, fallback to text`);
+      await fetch(`${API}/bot${token}/sendMessage`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ chat_id: chatId, text: m.html, parse_mode: 'HTML', disable_web_page_preview: true }),
       });
     }
-    if (!res.ok) console.error(`sendPhoto ${m.repo} ${res.status}: ${(await res.text()).slice(0, 120)}`);
-  }
-}
-
-async function fetchOgImage(repo: string): Promise<Blob | null> {
-  try {
-    const r = await fetch(`https://opengraph.githubassets.com/1/${repo}`, {
-      headers: { 'User-Agent': 'daily-digest-bot' },
-      signal: AbortSignal.timeout(15000),
-    });
-    return r.ok ? await r.blob() : null;
-  } catch {
-    return null;
   }
 }
 

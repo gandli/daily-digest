@@ -1,4 +1,36 @@
 import type { Env, SourceItem } from './types';
+import { fetchZreadBatch } from './zread';
+import { fetchDeepwikiBatch } from './deepwiki';
+
+// 描述解析链(按序兜底): zread wiki 中文 → deepwiki 英文 Overview → 翻译成中文 → repo desc 翻译成中文 → 英文原文
+export async function resolveDescriptions(env: Env, items: SourceItem[]): Promise<void> {
+  // 1. zread wiki 中文(主描述源)
+  const wikis = await fetchZreadBatch(items.map((i) => i.title)).catch(() => new Map<string, string>());
+  const missing = items.filter((it) => {
+    const w = wikis.get(it.title);
+    if (w) { it.descZh = w; return false; }
+    return true;
+  });
+  console.log(`zread wiki: ${wikis.size}/${items.length}`);
+
+  // 2. deepwiki 英文 Overview(只对 zread 缺失的条目; 翻译交给下面的翻译层)
+  // ponytail: Worker 子请求上限50, 全链路(zread+deepwiki+OG图+发送+存档)已近顶——deepwiki 只补至多5条
+  let dwHits = 0;
+  if (missing.length) {
+    const dws = await fetchDeepwikiBatch(missing.slice(0, 5).map((i) => i.title)).catch(() => new Map<string, string>());
+    for (const it of missing) {
+      const d = dws.get(it.title);
+      if (d) { it.desc = d; dwHits++; } // 用 Overview 替换 repo 一句话描述, 再走翻译
+    }
+    console.log(`deepwiki overview: ${dwHits}/${missing.length}`);
+  }
+
+  // 3. 翻译: 没拿到 zread 中文的条目, 全部走翻译链(deepwiki 英文 或 repo 原 desc)
+  const toTranslate = items.filter((i) => !i.descZh);
+  if (toTranslate.length) {
+    await translateBatch(env, toTranslate as SourceItem[]); // 内部回填 descZh
+  }
+}
 
 // 翻译回退链: Workers AI 批量 → TranSmart → Google → MyMemory → 英文原文。任何失败不抛出。
 export async function translateBatch(

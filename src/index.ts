@@ -1,10 +1,9 @@
 import type { Env, SourceItem } from './types';
 import { sources } from './sources';
-import { translateBatch } from './translate';
+import { resolveDescriptions } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes } from './render';
 import { sendPerRepoMessages, sendTelegram, safeEqual } from './notify';
 import { archiveToGitHub, createTelegraphPage } from './archive';
-import { fetchZreadBatch } from './zread';
 
 // 北京时间日期串 YYYY-MM-DD(UTC+8 无 DST,直接偏移即可)
 export const shanghaiDate = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
@@ -41,20 +40,8 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
     return -1;
   }
 
-  // 2. zread.ai wiki 描述(中文, 主描述源)——优先; 失败的条目才走翻译兜底
-  const wikis = await fetchZreadBatch(items.map((i) => i.title)).catch(() => new Map<string, string>());
-  for (const it of items) {
-    const w = wikis.get(it.title);
-    if (w) it.descZh = w;
-    else it.needTranslate = true;
-  }
-  const toTranslate = items.filter((i) => i.needTranslate);
-  console.log(`zread wiki: ${wikis.size}/${items.length}, translate fallback: ${toTranslate.length}`);
-
-  // 2.5 只对 wiki 缺失的条目批量翻译(省子请求)
-  if (toTranslate.length) {
-    await translateBatch(env, toTranslate as SourceItem[]); // 内部回填 descZh
-  }
+  // 2. 描述解析链: zread wiki 中文 → deepwiki Overview → 翻译成中文(顺序兜底)
+  await resolveDescriptions(env, items);
 
   // 2.6 GitHub topics(GH_TOKEN 已配)——做消息标签。
   // ponytail: Worker 单次调用子请求上限50, 全链路已近顶——只拉前4个 repo 的 topics
@@ -111,8 +98,8 @@ export default {
         const dateStr = shanghaiDate();
         let items: SourceItem[] = [];
         for (const s of sources) items = items.concat(await s.fetch(env));
-        const tErrors: string[] = [];
-        const translated = await translateBatch(env, items, tErrors);
+        await resolveDescriptions(env, items);
+        const translated = items;
         const nodes = renderTelegraphNodes(items);
         let telegraphUrl: string | null = null;
         if (env.TELEGRAPH_TOKEN) {
@@ -122,7 +109,7 @@ export default {
           date: dateStr,
           count: translated.length,
           translatedCount: translated.filter((i) => i.descZh).length,
-          translateErrors: tErrors,
+          translateErrors: [],
           message: renderMessage(dateStr, translated, telegraphUrl ?? undefined),
           markdown: renderMarkdown(dateStr, translated),
           items: translated,
