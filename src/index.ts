@@ -1,10 +1,10 @@
 import type { Env, SourceItem } from './types';
 import { sources } from './sources';
-import { resolveDescriptions } from './translate';
+import { resolveDescriptions, isChinese } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes } from './render';
 import { sendPerRepoMessages, sendTelegram, registerCommands, safeEqual } from './notify';
 import { archiveToGitHub, createTelegraphPage } from './archive';
-import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions } from './lookup';
+import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems } from './lookup';
 
 // 北京时间日期串 YYYY-MM-DD(UTC+8 无 DST,直接偏移即可)
 export const shanghaiDate = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
@@ -16,41 +16,36 @@ const HELP = `📊 daily-digest 使用:
 发 GitHub 仓库链接 = 单仓查询(自动去重)。
 每天 08:30(北京时间)自动推送一条。`;
 
-// /search: GitHub code search API 查 archive 分支 markdown, 回前5条命中。
+// /search: 查 KV 存档索引(archive:idx:<repo> → {date, path, desc})。GitHub code search 只索引
+// 默认分支, archive 分支搜不到——所以存档写入时同步维护这份索引。
 export async function searchArchive(env: Env, chatId: string, query: string): Promise<void> {
   const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
-  const q = encodeURIComponent(`${query} repo:${repo}`);
+  const q = query.toLowerCase();
   try {
-    const res = await fetch(`https://api.github.com/search/code?q=${q}+in:file+filename:.md`, {
-      headers: {
-        Authorization: `token ${env.GH_TOKEN}`,
-        Accept: 'application/vnd.github+json',
-        'User-Agent': 'daily-digest',
-      },
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!res.ok) {
-      await sendTelegram(env.BOT_TOKEN, chatId, `⚠️ 搜索失败(${res.status})${res.status === 403 ? '(API 限流)' : ''}, 请稍后再试。`);
-      return;
+    const page = await env.CACHE.list({ prefix: 'archive:idx:' });
+    const hits: string[] = [];
+    for (const k of page.keys) {
+      const raw = await env.CACHE.get(k.name);
+      if (!raw) continue;
+      const it = JSON.parse(raw) as { repo: string; date: string; descZh?: string };
+      // ponytail: 全量线性扫描+子串匹配——个人规模(几百条)毫秒级; 上千条再考虑倒排索引
+      if (it.repo.toLowerCase().includes(q) || (it.descZh ?? '').toLowerCase().includes(q)) {
+        hits.push(`📄 [${it.repo} · ${it.date}](https://github.com/${repo}/blob/archive/archive/${it.date}.md)`);
+        if (hits.length >= 5) break;
+      }
     }
-    const j = (await res.json()) as { total_count?: number; items?: { path?: string; name?: string }[] };
-    const items = (j.items ?? []).slice(0, 5);
-    if (!items.length) {
+    if (!hits.length) {
       await sendTelegram(env.BOT_TOKEN, chatId, `🔍 存档中没有找到「${query}」`);
       return;
     }
-    // ponytail: code search 不返回命中片段——只给文件链接, 点进去看; 要片段需逐文件拉内容(+N子请求), 需要时再加
-    const lines = [`🔍 「${query}」命中 ${j.total_count ?? items.length} 个存档:`];
-    for (const it of items) {
-      const p = it.path ?? '';
-      lines.push(`📄 [${p}](https://github.com/${repo}/blob/archive/${p})`);
-    }
-    await sendTelegram(env.BOT_TOKEN, chatId, lines.join('\n'));
+    await sendTelegram(env.BOT_TOKEN, chatId, `🔍 「${query}」命中 ${hits.length} 条存档:\n${hits.join('\n')}`);
   } catch (e) {
     console.error('searchArchive failed', String(e).slice(0, 80));
     await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ 搜索失败(网络异常), 请稍后再试。');
   }
 }
+
+/** 存档成功后写搜索索引(lookup 单仓与 digest 批量共用)。实现见 lookup.ts(indexArchivedItems)。 */
 
 // 共享管线:cron 与 /trending 都走这里。
 export async function runDigest(env: Env, useCache = true): Promise<number> {
@@ -124,6 +119,7 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
   // 5. 缓存 + 存档(失败不影响已发消息)
   await env.CACHE.put(cacheKey, JSON.stringify(chunks), { expirationTtl: 86400 });
   await archiveToGitHub(env, dateStr, renderMarkdown(dateStr, items, telegraphUrl ?? undefined));
+  await indexArchivedItems(env, items, dateStr); // /search 索引
   console.log('digest sent', dateStr, `${items.length} items`);
   return chunks.length;
 }
