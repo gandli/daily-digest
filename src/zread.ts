@@ -1,12 +1,38 @@
-// zread.ai 网页版 wiki 抓取: 从 RSC payload 提取 Overview 正文, 生成 repo wiki 描述。
-// 免 key(robots.txt User-agent:* Allow:/)。失败不抛——增强层。
+// zread.ai 网页版 wiki 抓取: 从 RSC payload 提取 Overview 定义段(中文), 生成 repo wiki 描述。
+// 免 key(robots.txt User-agent:* Allow:/)。Accept-Language: zh-CN 拿中文版。失败不抛——增强层。
 const ZREAD_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126';
 
-/** 从 zread.ai /:owner/:repo/wiki 页面的 Next.js RSC payload 里提取 Overview 首段 */
+/** 提取"是什么"定义句: 含定位动词、中文为主、非目录/表格/RSC杂讯 */
+function extractDesc(payload: string, maxLen: number): string | null {
+  const tail = payload.slice(30000);
+  const end = tail.indexOf('\nSources: ');
+  const body = end > 0 ? tail.slice(0, end) : tail.slice(0, 20000);
+  let best = '';
+  for (let blk of body.split('\n\n')) {
+    blk = blk.trim();
+    if (!blk || /^[#```|[!]/.test(blk)) continue;
+    if (blk.includes('.js') || blk.includes('static/') || blk.includes('$')) continue; // RSC 杂讯
+    if (/^\d+[.)]/.test(blk) || /^\d+\s*\|/.test(blk)) continue; // 编号目录/表格行
+    const clean = blk
+      .replace(/`[^`]*`/g, '')
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/[#*>|!]/g, '')
+      .replace(/\n/g, ' ')
+      .trim();
+    const cjk = (clean.match(/[\u4e00-\u9fff]/g) ?? []).length;
+    if (cjk < 15 || cjk < clean.length * 0.3) continue; // 必须中文为主
+    if (!/(是一个|是一套|是一款|旨在|专注于|让你|帮助你|解决了|用于构建|用于管理|核心思路|本质上|由 .* 开发)/.test(clean)) continue;
+    if (clean.length > best.length) best = clean;
+  }
+  if (!best) return null;
+  return best.length > maxLen ? best.slice(0, maxLen - 1) + '…' : best;
+}
+
+/** 从 zread.ai /:owner/:repo/wiki 页面的 Next.js RSC payload 里提取 Overview 中文描述 */
 export async function fetchZreadWikiDesc(repo: string, maxLen = 280): Promise<string | null> {
   try {
     const res = await fetch(`https://zread.ai/${repo}/wiki`, {
-      headers: { 'User-Agent': ZREAD_UA },
+      headers: { 'User-Agent': ZREAD_UA, 'Accept-Language': 'zh-CN,zh;q=0.9' },
       signal: AbortSignal.timeout(20000),
     });
     if (!res.ok) return null;
@@ -17,18 +43,7 @@ export async function fetchZreadWikiDesc(repo: string, maxLen = 280): Promise<st
     for (const m of html.matchAll(chunkRe)) {
       payload += JSON.parse(m[1] as string) as string;
     }
-    // Overview 正文: 跳过页面头部文案区(约40K字符的 i18n/营销串), 找第一个 markdown 标题
-    const tail = payload.slice(40000);
-    const h = tail.match(/## [^\n]{3,80}\n/);
-    if (!h || h.index === undefined) return null;
-    const body = tail.slice(h.index + h[0].length);
-    // 首段; 跳过代码块开头的段(目录树对描述无价值)
-    let para = body.split('\n\n')[0].trim();
-    if (para.startsWith('```')) {
-      para = body.split('\n\n').filter((s) => !s.startsWith('```'))[0] ?? '';
-    }
-    para = para.replace(/\*\*/g, '').replace(/\s+/g, ' ').trim();
-    return para.length > maxLen ? para.slice(0, maxLen - 1) + '…' : para || null;
+    return extractDesc(payload, maxLen);
   } catch {
     return null;
   }
