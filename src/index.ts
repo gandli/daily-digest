@@ -60,7 +60,6 @@ export async function archiveTweet(
   chatId: string,
   handle: string,
   id: string,
-  originalText: string,
 ): Promise<void> {
   const tweet = await fetchTweet(handle, id);
   if (!tweet) {
@@ -267,7 +266,7 @@ export default {
           ctx.waitUntil(lookupRepo(env, chatId, repo));
         }
       } else if (tweet) {
-        ctx.waitUntil(archiveTweet(env, chatId, tweet.handle, tweet.id, text));
+        ctx.waitUntil(archiveTweet(env, chatId, tweet.handle, tweet.id));
       } else if (url) {
         ctx.waitUntil(archiveUrl(env, chatId, url));
       } else {

@@ -46,11 +46,12 @@ export async function sendPerRepoMessages(
     });
     if (!res.ok) {
       console.error(`sendPhoto ${m.repo} ${res.status}, fallback to text`);
-      await fetch(`${API}/bot${token}/sendMessage`, {
+      const fb = await fetch(`${API}/bot${token}/sendMessage`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ chat_id: chatId, text: m.html, parse_mode: 'HTML', disable_web_page_preview: true }),
       });
+      if (!fb.ok) console.error(`sendMessage fallback also failed ${fb.status}: ${(await fb.text()).slice(0, 120)}`);
     }
   }
 }
