@@ -57,6 +57,23 @@ describe('extractDeepwikiOverview: 英文 overview 提取', () => {
   it('无 Overview 结构 → null', () => {
     expect(extractDeepwikiOverview('no structure here at all', 400)).toBeNull();
   });
+
+  it('真实结构1(omarchy): 正文在 "## Purpose and Scope" 标题后', () => {
+    const payload =
+      'x'.repeat(200) + `\nOverview\n\n<details>\n<summary>Relevant source files</summary>\n\n- [a.ts](a.ts)\n</details>\n\n\n\n## Purpose and Scope\n\nThis page provides a high-level introduction to Omarchy, its architecture, core components, and design philosophy. It serves as an entry point for understanding the system.\n\n## Design`;
+    const d = extractDeepwikiOverview(payload, 400);
+    expect(d).not.toBeNull();
+    expect(d!).toContain('high-level introduction to Omarchy');
+    expect(d!).not.toContain('Relevant source files');
+  });
+
+  it('真实结构2(ECC): 冒号标题紧邻 details, 正文紧跟', () => {
+    const payload =
+      'y'.repeat(300) + `Overview: Everything Claude Code (ECC)\n\n<details>\n<summary>Relevant source files</summary>\n\nThe following files were used:\n</details>\n\n\n\nEverything Claude Code (ECC) is a harness-native operator system designed for production-grade agentic work. Originally an Anthropic Hackathon winner.\n\n## How it works`;
+    const d = extractDeepwikiOverview(payload, 400);
+    expect(d).not.toBeNull();
+    expect(d!).toContain('harness-native operator system');
+  });
 });
 
 // ---------- 100% 中文守卫 ----------

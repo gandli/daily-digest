@@ -4,14 +4,14 @@ const DW_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.3
 
 /** 从 deepwiki.com /:owner/:repo 页面的 RSC payload 提取 Overview 正文(英文, 纯文本) */
 export function extractDeepwikiOverview(payload: string, maxLen = 400): string | null {
-  // Overview 标题后紧跟 <details><summary>Relevant source files</summary>... </details> 文件列表
-  const marker = /Overview:\s*([^\n]+)\s*\n<details>[\s\S]*?<\/details>/;
+  // deepwiki 2026-08 结构: "Overview:[可选标题]<details><summary>Relevant source files</summary>...</details>"
+  // repo 间有差异: 有的正文紧跟 </details>, 有的在 "## Purpose and Scope" 等标题后
+  const marker = /Overview[:\s]*[^\n<]*\s*(?:\n|<details>)[\s\S]*?<\/details>/m;
   const m = payload.match(marker);
   if (!m) return null;
-  // m[1] = 标题行(其实也含描述), 但正文在 </details> 后。重新定位:
   const after = payload.slice(payload.indexOf(m[0]) + m[0].length);
-  // 正文是 </details> 后的第一段英文文本
-  const bodyMatch = after.match(/^\s*([A-Z][\s\S]*?)\n(?:\n|#{1,3} )/);
+  // 正文 = 可选标题(## ...)后 的第一段英文/中文文本
+  const bodyMatch = after.match(/^\s*(?:##[^\n]*\n\n)?([A-Z][\s\S]*?)\n(?:(?:\n+)|#{1,3} )/);
   if (!bodyMatch) return null;
   let clean = bodyMatch[1]
     .replace(/`[^`]*`/g, '')
