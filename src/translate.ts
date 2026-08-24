@@ -76,9 +76,10 @@ export async function translateBatch(
   }
   if (!zh) return items; // 英文原文兜底
 
-  // 100% 中文守卫: 非中文槽位逐条用 TranSmart 补翻(WorkersAI m2m100 偶发输出英文)
+  // 100% 中文守卫: 非中文槽位逐条用 TranSmart 补翻(WorkersAI m2m100 偶发输出英文)。
+  // ponytail: 补翻直接用 TranSmart 而非重试 WorkersAI——同一引擎对同句大概率再吐英文; 全批垃圾也补(1个子请求封顶)
   const bad = [...new Set(zh!.map((z, i) => (isChinese(z) ? -1 : i)).filter((i) => i >= 0))];
-  if (bad.length && bad.length < items.length) {
+  if (bad.length) {
     try {
       const fix = await viaTranSmart(bad.map((i) => items[i].desc));
       for (let k = 0; k < bad.length; k++) if (isChinese(fix[k])) zh![bad[k]] = fix[k];

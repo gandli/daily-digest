@@ -112,3 +112,60 @@ describe('兜底链顺序: zread → deepwiki → repo desc 翻译', () => {
     expect(items[0].descZh).toBe(ZH_TL); // 走了翻译
   });
 });
+
+// ---------- 翻译服务优先级: Cloudflare AI → 免费公开翻译服务 ----------
+import { translateBatch } from '../src/translate';
+
+describe('翻译服务优先级', () => {
+  const mkEnv = (aiBehavior: 'ok' | 'throw' | 'english') => ({
+    AI: {
+      run: vi.fn(async (_m: string, p: { text: string }) => {
+        if (aiBehavior === 'throw') throw new Error('AI quota');
+        if (aiBehavior === 'english') return { translated_text: p.text }; // 原样返回=英文垃圾
+        return { translated_text: `这是${p.text.slice(0, 4)}的中文翻译版本内容` };
+      }),
+    },
+  } as any);
+
+  it('WorkersAI 可用 → 只用 AI, 不触任何外部翻译(零 fetch)', async () => {
+    const f = vi.fn();
+    vi.stubGlobal('fetch', f);
+    const items = [item('a/b', 'Some English description.')];
+    const done = await translateBatch(mkEnv('ok'), items);
+    expect(done[0].descZh).toContain('中文翻译');
+    expect(f).not.toHaveBeenCalled(); // 没碰 TranSmart/Google/MyMemory
+    vi.unstubAllGlobals();
+  });
+
+  it('WorkersAI 挂 → 落 TranSmart(fetch 首个外呼是 transmart.qq.com)', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      calls.push(String(url));
+      return new Response(JSON.stringify({
+        header: { ret_code: 'succ' },
+        auto_translation: ['这是免费公开服务译出的中文描述文本'],
+      }), { status: 200 });
+    }));
+    const items = [item('a/b', 'Some English description.')];
+    const done = await translateBatch(mkEnv('throw'), items);
+    expect(isChinese(done[0].descZh)).toBe(true);
+    expect(calls.some((u) => u.includes('transmart.qq.com'))).toBe(true); // 二级接手
+    vi.unstubAllGlobals();
+  });
+
+  it('WorkersAI 输出英文垃圾 → TranSmart 补翻该槽位', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const req = JSON.parse(String(init?.body ?? '{}'));
+      const list: string[] = req?.source?.text_list ?? ['x'];
+      return new Response(JSON.stringify({
+        header: { ret_code: 'succ' },
+        auto_translation: list.map((t: string, i: number) => `补翻成功的中文内容第${i + 1}条:${t.slice(0, 6)}`),
+      }), { status: 200 });
+    }));
+    const items = [item('a/b', 'English one.'), item('c/d', 'English two.')];
+    const done = await translateBatch(mkEnv('english'), items);
+    expect(isChinese(done[0].descZh!)).toBe(true); // 垃圾被替换
+    expect(isChinese(done[1].descZh!)).toBe(true);
+    vi.unstubAllGlobals();
+  });
+});
