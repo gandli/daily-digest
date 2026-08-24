@@ -11,9 +11,6 @@ export interface Env {
   GH_TOKEN: string;
   TELEGRAPH_TOKEN?: string;
   GH_ARCHIVE_REPO?: string;
-  LLM_BASE_URL?: string;
-  LLM_API_KEY?: string;
-  LLM_MODEL?: string;
 }
 
 export type SourceItem = {

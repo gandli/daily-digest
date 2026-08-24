@@ -1,6 +1,6 @@
 import type { Env, SourceItem } from './types';
 
-// 翻译回退链: Workers AI 批量 → MyMemory → 英文原文。任何失败不抛出。
+// 翻译回退链: Workers AI 批量 → Google → MyMemory → 英文原文。任何失败不抛出。
 export async function translateBatch(
   env: Env,
   items: SourceItem[],
@@ -15,9 +15,9 @@ export async function translateBatch(
   } catch (e) {
     errors.push(`workersAI: ${String(e).slice(0, 120)}`);
     try {
-      zh = await via9Router(env, descs);
+      zh = await viaGoogle(descs);
     } catch (e1) {
-      errors.push(`9router: ${String(e1).slice(0, 120)}`);
+      errors.push(`google: ${String(e1).slice(0, 120)}`);
       try {
         zh = await viaMyMemory(descs);
       } catch (e2) {
@@ -49,45 +49,6 @@ async function viaWorkersAI(env: Env, descs: string[]): Promise<string[]> {
   return results;
 }
 
-// 9Router 自建网关(OpenAI 兼容)。免费模型池, 从 CF 出口无封锁。
-// ponytail: 单次调用批量翻10条; 网关响应尾部可能带 SSE 杂质, 用首尾大括号截取容错
-async function via9Router(env: Env, descs: string[]): Promise<string[]> {
-  const base = env.LLM_BASE_URL;
-  if (!base) throw new Error('no LLM_BASE_URL');
-  const prompt =
-    '将以下每行英文翻译为简体中文, 只输出翻译结果, 保持相同的行数和编号格式:\n' +
-    descs.map((d, i) => `${i + 1}. ${d}`).join('\n');
-  const res = await fetch(`${base}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      ...(env.LLM_API_KEY ? { Authorization: `Bearer ${env.LLM_API_KEY}` } : {}),
-    },
-    body: JSON.stringify({
-      model: env.LLM_MODEL || '1.freemodel',
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 2000,
-    }),
-  });
-  if (!res.ok) throw new Error(`llm ${res.status}`);
-  const raw = await res.text();
-  const s = raw.indexOf('{');
-  const e = raw.lastIndexOf('}');
-  if (s < 0 || e <= s) throw new Error('llm bad body');
-  const j = JSON.parse(raw.slice(s, e + 1)) as { choices?: { message?: { content?: string } }[] };
-  const text = j.choices?.[0]?.message?.content ?? '';
-  const map = new Map<number, string>();
-  for (const line of text.split('\n')) {
-    const m = line.match(/^\s*(\d+)[.、)]\s*(.+)$/);
-    if (m) map.set(parseInt(m[1], 10) - 1, m[2].trim());
-  }
-  const result = descs.map((_, i) => map.get(i) ?? '');
-  if (result.filter(Boolean).length < Math.ceil(descs.length / 2)) {
-    throw new Error(`llm incomplete (${result.filter(Boolean).length}/${descs.length})`);
-  }
-  return result;
-}
-
 // 谷歌翻译免 key 端点(dict-chrome-ex)。非官方, 随时可能失效——失败即落下一层。
 // ponytail: 逐条串行; 429/封禁时靠 MyMemory 兜底
 async function viaGoogle(descs: string[]): Promise<string[]> {
@@ -113,7 +74,7 @@ async function viaMyMemory(descs: string[]): Promise<string[]> {
   const out: string[] = [];
   for (const d of descs) {
     const res = await fetch(
-      `https://api.mymemory.translated.net/get?langpair=en|zh-CN&q=${encodeURIComponent(d.slice(0, 400))}`,
+      `https://api.mymemory.translated.net/get?langpair=en|zh-CN&q=${encodeURIComponent(d.slice(0, 400))}&de=daily.digest.bot%40gmail.com`,
     );
     if (!res.ok) throw new Error(`mymemory ${res.status}`);
     const j = (await res.json()) as { responseData?: { translatedText?: string }; responseStatus?: number };
