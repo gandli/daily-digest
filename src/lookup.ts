@@ -4,7 +4,7 @@ import { fetchDeepwikiOverview } from './deepwiki';
 import { renderMessage, renderMarkdown } from './render';
 import { sendPerRepoMessages, sendTelegram } from './notify';
 import { archiveToGitHub, archiveOgImage } from './archive';
-import { urlToMarkdown } from './urlmd';
+import { urlToMarkdown, extractOgImage } from './urlmd';
 
 // 北京时间日期串(与 index.ts 一致; 独立内联避免循环依赖)
 const today = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
@@ -200,6 +200,16 @@ export async function refreshLookupDescriptions(env: Env): Promise<void> {
  * 与 repo lookup 同一套存档/索引设施; 失败给用户明确回复, 不静默。
  */
 export async function archiveUrl(env: Env, chatId: string, url: string): Promise<void> {
+  // og:image 预取(与转换共用一次下载的代价可忽略; 失败静默——图是增强不是必需)
+  let photo: string | undefined;
+  try {
+    const h = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(10000) });
+    if (h.ok) {
+      const head = (await h.text()).slice(0, 100_000); // meta 在头部
+      photo = extractOgImage(head) ?? undefined;
+    }
+  } catch { /* 无图直发文字 */ }
+
   let md: string;
   try {
     md = await urlToMarkdown(env, url, { accountId: env.CF_ACCOUNT_ID, apiToken: env.CF_API_TOKEN });
@@ -213,11 +223,18 @@ export async function archiveUrl(env: Env, chatId: string, url: string): Promise
   try {
     await archiveToGitHub(env, stamp, `# Web Archive · ${url}\n\n${clipped}\n\n---\n由 daily-digest bot 自动生成`);
     const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
-    await sendTelegram(
-      env.BOT_TOKEN,
-      chatId,
-      `✅ 已存档 ${new URL(url).hostname}\n📁 https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`,
-    );
+    const confirm = `✅ 已存档 ${new URL(url).hostname}\n📁 https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`;
+    // 有 og:image → sendPhoto(图=OG 卡, caption=确认+链接); 无图/发送失败 → 纯文字
+    if (photo) {
+      const res = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendPhoto`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, photo, caption: confirm.slice(0, 1020), parse_mode: 'HTML' }),
+      });
+      if (res.ok) return;
+      console.error(`archiveUrl sendPhoto ${res.status}, fallback text`);
+    }
+    await sendTelegram(env.BOT_TOKEN, chatId, confirm);
   } catch (e) {
     console.error('archiveUrl failed', String(e).slice(0, 120));
     await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ 转换成功但存档失败(GitHub 写入异常), 请稍后再试。');
