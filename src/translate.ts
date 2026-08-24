@@ -1,6 +1,6 @@
 import type { Env, SourceItem } from './types';
 
-// 翻译回退链: Workers AI 批量 → Google → MyMemory → 英文原文。任何失败不抛出。
+// 翻译回退链: Workers AI 批量 → TranSmart → Google → MyMemory → 英文原文。任何失败不抛出。
 export async function translateBatch(
   env: Env,
   items: SourceItem[],
@@ -15,14 +15,19 @@ export async function translateBatch(
   } catch (e) {
     errors.push(`workersAI: ${String(e).slice(0, 120)}`);
     try {
-      zh = await viaGoogle(descs);
+      zh = await viaTranSmart(descs);
     } catch (e1) {
-      errors.push(`google: ${String(e1).slice(0, 120)}`);
+      errors.push(`tranSmart: ${String(e1).slice(0, 120)}`);
       try {
-        zh = await viaMyMemory(descs);
+        zh = await viaGoogle(descs);
       } catch (e2) {
-        errors.push(`myMemory: ${String(e2).slice(0, 120)}`);
-        zh = null;
+        errors.push(`google: ${String(e2).slice(0, 120)}`);
+        try {
+          zh = await viaMyMemory(descs);
+        } catch (e3) {
+          errors.push(`myMemory: ${String(e3).slice(0, 120)}`);
+          zh = null;
+        }
       }
     }
   }
@@ -47,6 +52,35 @@ async function viaWorkersAI(env: Env, descs: string[]): Promise<string[]> {
   );
   if (results.filter(Boolean).length < Math.ceil(descs.length / 2)) throw new Error('AI translate incomplete');
   return results;
+}
+
+// 腾讯交互翻译 TranSmart: 免 key 免注册, 支持批量 text_list。本机+CF出口均实测可用。
+// ponytail: 非官方接口, 可能加鉴权——失败即落下一层
+async function viaTranSmart(descs: string[]): Promise<string[]> {
+  const res = await fetch('https://transmart.qq.com/api/imt', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      Referer: 'https://transmart.qq.com/',
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126',
+    },
+    body: JSON.stringify({
+      header: { fn: 'auto_translation', session: '', client_key: 'browser-macOS-1724417653-chrome' },
+      model: 'api',
+      source: { text_list: descs.map((d) => d.slice(0, 500)) },
+      source_lang: 'en',
+      target_lang: 'zh',
+    }),
+  });
+  if (!res.ok) throw new Error(`transmart ${res.status}`);
+  const j = (await res.json()) as {
+    auto_translation?: string[];
+    header?: { ret_code?: string };
+  };
+  if (j.header?.ret_code !== 'succ' || !j.auto_translation?.length) {
+    throw new Error(`transmart ret=${j.header?.ret_code}`);
+  }
+  return j.auto_translation;
 }
 
 // 谷歌翻译免 key 端点(dict-chrome-ex)。非官方, 随时可能失效——失败即落下一层。
