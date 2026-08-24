@@ -29,8 +29,8 @@ export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl
   });
 }
 
-// GitHub 存档 markdown
-export function renderMarkdown(dateStr: string, items: SourceItem[], telegraphUrl?: string): string {
+// GitHub 存档 markdown。ogPath 传入时用 og-images/ 相对路径(本地渲染), 否则回退远程 URL。
+export function renderMarkdown(dateStr: string, items: SourceItem[], telegraphUrl?: string, ogPaths?: Map<string, string>): string {
   const rows = items
     .map(
       (it, i) =>
@@ -38,7 +38,7 @@ export function renderMarkdown(dateStr: string, items: SourceItem[], telegraphUr
           it.starsToday ? ` (+${fmtK(it.starsToday)})` : ''
         }${it.lang ? ` · ${it.lang}` : ''}${
           isChinese(it.descZh) ? `\n   - ${unesc(it.descZh!)}` : '' // 仅来自 zread/deepwiki 的中文, 双缺跳过
-        }\n   - [deepwiki](https://deepwiki.com/${it.title}) · [zread](https://zread.ai/${it.title})\n\n   <img src="https://opengraph.githubassets.com/1/${it.title}" width="400" alt="${it.title} OG 卡">`,
+        }\n   - [deepwiki](https://deepwiki.com/${it.title}) · [zread](https://zread.ai/${it.title})\n\n   <img src="${ogPaths?.get(it.title) ?? `https://opengraph.githubassets.com/1/${it.title}`}" width="400" alt="${it.title} OG 卡">`,
     )
     .join('\n');
   return (
