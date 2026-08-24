@@ -49,10 +49,14 @@ export function renderMarkdown(dateStr: string, items: SourceItem[], telegraphUr
   );
 }
 
-// Telegraph Node 内容(官方 API 的 Node 数组)
+// Telegraph Node 内容(官方 API 的 Node 数组)。描述守卫与 renderMessage 同规则: 仅中文 descZh, 双缺只留标题行。
 export function renderTelegraphNodes(items: SourceItem[]): unknown[] {
   return items.map((it) => ({
     tag: 'p',
-    children: [{ tag: 'a', attrs: { href: it.url }, children: [it.title] }, ` — ${it.descZh || it.desc}`],
+    children: [
+      { tag: 'a', attrs: { href: it.url }, children: [it.title] },
+      // ponytail: 英文原文不上公开页面(中文硬约束), 与 renderMessage/renderMarkdown 一致
+      ...(isChinese(it.descZh) ? [` — ${unesc(it.descZh!)}`] : []),
+    ],
   }));
 }
