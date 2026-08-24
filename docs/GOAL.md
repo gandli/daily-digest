@@ -5,15 +5,14 @@
 ## Objective
 
 在 Cloudflare Workers 免费层部署名为 `daily-digest` 的 Telegram bot:
-每个自然日 08:30(Asia/Shanghai)向白名单 chat 推送恰好 1 条消息,
-内容为 github.com/trending(daily)top10 的中文摘要;
-同一 Worker 暴露 `/trending` 命令返回当日相同内容;
-每日数据自动 commit 至 `gandli/daily-digest-archive`。
+每个自然日 08:30(Asia/Shanghai)向白名单 chat 推送 github.com/trending(daily)top10 的中文摘要(每仓一条,OG 图+中文描述);
+同一 Worker 暴露 `/trending` 命令返回当日内容、`/archive` 返回存档链接、任意含 GitHub 仓库链接的消息触发单仓库查询;
+每日数据自动 commit 至本仓 `archive` 分支(`archive/<YYYY>/<YYYY-MM-DD>.md`)。
 
 ## Deliverables
 
 1. repo `gandli/daily-digest`,main 分支含可 `wrangler deploy` 的 Worker 项目
-2. `gandli/daily-digest-archive` repo,路径 `archive/<source>/<YYYY-MM-DD>.md`
+2. 本仓 `archive` 分支,路径 `archive/<YYYY>/<YYYY-MM-DD>.md`(lookup 查询另存 `archive/<YYYY>/<date>-<ms>.md`)
 3. 已注册 bot 并完成 setWebhook(带 secret_token)
 4. CI:PR 上跑 `tsc --noEmit` + `wrangler deploy --dry-run`;merge 到 main 自动 deploy
 
