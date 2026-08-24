@@ -65,6 +65,10 @@ export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
     if (req.method === 'GET') {
+      if (url.pathname === '/diag-llm') {
+        const { diagnoseLLM } = await import('./diag-llm');
+        return Response.json(await diagnoseLLM(env));
+      }
       // /preview: 数据管线自检(抓取→翻译→渲染, 不发消息)。仅未配凭证时开放。
       if (url.pathname === '/preview' && !env.BOT_TOKEN) {
         const dateStr = shanghaiDate();
@@ -86,6 +90,11 @@ export default {
           markdown: renderMarkdown(dateStr, translated),
           items: translated,
         });
+      }
+      // /run: 手动触发完整管线(含发送)。仅测试期开放(有 GH_TOKEN 但没挂 cron 的 temp 部署)。
+      if (url.pathname === '/run' && !env.WEBHOOK_SECRET) {
+        const n = await runDigest(env, false);
+        return Response.json({ ok: true, chunks: n });
       }
       return new Response('daily-digest worker running\n', { headers: { 'content-type': 'text/plain' } });
     }
