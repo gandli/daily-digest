@@ -1,5 +1,5 @@
 import type { Env, SourceItem } from './types';
-import { resolveDescriptions, translateBatch } from './translate';
+import { resolveDescriptions, translateBatch, isChinese } from './translate';
 import { fetchDeepwikiOverview } from './deepwiki';
 import { renderMessage, renderMarkdown } from './render';
 import { sendPerRepoMessages, sendTelegram } from './notify';
@@ -68,6 +68,16 @@ export async function lookupRepo(env: Env, chatId: string, repo: string): Promis
     } catch {
       /* 描述失败不阻塞发送 */
     }
+  }
+  // 兜底: zread/deepwiki 都无索引(如新仓库) → GitHub repo 描述; 已是中文直接用, 否则翻译
+  if (!item.descZh && item.desc) {
+    if (isChinese(item.desc)) {
+      item.descZh = item.desc; // GitHub 描述本身就是中文
+    } else {
+      const done = await translateBatch(env, [item]);
+      item.descZh = done[0]?.descZh;
+    }
+    console.log('lookup: fallback to GitHub desc translation');
   }
   // 一条消息: OG 图做照片, 条目做 caption
   const chunks = renderMessage(today(), [item]);

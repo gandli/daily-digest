@@ -25,3 +25,14 @@ describe('extractRepo: 从消息文本提取 GitHub 仓库', () => {
     expect(extractRepo('https://github.com/mattpocock/skills。')).toBe('mattpocock/skills');
   });
 });
+
+// ---------- 兜底翻译逻辑 ----------
+import { isChinese } from '../src/translate';
+describe('lookup 兜底: GitHub desc 翻译', () => {
+  it('中文 desc 直接用(不翻译)', () => {
+    expect(isChinese('糟糕，我被基佬包围了！快来看看jilaoskill吧')).toBe(true);
+  });
+  it('英文 desc 需翻译', () => {
+    expect(isChinese('This is an English repository description.')).toBe(false);
+  });
+});
