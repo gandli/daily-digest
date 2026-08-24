@@ -61,6 +61,8 @@
 | A11 | cron 推送的消息尾部含 telegra.ph 链接,页面可打开且条目与消息一致 | 浏览器打开实测 |
 | A12 | TELEGRAPH_TOKEN 无效时消息照常发出,仅无 📁 链接,tail 有降级日志 | 填错 token 实测 |
 | A10 | 连续 7 天每天恰 1 条,无漏发无重复 | observability 面板 + 聊天记录 |
+| A13 | 白名单发 X 帖子链接,收到作者/正文/互动数卡片,archive 分支出现 `archive/<YYYY>/<date>-<ms>.md` | 发 x.com/jack/status/20 实测 |
+| A14 | 白名单发普通网页链接,收到 ✅ 存档确认;三级链全失败时收到 ❌ 提示 | 发 example.com 与无效 URL 各实测一次 |
 
 ## Constraints
 
