@@ -1,0 +1,17 @@
+name: cloud-check (temp)
+on:
+  workflow_dispatch:
+
+jobs:
+  run-digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger daily-digest /run from cloud egress
+        run: |
+          echo "token len: ${#DD_TOKEN}"
+          code=$(curl -s -o /tmp/body.txt -w '%{http_code}' --max-time 180 \
+            "https://daily-digest.gandli-digest.workers.dev/run?token=$DD_TOKEN&cache=0")
+          echo "HTTP: $code"
+          echo "body: $(cat /tmp/body.txt | head -c 200)"
+        env:
+          DD_TOKEN: ${{ vars.DD_RUN_TOKEN }}
