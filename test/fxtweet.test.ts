@@ -29,8 +29,8 @@ describe('renderTweetHtml: 转义与拼装', () => {
     expect(html).toContain('&lt;b&gt;&amp;');
     expect(html).toContain('&lt;J&gt;');
   });
-  it('媒体行渲染', () => {
+  it('媒体行渲染为 HTML 链接(parse_mode:HTML)', () => {
     const html = renderTweetHtml({ text: 'pic', media: { all: [{ type: 'photo', url: 'https://pbs.twimg.com/x.jpg' }] } });
-    expect(html).toContain('[photo](https://pbs.twimg.com/x.jpg)');
+    expect(html).toContain('<a href="https://pbs.twimg.com/x.jpg">photo</a>');
   });
 });

@@ -47,7 +47,7 @@ export function renderTweetHtml(t: FxTweet): string {
   ].filter(Boolean).join(' · ');
   const media = (t.media?.all ?? []);
   const mediaLine = media.length
-    ? `\n\n📎 ${media.map((m) => `[${m.type ?? 'media'}](${m.url ?? m.thumbnail_url ?? ''})`).join(' ')}`
+    ? `\n\n📎 ${media.map((m) => `<a href="${esc(m.url ?? m.thumbnail_url ?? '')}">${esc(m.type ?? 'media')}</a>`).join(' · ')}`
     : '';
   const date = t.created_at ? `\n\n🗓 ${t.created_at.slice(0, 16)}` : '';
   return [
