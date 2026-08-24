@@ -1,6 +1,6 @@
 // lookup 功能测试: GitHub 链接提取。
 import { describe, it, expect } from 'vitest';
-import { extractRepo } from '../src/lookup';
+import { extractRepo, extractRepoRefs } from '../src/lookup';
 
 describe('extractRepo: 从消息文本提取 GitHub 仓库', () => {
   it('https://github.com/owner/repo', () => {
@@ -45,5 +45,15 @@ describe('extractRepo: 文件名形态排除(P2-J)', () => {
   });
   it('真裸仓库不受影响', () => {
     expect(extractRepo('推荐 basecamp/omarchy')).toBe('basecamp/omarchy');
+  });
+});
+
+describe('extractRepoRefs: 存档内容 repo 联动扫描', () => {
+  it('提取去重 + 上限 3', () => {
+    const refs = extractRepoRefs('see https://github.com/a/b and https://github.com/a/b again, https://github.com/c/d, https://github.com/e/f, https://github.com/g/h');
+    expect(refs).toEqual(['a/b', 'c/d', 'e/f']);
+  });
+  it('滤掉文件路径后缀', () => {
+    expect(extractRepoRefs('https://github.com/x/y/blob/main/index.js https://github.com/ok/fine')).toEqual(['x/y', 'ok/fine']);
   });
 });

@@ -18,6 +18,22 @@ export async function seenToday(env: Env, repo: string): Promise<boolean> {
   return false;
 }
 
+/** 提取文本中的 GitHub repo 引用(去重、滤文件路径、上限 3 个省子请求)。 */
+export function extractRepoRefs(text: string): string[] {
+  return [...new Set([...text.matchAll(/https?:\/\/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/g)].map((m) => m[1]))]
+    .filter((r) => !/\.md$|\.js$|\.ts$|\.rs$|\.py$/i.test(r))
+    .slice(0, 3);
+}
+
+/** 内容含 GitHub repo 链接 → 逐个走 repo lookup(去重防递归)。ctx 缺省(如 cron)不触发。 */
+export async function fanoutRepoRefs(env: Env, chatId: string, text: string, ctx?: ExecutionContext): Promise<void> {
+  if (!ctx) return;
+  for (const r of extractRepoRefs(text)) {
+    if (await seenToday(env, r)) continue;
+    ctx.waitUntil(lookupRepo(env, chatId, r));
+  }
+}
+
 /** 存档成功后写 /search 索引(archive:idx:<repo> → {repo, date, descZh})。 */
 export async function indexArchivedItems(env: Env, items: SourceItem[], dateStr: string): Promise<void> {
   for (const it of items) {
@@ -132,8 +148,9 @@ export async function lookupRepo(env: Env, chatId: string, repo: string): Promis
   try {
     const ogPath = await archiveOgImage(env, item.title);
     const md = renderMarkdown(today(), [item], undefined, ogPath ? new Map([[item.title, ogPath]]) : undefined);
-    await archiveToGitHub(env, `${today()}-${Date.now() % 86400000}`, md);
-    await indexArchivedItems(env, [item], `${today()}-${Date.now() % 86400000}`); // /search 索引
+    const stamp = `${today()}-${Date.now() % 86400000}`; // 单次计算: 索引 date 必须等于实际文件名
+    await archiveToGitHub(env, stamp, md);
+    await indexArchivedItems(env, [item], stamp); // /search 索引
   } catch {
     /* 存档失败静默 */
   }
@@ -223,15 +240,7 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
   try {
     await archiveToGitHub(env, stamp, `# Web Archive · ${url}\n\n${clipped}\n\n---\n由 daily-digest bot 自动生成`);
     // 内容含 GitHub repo 链接 → 逐个走 repo lookup(去重防递归; 上限 3 个省子请求)
-    if (ctx) {
-      const repoRefs = [...new Set([...clipped.matchAll(/https?:\/\/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/g)].map((m) => m[1]))]
-        .filter((r) => !/\.md$|\.js$|\.ts$|\.rs$|\.py$/i.test(r))
-        .slice(0, 3);
-      for (const r of repoRefs) {
-        if (await seenToday(env, r)) continue;
-        ctx.waitUntil(lookupRepo(env, chatId, r));
-      }
-    }
+    await fanoutRepoRefs(env, chatId, clipped, ctx);
     const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
     const confirm = `✅ 已存档 ${new URL(url).hostname}\n📁 https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`;
     // 有 og:image → sendPhoto(图=OG 卡, caption=确认+链接); 无图/发送失败 → 纯文字

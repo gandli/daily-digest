@@ -4,7 +4,7 @@ import { resolveDescriptions, isChinese } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes } from './render';
 import { sendPerRepoMessages, sendTelegram, registerCommands, safeEqual } from './notify';
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage } from './archive';
-import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl } from './lookup';
+import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs } from './lookup';
 import { extractUrl } from './urlmd';
 import { extractTweet, fetchTweet, renderTweetHtml, type FxTweet } from './fxtweet';
 
@@ -34,7 +34,8 @@ export async function searchArchive(env: Env, chatId: string, query: string): Pr
       const it = JSON.parse(raw) as { repo: string; date: string; descZh?: string };
       // ponytail: 全量线性扫描+子串匹配——个人规模(几百条)毫秒级; 上千条再考虑倒排索引
       if (it.repo.toLowerCase().includes(q) || (it.descZh ?? '').toLowerCase().includes(q)) {
-        hits.push(`📄 [${it.repo} · ${it.date}](https://github.com/${repo}/blob/archive/archive/${it.date}.md)`);
+        const year = it.date.slice(0, 4);
+        hits.push(`📄 [${it.repo} · ${it.date}](https://github.com/${repo}/blob/archive/archive/${year}/${it.date}.md)`);
         if (hits.length >= 5) break;
       }
     }
@@ -60,6 +61,7 @@ export async function archiveTweet(
   chatId: string,
   handle: string,
   id: string,
+  ctx?: ExecutionContext,
 ): Promise<void> {
   const tweet = await fetchTweet(handle, id);
   if (!tweet) {
@@ -101,6 +103,8 @@ export async function archiveTweet(
       if (pageUrl) tgLine = `\n📄 Telegraph: ${pageUrl}`;
     }
     await indexArchivedItems(env, [{ title: `x/@${handle}`, url: tweet.url ?? '', desc: '', descZh: tweet.text?.slice(0, 120) } as SourceItem], stamp);
+    // 帖子正文含 GitHub repo 链接 → 联动查询(与 URL 存档同款扫描)
+    await fanoutRepoRefs(env, chatId, md, ctx);
     const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
     await sendTelegram(env.BOT_TOKEN, chatId, `📁 存档: https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md${tgLine}`);
   } catch (e) {
@@ -281,7 +285,7 @@ export default {
           ctx.waitUntil(lookupRepo(env, chatId, repo));
         }
       } else if (tweet) {
-        ctx.waitUntil(archiveTweet(env, chatId, tweet.handle, tweet.id));
+        ctx.waitUntil(archiveTweet(env, chatId, tweet.handle, tweet.id, ctx));
       } else if (url) {
         ctx.waitUntil(archiveUrl(env, chatId, url, ctx));
       } else {
