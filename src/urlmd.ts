@@ -12,6 +12,14 @@ import type { Env } from './types';
 const UA_DESKTOP =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
+/** 从 HTML 提取 og:image / twitter:image URL(无则 null)。 */
+export function extractOgImage(html: string): string | null {
+  const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+    ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)
+    ?? html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);
+  return m ? m[1] : null;
+}
+
 /** 抓取 URL 原始字节(带 UA; 失败抛给调用方)。 */
 async function fetchRaw(url: string): Promise<Blob> {
   const res = await fetch(url, {
