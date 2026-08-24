@@ -1,6 +1,6 @@
 // 渲染层测试: 双缺条目(descZh 空)不显示描述行; 有描述时显示中文。
 import { describe, it, expect } from 'vitest';
-import { renderMessage, renderMarkdown } from '../src/render';
+import { renderMessage, renderMarkdown, renderTelegraphNodes } from '../src/render';
 
 const ZH = '这是一个来自 zread wiki 的中文描述，用于说明该仓库的核心功能模块。';
 
@@ -29,5 +29,16 @@ describe('渲染: 描述层诚实降级', () => {
     expect(noDesc).not.toContain('English repo desc.');
     const withDesc = renderMarkdown('2026-08-24', [mk('a/aa', ZH)]);
     expect(withDesc).toContain(ZH);
+  });
+});
+describe('Telegraph 渲染: 中文守卫(P1-A)', () => {
+  const base = { title: 'o/r', url: 'https://github.com/o/r', desc: 'English fallback desc' };
+  it('双缺 → 只留标题行, 英文不上公开页面', () => {
+    const nodes = renderTelegraphNodes([{ ...base }] as never);
+    expect(JSON.stringify(nodes)).not.toContain('English fallback desc');
+  });
+  it('有中文 descZh → 输出中文描述', () => {
+    const nodes = renderTelegraphNodes([{ ...base, descZh: '这是一个中文描述。' }] as never);
+    expect(JSON.stringify(nodes)).toContain('这是一个中文描述。');
   });
 });

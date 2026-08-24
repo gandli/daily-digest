@@ -36,3 +36,14 @@ describe('lookup 兜底: GitHub desc 翻译', () => {
     expect(isChinese('This is an English repository description.')).toBe(false);
   });
 });
+describe('extractRepo: 文件名形态排除(P2-J)', () => {
+  it('src/utils.ts → null(不当仓库)', () => {
+    expect(extractRepo('改一下 src/utils.ts 这个文件')).toBeNull();
+  });
+  it('vite.config.js → null', () => {
+    expect(extractRepo('vite.config.js')).toBeNull();
+  });
+  it('真裸仓库不受影响', () => {
+    expect(extractRepo('推荐 basecamp/omarchy')).toBe('basecamp/omarchy');
+  });
+});

@@ -8,16 +8,21 @@ import { archiveToGitHub } from './archive';
 // 北京时间日期串(与 index.ts 一致; 独立内联避免循环依赖)
 const today = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
 
-/** 从文本提取 GitHub 仓库链接或裸 owner/repo。优先 github.com 域; 兜底裸 owner/repo。 */
+/** 从文本提取 GitHub 仓库链接或裸 owner/repo。优先 github.com 域; 兜底裸 owner/repo(排除文件名形态)。 */
 export function extractRepo(text: string): string | null {
+  const strip = (s: string) => s.replace(/[。.,,;；]$/, '');
   const full = text.match(/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/i);
-  if (full) return full[1].replace(/[。.,,;；]$/, '');
+  if (full) return strip(full[1]);
   // 裸 owner/repo(无域名、斜杠二段、非路径分隔)——宽松匹配常见仓库形态
   const bare = text.match(/(?:^|\s)([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)(?:\s|$)/);
-  return bare ? bare[1].replace(/[。.,,;；]$/, '') : null;
+  if (!bare) return null;
+  const cand = strip(bare[1]);
+  // ponytail: 文件/路径误报排除(src/utils.ts、vite.config.js 等)——按扩展名黑名单, 新框架名不在表内会漏, 可换白名单
+  if (/\.[a-z]{1,5}$/i.test(cand.split('/')[1])) return null;
+  return cand;
 }
 
-/** 从 GitHub API 抓单 repo 详情 → SourceItem */
+/** 从 GitHub API 抓单 repo 详情 → SourceItem。网络/超时抛给调用方(由 lookupRepo 统一回复用户)。 */
 async function fetchRepo(repo: string, ghToken: string): Promise<SourceItem | null> {
   const res = await fetch(`https://api.github.com/repos/${repo}`, {
     headers: {
@@ -43,9 +48,17 @@ async function fetchRepo(repo: string, ghToken: string): Promise<SourceItem | nu
   };
 }
 
-/** 仓库查找: 描述 -> OG图 -> 回复 -> 存档。静默失败不抛。 */
+/** 仓库查找: 描述 -> OG图 -> 回复 -> 存档。失败给用户明确回复, 不静默。 */
 export async function lookupRepo(env: Env, chatId: string, repo: string): Promise<void> {
-  const item = await fetchRepo(repo, env.GH_TOKEN);
+  // P1-B: fetch 超时/网络抖动会抛——包住并回复用户(webhook 已 200, 这里静默=用户无任何反馈)
+  let item: SourceItem | null = null;
+  try {
+    item = await fetchRepo(repo, env.GH_TOKEN);
+  } catch (e) {
+    console.error('lookup fetchRepo failed', String(e).slice(0, 80));
+    await sendTelegram(env.BOT_TOKEN, chatId, `⚠️ 查询 ${repo} 失败(网络异常)，请稍后再试。`);
+    return;
+  }
   if (!item) {
     await sendTelegram(env.BOT_TOKEN, chatId, `❌ 找不到仓库 ${repo}，请检查拼写或是否为公开仓库。`);
     return;

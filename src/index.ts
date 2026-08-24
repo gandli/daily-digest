@@ -101,7 +101,6 @@ export default {
         let items: SourceItem[] = [];
         for (const s of sources) items = items.concat(await s.fetch(env));
         await resolveDescriptions(env, items);
-        const translated = items;
         const nodes = renderTelegraphNodes(items);
         let telegraphUrl: string | null = null;
         if (env.TELEGRAPH_TOKEN) {
@@ -109,12 +108,12 @@ export default {
         }
         return Response.json({
           date: dateStr,
-          count: translated.length,
-          translatedCount: translated.filter((i) => i.descZh).length,
+          count: items.length,
+          translatedCount: items.filter((i) => i.descZh).length,
           translateErrors: [],
-          message: renderMessage(dateStr, translated, telegraphUrl ?? undefined),
-          markdown: renderMarkdown(dateStr, translated),
-          items: translated,
+          message: renderMessage(dateStr, items, telegraphUrl ?? undefined),
+          markdown: renderMarkdown(dateStr, items),
+          items,
         });
       }
       // /run: 手动触发完整管线(含发送)。需 token=WEBHOOK_SECRET。测试/运维两用。
