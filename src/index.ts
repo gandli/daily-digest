@@ -88,6 +88,8 @@ export async function archiveTweet(
   try {
     await archiveDatedToGitHub(env, stamp, md);
     await indexArchivedItems(env, [{ title: `x/@${handle}`, url: tweet.url ?? '', desc: '', descZh: tweet.text?.slice(0, 120) } as SourceItem], stamp);
+    const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
+    await sendTelegram(env.BOT_TOKEN, chatId, `📁 存档: https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`);
   } catch (e) {
     console.error('archiveTweet store failed', String(e).slice(0, 100));
     await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ 已取到帖子但存档失败(GitHub 写入异常)。');
