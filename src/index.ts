@@ -4,15 +4,53 @@ import { resolveDescriptions } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes } from './render';
 import { sendPerRepoMessages, sendTelegram, registerCommands, safeEqual } from './notify';
 import { archiveToGitHub, createTelegraphPage } from './archive';
-import { extractRepo, lookupRepo } from './lookup';
+import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions } from './lookup';
 
 // 北京时间日期串 YYYY-MM-DD(UTC+8 无 DST,直接偏移即可)
 export const shanghaiDate = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
 
 const HELP = `📊 daily-digest 使用:
 /trending — 获取今日 GitHub Trending
+/search <关键词> — 搜索历史存档
 /archive — 查看历史存档链接
+发 GitHub 仓库链接 = 单仓查询(自动去重)。
 每天 08:30(北京时间)自动推送一条。`;
+
+// /search: GitHub code search API 查 archive 分支 markdown, 回前5条命中。
+export async function searchArchive(env: Env, chatId: string, query: string): Promise<void> {
+  const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
+  const q = encodeURIComponent(`${query} repo:${repo}`);
+  try {
+    const res = await fetch(`https://api.github.com/search/code?q=${q}+in:file+filename:.md`, {
+      headers: {
+        Authorization: `token ${env.GH_TOKEN}`,
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'daily-digest',
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) {
+      await sendTelegram(env.BOT_TOKEN, chatId, `⚠️ 搜索失败(${res.status})${res.status === 403 ? '(API 限流)' : ''}, 请稍后再试。`);
+      return;
+    }
+    const j = (await res.json()) as { total_count?: number; items?: { path?: string; name?: string }[] };
+    const items = (j.items ?? []).slice(0, 5);
+    if (!items.length) {
+      await sendTelegram(env.BOT_TOKEN, chatId, `🔍 存档中没有找到「${query}」`);
+      return;
+    }
+    // ponytail: code search 不返回命中片段——只给文件链接, 点进去看; 要片段需逐文件拉内容(+N子请求), 需要时再加
+    const lines = [`🔍 「${query}」命中 ${j.total_count ?? items.length} 个存档:`];
+    for (const it of items) {
+      const p = it.path ?? '';
+      lines.push(`📄 [${p}](https://github.com/${repo}/blob/archive/${p})`);
+    }
+    await sendTelegram(env.BOT_TOKEN, chatId, lines.join('\n'));
+  } catch (e) {
+    console.error('searchArchive failed', String(e).slice(0, 80));
+    await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ 搜索失败(网络异常), 请稍后再试。');
+  }
+}
 
 // 共享管线:cron 与 /trending 都走这里。
 export async function runDigest(env: Env, useCache = true): Promise<number> {
@@ -162,11 +200,23 @@ export default {
         ),
       );
       return new Response('ok');
+    } else if (text.startsWith('/search')) {
+      const query = text.slice('/search'.length).trim();
+      if (!query) {
+        ctx.waitUntil(sendTelegram(env.BOT_TOKEN, chatId, '用法: /search <关键词>\n例: /search rust cli'));
+      } else {
+        ctx.waitUntil(searchArchive(env, chatId, query));
+      }
+      return new Response('ok');
     } else {
-      // GitHub 链接 → 单仓库 lookup(描述+OG图+回复+存档)
+      // GitHub 链接 → 单仓库 lookup(描述+OG图+回复+存档); 同 repo 当日已查 → 提示去重
       const repo = extractRepo(text);
       if (repo) {
-        ctx.waitUntil(lookupRepo(env, chatId, repo));
+        if (await seenToday(env, repo)) {
+          ctx.waitUntil(sendTelegram(env.BOT_TOKEN, chatId, `♻️ ${repo} 今天已查询过, 存档未重复写入。`));
+        } else {
+          ctx.waitUntil(lookupRepo(env, chatId, repo));
+        }
       } else {
         ctx.waitUntil(sendTelegram(env.BOT_TOKEN, chatId, HELP));
       }
@@ -178,5 +228,6 @@ export default {
 
   async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
     await runDigest(env, false); // cron 不读缓存,保证每日新鲜抓取
+    await refreshLookupDescriptions(env); // 已查过的 repo 定期重跑 deepwiki/zread, 同步上游描述
   },
 };

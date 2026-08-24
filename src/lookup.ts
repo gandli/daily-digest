@@ -3,10 +3,19 @@ import { resolveDescriptions, translateBatch, isChinese } from './translate';
 import { fetchDeepwikiOverview } from './deepwiki';
 import { renderMessage, renderMarkdown } from './render';
 import { sendPerRepoMessages, sendTelegram } from './notify';
-import { archiveToGitHub } from './archive';
+import { archiveToGitHub, archiveOgImage } from './archive';
 
 // 北京时间日期串(与 index.ts 一致; 独立内联避免循环依赖)
 const today = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
+
+/** 同一 repo 当日已查过 → 跳过重复回复与存档。TTL 48h(跨过午夜即视为新一天)。 */
+export async function seenToday(env: Env, repo: string): Promise<boolean> {
+  const key = `lookup:${today()}:${repo.toLowerCase()}`;
+  const hit = await env.CACHE.get(key);
+  if (hit) return true;
+  await env.CACHE.put(key, '1', { expirationTtl: 172800 });
+  return false;
+}
 
 /** 从文本提取 GitHub 仓库链接或裸 owner/repo。优先 github.com 域; 兜底裸 owner/repo(排除文件名形态)。 */
 export function extractRepo(text: string): string | null {
@@ -63,23 +72,32 @@ export async function lookupRepo(env: Env, chatId: string, repo: string): Promis
     await sendTelegram(env.BOT_TOKEN, chatId, `❌ 找不到仓库 ${repo}，请检查拼写或是否为公开仓库。`);
     return;
   }
-  // 单 repo(无子请求预算压力): 优先 deepwiki 概述(已验证恒定纯净), 其次 zread, 再降级管线。
-  // ponytail: deepwiki 对部分 repo 返回"架构"类描述——这里固定优先 deepwiki, 因 zread 偶发选中架构段
-  try {
-    const dw = await fetchDeepwikiOverview(repo);
-    if (dw) {
-      item.desc = dw;
-      const done = await translateBatch(env, [item]);
-      item.descZh = done[0]?.descZh;
-    }
-  } catch {
-    /* deepwiki 失败落 zread */
-  }
-  if (!item.descZh) {
+  // 单 repo: 描述链 = KV 缓存(7天内) → deepwiki 概述(写入缓存) → resolveDescriptions(zread) → GitHub 描述翻译
+  const cachedZh = await getFreshDesc(env, repo);
+  if (cachedZh) {
+    item.descZh = cachedZh;
+    console.log('lookup: desc from cache');
+  } else {
+    // ponytail: deepwiki 对部分 repo 返回"架构"类描述——固定优先 deepwiki, 因 zread 偶发选中架构段
     try {
-      await resolveDescriptions(env, [item]);
+      const dw = await fetchDeepwikiOverview(repo);
+      if (dw) {
+        item.desc = dw;
+        const done = await translateBatch(env, [item]);
+        item.descZh = done[0]?.descZh;
+        if (isChinese(item.descZh ?? undefined)) {
+          await env.CACHE.put(descKey(repo), JSON.stringify({ zh: item.descZh!, ts: Date.now() } satisfies DescCache));
+        }
+      }
     } catch {
-      /* 描述失败不阻塞发送 */
+      /* deepwiki 失败落 zread */
+    }
+    if (!item.descZh) {
+      try {
+        await resolveDescriptions(env, [item]);
+      } catch {
+        /* 描述失败不阻塞发送 */
+      }
     }
   }
   // 兜底: zread/deepwiki 都无索引(如新仓库) → GitHub repo 描述; 已是中文直接用, 否则翻译
@@ -95,10 +113,68 @@ export async function lookupRepo(env: Env, chatId: string, repo: string): Promis
   // 一条消息: OG 图做照片, 条目做 caption
   const chunks = renderMessage(today(), [item]);
   await sendPerRepoMessages(env.BOT_TOKEN, chatId, chunks.map((html) => ({ html, repo: item.title })));
-  // 存档(复用 trending 同款日期路径; lookup 额外加时间戳避免同日覆盖)
+  // 存档: OG 图入库 og-images/, markdown 引用相对路径(失败回退远程 URL)
   try {
-    await archiveToGitHub(env, `${today()}-${Date.now() % 86400000}`, renderMarkdown(today(), [item]));
+    const ogPath = await archiveOgImage(env, item.title);
+    const md = renderMarkdown(today(), [item], undefined, ogPath ? new Map([[item.title, ogPath]]) : undefined);
+    await archiveToGitHub(env, `${today()}-${Date.now() % 86400000}`, md);
   } catch {
     /* 存档失败静默 */
   }
+}
+
+/**
+ * 描述缓存(KV lookup:desc:<repo> → {zh, ts}): 7天内直接复用(省 deepwiki/zread/翻译子请求),
+ * 过期由每日 cron 的 refreshLookupDescriptions 重跑上游同步。历史 .md 是快照不回写。
+ */
+const DESC_TTL_MS = 7 * 86400_000;
+type DescCache = { zh: string; ts: number };
+const descKey = (repo: string) => `lookup:desc:${repo.toLowerCase()}`;
+
+async function getFreshDesc(env: Env, repo: string): Promise<string | null> {
+  const raw = await env.CACHE.get(descKey(repo));
+  if (!raw) return null;
+  try {
+    const c = JSON.parse(raw) as DescCache;
+    return Date.now() - c.ts < DESC_TTL_MS ? c.zh : null; // 过期视为 miss(cron 会刷新)
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * cron 每日对已查询过的 repo 重跑 deepwiki 描述链, 只处理缓存超过 7 天的条目。
+ * ponytail: 只刷 KV 缓存, 不回写历史 .md——历史是快照, 追改破坏存档语义。
+ */
+export async function refreshLookupDescriptions(env: Env): Promise<void> {
+  const refreshed: string[] = [];
+  try {
+    const page = await env.CACHE.list({ prefix: 'lookup:desc:' });
+    for (const k of page.keys) {
+      let old: DescCache;
+      try {
+        old = JSON.parse((await env.CACHE.get(k.name)) ?? '') as DescCache;
+      } catch {
+        continue;
+      }
+      if (!old?.ts || Date.now() - old.ts < DESC_TTL_MS) continue;
+      const repo = k.name.slice('lookup:desc:'.length);
+      try {
+        const dw = await fetchDeepwikiOverview(repo).catch(() => null);
+        let zh = '';
+        if (dw) {
+          const done = await translateBatch(env, [{ title: repo, url: '', desc: dw } as SourceItem]);
+          zh = done[0]?.descZh ?? '';
+        }
+        if (!isChinese(zh)) continue; // 上游未命中/翻译失败 → 保持旧值等下次
+        await env.CACHE.put(k.name, JSON.stringify({ zh, ts: Date.now() } satisfies DescCache));
+        refreshed.push(repo);
+      } catch {
+        /* 单仓失败跳过 */
+      }
+    }
+  } catch (e) {
+    console.error('refreshLookupDescriptions failed', String(e).slice(0, 80));
+  }
+  if (refreshed.length) console.log(`lookup desc refreshed: ${refreshed.join(', ')}`);
 }
