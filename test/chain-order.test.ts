@@ -63,7 +63,7 @@ describe('兜底链顺序: zread → deepwiki → repo desc 翻译', () => {
     expect(fakeEnv.AI.run).toHaveBeenCalled(); // 翻译确实跑了
   });
 
-  it('③ zread+deepwiki 双缺 → repo 原 desc 走翻译成中文', async () => {
+  it('③ zread+deepwiki 双缺 → 不出描述(descZh 空), 不硬凑 repo 一句话', async () => {
     mockZread.mockResolvedValue(new Map());
     mockDw.mockResolvedValue(new Map()); // deepwiki 也空
 
@@ -71,20 +71,20 @@ describe('兜底链顺序: zread → deepwiki → repo desc 翻译', () => {
     await resolveDescriptions(fakeEnv, items);
 
     expect(mockDw).toHaveBeenCalled(); // 试过二级
-    expect(isChinese(items[0].descZh)).toBe(true); // 三级兜底产出中文
-    expect(items[0].descZh).toBe(ZH_TL);
+    expect(items[0].descZh).toBeUndefined(); // 双缺 → 诚实降级, 不出描述
+    expect(fakeEnv.AI.run).not.toHaveBeenCalled(); // 不翻译 repo 一句话
   });
 
-  it('顺序敏感: zread 部分命中时, 只有缺失的进 deepwiki', async () => {
+  it('顺序敏感: zread 部分命中时, 只有缺失的进 deepwiki; 双缺不留描述', async () => {
     mockZread.mockResolvedValue(new Map([['a/aa', '这个仓库是一个用于构建工作流的开发工具。']]));
-    mockDw.mockResolvedValue(new Map());
+    mockDw.mockResolvedValue(new Map()); // deepwiki 也空(只验证被调用与否)
 
     const items = [item('a/aa', 'hit desc'), item('b/bb', 'missed desc')];
     await resolveDescriptions(fakeEnv, items);
 
     expect(mockDw.mock.calls[0][0]).toEqual(['b/bb']); // 仅缺失者进二级
     expect(items[0].descZh).toContain('工作流'); // 命中者用 zread
-    expect(isChinese(items[1].descZh)).toBe(true); // 缺失者走翻译
+    expect(items[1].descZh).toBeUndefined(); // b/bb: zread+deepwiki 双缺 → 不出描述
   });
 
   it('全链路失败 → 诚实降级(descZh 空), 不冒充中文', async () => {
@@ -101,15 +101,14 @@ describe('兜底链顺序: zread → deepwiki → repo desc 翻译', () => {
     vi.unstubAllGlobals();
   });
 
-  it('zread 返回非中文(被污染) → 视为未命中, 落入下一级', async () => {
+  it('zread 返回非中文(被污染) + deepwiki 缺 → 双缺不出描述', async () => {
     mockZread.mockResolvedValue(new Map([['bad/repo', 'This wiki content is in English, not Chinese at all.']]));
     mockDw.mockResolvedValue(new Map());
 
     const items = [item('bad/repo', 'English desc.')];
     await resolveDescriptions(fakeEnv, items);
 
-    expect(items[0].descZh).not.toContain('not Chinese'); // 英文 wiki 未被采纳
-    expect(items[0].descZh).toBe(ZH_TL); // 走了翻译
+    expect(items[0].descZh).toBeUndefined(); // 英文 wiki 被拒 + deepwiki 缺 → 不出描述
   });
 });
 
@@ -167,5 +166,48 @@ describe('翻译服务优先级', () => {
     expect(isChinese(done[0].descZh!)).toBe(true); // 垃圾被替换
     expect(isChinese(done[1].descZh!)).toBe(true);
     vi.unstubAllGlobals();
+  });
+});
+
+// ---------- 契约: 描述必须来自 zread 或 deepwiki ----------
+describe('契约: 每条成功产出的描述必须源自 zread 或 deepwiki', () => {
+  it('混合命中: zread 条用中文、deepwiki 条译中文、双缺条留空——逐条分派正确', async () => {
+    mockZread.mockResolvedValue(new Map([
+      ['z/one', '这是 zread 提供的中文 wiki 描述。'],
+    ]));
+    mockDw.mockImplementation(async (repos: string[]) =>
+      new Map(repos.map((r) => [r, `${r} is a deepwiki overview paragraph with enough length to translate.`])),
+    );
+
+    const items = [
+      item('z/one', 'repo desc A'),
+      item('d/two', 'repo desc B'),
+      item('x/three', 'repo desc C'), // deepwiki 只补前5条(这里3条都在5内)→命中
+    ];
+    await resolveDescriptions(fakeEnv, items);
+
+    // 1 = zread 中文直用(不翻译)
+    expect(items[0].descZh).toContain('zread');
+    // 2,3 = deepwiki 英文经翻译层(WorkersAI 假翻译)
+    expect(items[1].descZh).toBe(ZH_TL);
+    expect(items[2].descZh).toBe(ZH_TL);
+    // 全部非空时 100% 中文
+    for (const it of items) {
+      expect(isChinese(it.descZh ?? '')).toBe(true);
+    }
+  });
+
+  it('deepwiki 只补前5条: 第6+条 zread/deepwiki 双缺 → 留空', async () => {
+    mockZread.mockResolvedValue(new Map());
+    mockDw.mockImplementation(async (repos: string[]) =>
+      new Map(repos.map((r) => [r, `${r} dw overview english text.`])),
+    );
+    const items = Array.from({ length: 7 }, (_, i) => item(`r/${i}`, `desc ${i}`));
+    await resolveDescriptions(fakeEnv, items);
+
+    // deepwiki slice(0,5) → 前5条命中翻译, 后2条双缺留空
+    for (let i = 0; i < 5; i++) expect(isChinese(items[i].descZh ?? '')).toBe(true);
+    expect(items[5].descZh).toBeUndefined();
+    expect(items[6].descZh).toBeUndefined();
   });
 });

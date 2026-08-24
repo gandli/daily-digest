@@ -9,7 +9,8 @@ export function isChinese(s?: string | null): boolean {
   return cjk >= 5 && cjk > s.length * 0.3;
 }
 
-// 描述解析链(按序兜底): zread wiki 中文 → deepwiki 英文 Overview → 翻译成中文 → repo desc 翻译成中文 → 英文原文
+// 描述解析链(按序兜底): zread wiki 中文 → deepwiki 英文 Overview → 翻译成中文 → 英文原文。
+// 用户要求: 必须来自 zread 或 deepwiki。两者都未命中 → 该条不显示描述(诚实降级), 不硬凑 repo 一句话。
 export async function resolveDescriptions(env: Env, items: SourceItem[]): Promise<void> {
   // 1. zread wiki 中文(主描述源)——非中文的命中视为无效, 落入下一级
   const wikis = await fetchZreadBatch(items.map((i) => i.title)).catch(() => new Map<string, string>());
@@ -20,21 +21,20 @@ export async function resolveDescriptions(env: Env, items: SourceItem[]): Promis
   });
   console.log(`zread wiki: ${wikis.size}/${items.length}`);
 
-  // 2. deepwiki 英文 Overview(只对 zread 缺失的条目; 翻译交给下面的翻译层)
-  // ponytail: Worker 子请求上限50, 全链路(zread+deepwiki+OG图+发送+存档)已近顶——deepwiki 只补至多5条
-  let dwHits = 0;
+  // 2. deepwiki 英文 Overview(只对 zread 缺失的条目; 翻译交给下面第3步)
+  // ponytail: Worker 子请求上限50, 全链路已近顶——deepwiki 只补至多5条
+  const dwHit = new Set<string>();
   if (missing.length) {
     const dws = await fetchDeepwikiBatch(missing.slice(0, 5).map((i) => i.title)).catch(() => new Map<string, string>());
     for (const it of missing) {
       const d = dws.get(it.title);
-      if (d) { it.desc = d; dwHits++; } // 用 Overview 替换 repo 一句话描述, 再走翻译
+      if (d) { it.desc = d; dwHit.add(it.title); } // 用 Overview 替换: 标记为待翻译的 deepwiki 英文
     }
-    console.log(`deepwiki overview: ${dwHits}/${missing.length}`);
+    console.log(`deepwiki overview: ${dwHit.size}/${missing.length}`);
   }
 
-  // 3. 翻译: 没拿到 zread 中文的条目, 全部走翻译链(deepwiki 英文 或 repo 原 desc)
-  // translateBatch 返回新数组(不可变回填), 必须写回原 items
-  const toTranslate = items.filter((i) => !i.descZh);
+  // 3. 只翻译 deepwiki 英文条目(zread 与 deepwiki 都缺的 → descZh 留空, 不硬凑 repo 一句话)
+  const toTranslate = items.filter((i) => !i.descZh && dwHit.has(i.title));
   if (toTranslate.length) {
     const done = await translateBatch(env, toTranslate as SourceItem[]);
     for (let i = 0; i < toTranslate.length; i++) {
