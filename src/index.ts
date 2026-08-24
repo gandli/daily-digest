@@ -56,6 +56,29 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
     console.error('zread batch failed', String(e).slice(0, 80));
   }
 
+  // 2.6 GitHub topics(GH_TOKEN 已配)——做消息标签。
+  // ponytail: Worker 单次调用子请求上限50, 全链路已近顶——只拉前4个 repo 的 topics
+  try {
+    await Promise.all(
+      translated.slice(0, 4).map(async (it) => {
+        const r = await fetch(`https://api.github.com/repos/${it.title}`, {
+          headers: {
+            Authorization: `Bearer ${env.GH_TOKEN}`,
+            Accept: 'application/vnd.github+json',
+            'User-Agent': 'daily-digest',
+          },
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!r.ok) return;
+        const j = (await r.json()) as { topics?: string[] };
+        if (j.topics?.length) it.topics = j.topics.slice(0, 4);
+      }),
+    );
+    console.log('topics fetched');
+  } catch (e) {
+    console.error('topics failed', String(e).slice(0, 80));
+  }
+
   // 3. Telegraph 备份页(可选,失败静默)
   let telegraphUrl: string | null = null;
   if (env.TELEGRAPH_TOKEN) {

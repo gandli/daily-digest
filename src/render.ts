@@ -4,20 +4,23 @@ const unesc = (s: string) => s.replace(/&amp;/g, '&').replace(/&#39;/g, "'").rep
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const fmtK = (n?: number) => (n === undefined ? '' : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 
-// Telegram HTML 消息。一个项目一条消息(首条带头部+存档链接)。
+// Telegram MarkdownV2 消息。一个项目一条消息(首条带头部+存档链接), 每条带 topics 标签行。
 export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl?: string): string[] {
-  const header = `📊 <b>Daily Digest</b> · ${dateStr}\n#digest #d${dateStr.replace(/-/g, '')}\n`;
-  const footer = telegraphUrl ? `\n\n📁 <a href="${esc(telegraphUrl)}">Telegraph 存档</a>` : '';
+  const mdEscape = (s: string) => s.replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
+  const header = `📊 *Daily Digest* · ${mdEscape(dateStr)}\n${mdEscape('#digest')} ${mdEscape('#d' + dateStr.replace(/-/g, ''))}\n`;
+  const footer = telegraphUrl ? `\n\n📁 [Telegraph 存档](${telegraphUrl})` : '';
   return items.map((it, i) => {
-    const langTag = it.lang ? ` · #${it.lang}` : '';
-    const today = it.starsToday ? ` (+${fmtK(it.starsToday)} 今日)` : '';
-    const stars = it.stars !== undefined ? ` ⭐ ${fmtK(it.stars)}${today}` : '';
-    const head = i === 0 ? header + '\n' : `${i + 1}/${items.length} `;
+    const langTag = it.lang ? ` · ${mdEscape('#' + it.lang)}` : '';
+    const today = it.starsToday ? ` ${mdEscape(`(+${fmtK(it.starsToday)} 今日)`)}` : '';
+    const stars = it.stars !== undefined ? ` ⭐ ${mdEscape(fmtK(it.stars))}${today}` : '';
+    const head = i === 0 ? header + '\n' : `${mdEscape(`${i + 1}/${items.length}`)} `;
+    const topicTags = (it.topics ?? []).map((t) => mdEscape('#' + t)).join(' ');
+    const tags = [mdEscape('#trending'), topicTags].filter(Boolean).join(' ');
     const body =
-      `<b><a href="${esc(it.url)}">${esc(it.title)}</a></b>${stars}${langTag}\n` +
-      `${esc(unesc(it.descZh || it.desc))}\n` +
-      (it.wikiDesc ? `${esc(unesc(it.wikiDesc))}\n` : '') +
-      `<a href="https://deepwiki.com/${esc(it.title)}">📖 deepwiki</a> · <a href="https://zread.ai/${esc(it.title)}">🦾 zread</a>`;
+      `*[${mdEscape(it.title)}](${it.url})*${stars}${langTag}\n` +
+      `${mdEscape(unesc(it.descZh || it.desc))}\n` +
+      (it.wikiDesc ? `${mdEscape(`📚 ${unesc(it.wikiDesc)}`)}\n` : '') +
+      `[📖 deepwiki](https://deepwiki.com/${it.title}) · [🦾 zread](https://zread.ai/${it.title})${tags ? `\n\n${tags}` : ''}`;
     // ponytail: wikiDesc 极端超长时仍可能超4096——截断到安全长度
     let msg = head + body + (i === items.length - 1 ? footer : '');
     if (msg.length > 4000) msg = msg.slice(0, 3999) + '…';

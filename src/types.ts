@@ -18,7 +18,8 @@ export type SourceItem = {
   url: string;
   desc: string; // 原文描述(翻译前)
   descZh?: string; // 翻译后的中文描述
-  wikiDesc?: string; // zread.ai wiki Overview 首段(深度描述, 英文)
+  wikiDesc?: string; // zread.ai wiki Overview 定义段(中文)
+  topics?: string[]; // GitHub repo topics(前4个做标签)
   lang?: string;
   stars?: number; // 总星数
   starsToday?: number; // 今日新增
