@@ -9,49 +9,43 @@ export async function sendTelegram(token: string, chatId: string, html: string):
   if (!res.ok) console.error(`sendMessage ${res.status}: ${await res.text()}`);
 }
 
-// OG 图相册。Telegram 代抓 opengraph.githubassets.com 偶发被限速(WEBPAGE_CURL_FAILED),
-// 所以 Worker 自己下载图片, 以 multipart attach:// 上传——可靠。
-export async function sendOgAlbum(
+// OG 图 + 文字合一: 每项目一条 sendPhoto(图=GitHub OG 卡, caption=完整条目)。
+// 图下载失败 → 降级纯文字。caption 上限 1024。
+export async function sendPerRepoMessages(
   token: string,
   chatId: string,
-  items: { title: string; stars?: number; starsToday?: number }[],
+  messages: { html: string; repo: string }[],
 ): Promise<void> {
-  for (let i = 0; i < items.length; i += 10) {
-    const slice = items.slice(i, i + 10);
-    // 并行下载全部图(约60KB/张)
-    const fetched = await Promise.all(
-      slice.map(async (it, j) => {
-        try {
-          const r = await fetch(`https://opengraph.githubassets.com/${i + j + 1}/${it.title}`, {
-            headers: { 'User-Agent': 'daily-digest-bot' },
-          });
-          if (!r.ok) throw new Error(String(r.status));
-          return { it, blob: await r.blob() };
-        } catch (e) {
-          console.error(`og fetch ${it.title}: ${String(e).slice(0, 60)}`);
-          return null;
-        }
-      }),
-    );
-    const ok = fetched.filter((f): f is NonNullable<typeof f> => f !== null);
-    if (!ok.length) continue;
+  for (const m of messages) {
+    const blob = await fetchOgImage(m.repo);
+    let res: Response;
+    if (blob) {
+      const form = new FormData();
+      form.append('chat_id', chatId);
+      form.append('photo', blob, 'og.png');
+      form.append('caption', m.html.slice(0, 1020));
+      form.append('parse_mode', 'HTML');
+      res = await fetch(`${API}/bot${token}/sendPhoto`, { method: 'POST', body: form });
+    } else {
+      res = await fetch(`${API}/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: m.html, parse_mode: 'HTML', disable_web_page_preview: true }),
+      });
+    }
+    if (!res.ok) console.error(`sendPhoto ${m.repo} ${res.status}: ${(await res.text()).slice(0, 120)}`);
+  }
+}
 
-    const form = new FormData();
-    form.append('chat_id', chatId);
-    form.append(
-      'media',
-      JSON.stringify(
-        ok.map(({ it }, j) => ({
-          type: 'photo',
-          media: `attach://p${j}`,
-          caption: `${i + j + 1}. ${it.title}${it.starsToday ? ` (+${it.starsToday} 今日)` : ''}`,
-        })),
-      ),
-    );
-    ok.forEach(({ blob }, j) => form.append(`p${j}`, blob, `og${j}.png`));
-
-    const res = await fetch(`${API}/bot${token}/sendMediaGroup`, { method: 'POST', body: form });
-    if (!res.ok) console.error(`sendMediaGroup ${res.status}: ${(await res.text()).slice(0, 120)}`);
+async function fetchOgImage(repo: string): Promise<Blob | null> {
+  try {
+    const r = await fetch(`https://opengraph.githubassets.com/1/${repo}`, {
+      headers: { 'User-Agent': 'daily-digest-bot' },
+      signal: AbortSignal.timeout(15000),
+    });
+    return r.ok ? await r.blob() : null;
+  } catch {
+    return null;
   }
 }
 
