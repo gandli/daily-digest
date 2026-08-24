@@ -1,0 +1,13 @@
+name: final-verify (temp)
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger /run
+        run: |
+          code=$(curl -s -o /tmp/b.txt -w '%{http_code}' --max-time 180 \
+            "https://daily-digest.gandli-digest.workers.dev/run?token=$DD_TOKEN&cache=0")
+          echo "HTTP: $code body: $(head -c 120 /tmp/b.txt)"
