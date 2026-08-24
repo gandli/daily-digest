@@ -16,6 +16,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx tsc --noEmit
+      - run: npm test
       - name: secret leak scan
         run: |
           ! grep -rEn "(ghp_[A-Za-z0-9]{20,}|gho_[A-Za-z0-9]{20,}|[0-9]{8,10}:AA[A-Za-z0-9_-]{30,})" src/ wrangler.jsonc

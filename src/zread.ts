@@ -3,7 +3,7 @@
 const ZREAD_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126';
 
 /** 提取"是什么"定义句: 含定位动词、中文为主、非目录/表格/RSC杂讯 */
-function extractDesc(payload: string, maxLen: number): string | null {
+export function extractDesc(payload: string, maxLen: number): string | null {
   const tail = payload.slice(30000);
   const end = tail.indexOf('\nSources: ');
   const body = end > 0 ? tail.slice(0, end) : tail.slice(0, 20000);
