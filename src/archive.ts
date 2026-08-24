@@ -1,5 +1,16 @@
 import type { Env } from './types';
 
+/**
+ * 二进制 → base64。分块 String.fromCharCode 规避 spread 栈上限
+ * (实测 Node ~125K 元素即 RangeError; workerd 更小)。bit-exact 等价已验证。
+ */
+export function encodeBase64(buf: Uint8Array): string {
+  let s = '';
+  const CH = 0x8000;
+  for (let i = 0; i < buf.length; i += CH) s += String.fromCharCode(...buf.subarray(i, i + CH));
+  return btoa(s);
+}
+
 // GitHub 存档 + Telegraph 备份。两者失败都只记日志,不中断管线。
 export async function archiveToGitHub(env: Env, dateStr: string, markdown: string): Promise<void> {
   const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest'; // 存档并入主仓(gandli/daily-digest-archive 已合并); 覆写留作备用
@@ -16,7 +27,7 @@ export async function archiveDatedToGitHub(env: Env, stamp: string, markdown: st
 /** archive 分支通用 PUT(创建或覆盖)。失败只记日志。 */
 async function putToArchiveBranch(env: Env, path: string, content: string, message: string): Promise<boolean> {
   const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
-  const encoded = btoa(String.fromCharCode(...new TextEncoder().encode(content)));
+  const encoded = encodeBase64(new TextEncoder().encode(content));
   // 幂等: 先查 sha,存在则 update(PUT 带 sha 覆盖)
   let sha: string | undefined;
   try {
@@ -78,7 +89,7 @@ export async function archiveOgImage(env: Env, repoFull: string): Promise<string
       },
       body: JSON.stringify({
         message: `og-image: ${repoFull}`,
-        content: btoa(String.fromCharCode(...buf)),
+        content: encodeBase64(buf),
         branch: 'archive',
       }),
     });
