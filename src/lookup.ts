@@ -1,5 +1,6 @@
 import type { Env, SourceItem } from './types';
-import { resolveDescriptions } from './translate';
+import { resolveDescriptions, translateBatch } from './translate';
+import { fetchDeepwikiOverview } from './deepwiki';
 import { renderMessage, renderMarkdown } from './render';
 import { sendPerRepoMessages, sendTelegram } from './notify';
 import { archiveToGitHub } from './archive';
@@ -42,17 +43,31 @@ async function fetchRepo(repo: string, ghToken: string): Promise<SourceItem | nu
   };
 }
 
-/** 仓库查找: 描述(zread/deepwiki/翻译)-> OG图 -> 回复 -> 存档。静默失败不抛。 */
+/** 仓库查找: 描述 -> OG图 -> 回复 -> 存档。静默失败不抛。 */
 export async function lookupRepo(env: Env, chatId: string, repo: string): Promise<void> {
   const item = await fetchRepo(repo, env.GH_TOKEN);
   if (!item) {
     await sendTelegram(env.BOT_TOKEN, chatId, `❌ 找不到仓库 ${repo}，请检查拼写或是否为公开仓库。`);
     return;
   }
+  // 单 repo(无子请求预算压力): 优先 deepwiki 概述(已验证恒定纯净), 其次 zread, 再降级管线。
+  // ponytail: deepwiki 对部分 repo 返回"架构"类描述——这里固定优先 deepwiki, 因 zread 偶发选中架构段
   try {
-    await resolveDescriptions(env, [item]);
+    const dw = await fetchDeepwikiOverview(repo);
+    if (dw) {
+      item.desc = dw;
+      const done = await translateBatch(env, [item]);
+      item.descZh = done[0]?.descZh;
+    }
   } catch {
-    /* 描述失败不阻塞发送 */
+    /* deepwiki 失败落 zread */
+  }
+  if (!item.descZh) {
+    try {
+      await resolveDescriptions(env, [item]);
+    } catch {
+      /* 描述失败不阻塞发送 */
+    }
   }
   // 一条消息: OG 图做照片, 条目做 caption
   const chunks = renderMessage(today(), [item]);
