@@ -5,7 +5,7 @@
 <h1 align="center">daily-digest</h1>
 
 <p align="center">
-  <a href="#-命令与消息"><img src="https://img.shields.io/badge/命令-4_个-2b5278" alt="命令数"></a>
+  <a href="#-命令与消息"><img src="https://img.shields.io/badge/命令-5_个-2b5278" alt="命令数"></a>
   <a href="#-描述获取链"><img src="https://img.shields.io/badge/中文守卫-100%25-2b5278" alt="中文守卫"></a>
   <a href="https://github.com/gandli/daily-digest/actions/workflows/deploy.yml"><img src="https://github.com/gandli/daily-digest/actions/workflows/deploy.yml/badge.svg" alt="CI"></a>
 </p>
@@ -19,9 +19,12 @@ GitHub Trending → **Telegram 每日中文摘要 bot**。Cloudflare Workers 免
 | 输入 | 行为 |
 |---|---|
 | `/trending` | 当日榜单(强制全管线,带 OG 图;cron 结果 KV 缓存供内部幂等) |
+| `/search <关键词>` | 搜索历史存档(KV 索引,repo 名或中文描述) |
 | `/archive` | 历史存档链接(GitHub archive 分支) |
 | `/start` `/help` 其他无链接消息 | 使用提示 |
-| 含 GitHub 仓库链接 / `owner/repo` 的消息 | 单仓库查询:GitHub API + deepwiki/zread 中文描述 → OG 图卡片回复,并存档 |
+| 含 GitHub 仓库链接 / `owner/repo` 的消息 | 单仓库查询:GitHub API + deepwiki/zread 中文描述 → OG 图卡片回复,并存档(同日去重) |
+| 含 X/Twitter 帖子链接的消息 | FxEmbed API 取帖子 → 卡片回复 + 存档(`src/fxtweet.ts`) |
+| 含其他网页链接的消息 | 三级免费链转 markdown 存档:`src/urlmd.ts` |
 
 ## 🔗 描述获取链
 
@@ -40,9 +43,11 @@ deepwiki 概述(剥模板开场白)
 - `src/zread.ts` / `src/deepwiki.ts` RSC payload 概述提取
 - `src/translate.ts` 四级翻译回退 + isChinese 守卫
 - `src/render.ts` Telegram HTML / GitHub markdown / Telegraph nodes 三种渲染
-- `src/archive.ts` GitHub Contents API 幂等存档(archive 分支) + Telegraph createPage
-- `src/lookup.ts` 单仓库查询命令管线
-- KV 缓存当日 cron 结果;webhook 验签 timingSafeEqual + chat 白名单
+- `src/archive.ts` GitHub Contents API 幂等存档(archive 分支) + Telegraph createPage + 分块 base64 编码
+- `src/lookup.ts` 单仓库查询管线(去重 + 描述缓存同步)
+- `src/urlmd.ts` 任意 URL→markdown 三级免费链(Markdown for Agents → AI.toMarkdown → Browser Rendering)
+- `src/fxtweet.ts` X/Twitter 帖子存档(FxEmbed 公共 API)
+- KV 缓存当日 cron 结果;webhook 验签 timingSafeEqual + chat 白名单;/search 用 KV 存档索引
 
 详见 [`docs/GOAL.md`](docs/GOAL.md)(验收标准 A1–A12)。
 
