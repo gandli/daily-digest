@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="t d">
+  <title id="t">daily-digest — GitHub Trending → Telegram 每日中文摘要</title>
+  <desc id="d">左侧为标题与抓取-描述-翻译-推送四段管线,右侧为一条仿 Telegram 的仓库摘要消息卡。</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#17212b"/>
+      <stop offset="1" stop-color="#0e1621"/>
+    </linearGradient>
+    <linearGradient id="bubble" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b5278"/>
+      <stop offset="1" stop-color="#1f3a56"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="360" fill="url(#bg)"/>
+  <!-- motif: 消息气泡轮廓, 背景弱化重复 -->
+  <g opacity="0.05" stroke="#8fb6dd" fill="none" stroke-width="2">
+    <rect x="940" y="-40" width="340" height="120" rx="24"/>
+    <rect x="1020" y="120" width="300" height="110" rx="24"/>
+    <rect x="880" y="270" width="380" height="130" rx="24"/>
+  </g>
+
+  <!-- 左: 标题块 -->
+  <g transform="translate(64 58)">
+    <text font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="15" letter-spacing="3" fill="#6d8db3">GITHUB TRENDING → TELEGRAM · CRON 08:30 CST · CF WORKERS</text>
+    <text y="64" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif" font-size="52" font-weight="700" fill="#ffffff">daily-digest</text>
+    <text y="106" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif" font-size="21" fill="#c7d5e2">每日 GitHub Trending 中文摘要 bot</text>
+
+    <!-- 四段管线 -->
+    <g transform="translate(0 158)" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="14.5">
+      <rect x="0" y="0" width="118" height="40" rx="10" fill="#242f3d" stroke="#38475a"/>
+      <text x="59" y="25" text-anchor="middle" fill="#8fb6dd">trending</text>
+      <path d="M126 20 h22 m-7 -6 l7 6 l-7 6" stroke="#55677e" stroke-width="2" fill="none"/>
+      <rect x="156" y="0" width="118" height="40" rx="10" fill="#242f3d" stroke="#38475a"/>
+      <text x="215" y="25" text-anchor="middle" fill="#8fb6dd">zread/dw</text>
+      <path d="M282 20 h22 m-7 -6 l7 6 l-7 6" stroke="#55677e" stroke-width="2" fill="none"/>
+      <rect x="310" y="0" width="118" height="40" rx="10" fill="#242f3d" stroke="#38475a"/>
+      <text x="369" y="25" text-anchor="middle" fill="#8fb6dd">translate</text>
+      <path d="M436 20 h22 m-7 -6 l7 6 l-7 6" stroke="#55677e" multi="0" stroke-width="2" fill="none"/>
+      <rect x="464" y="0" width="118" height="40" rx="10" fill="#242f3d" stroke="#38475a"/>
+      <text x="523" y="25" text-anchor="middle" fill="#8fb6dd">telegram</text>
+    </g>
+
+    <g transform="translate(0 232)" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="13" fill="#6d8db3">
+      <text>top10 · OG 卡图 · 100% 中文守卫 · KV 幂等 · webhook 验签 · archive 分支存档</text>
+    </g>
+  </g>
+
+  <!-- 右: 仿 TG 消息卡 (项目原生 proof) -->
+  <g transform="translate(742 44)">
+    <rect x="0" y="0" width="400" height="272" rx="18" fill="url(#bubble)"/>
+    <path d="M14 -12 l26 12 h-26 z" fill="#2b5278"/>
+    <g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif">
+      <text x="20" y="44" font-size="17" font-weight="700" fill="#ffffff">📊 Daily Digest · 2026-08-24</text>
+      <line x1="20" y1="60" x2="380" y2="60" stroke="#3d6591" stroke-width="1"/>
+      <text x="20" y="90" font-size="16" font-weight="700" fill="#ffffff"><tspan fill="#ffffff">vorssaint/vorssaint-utils</tspan></text>
+      <text x="20" y="114" font-size="13.5" fill="#bcd6ef">⭐ 10.1k (+1.2k 今日) · #Swift</text>
+      <text x="20" y="142" font-size="13.5" fill="#dbe9f7">Vorssaint 是一款原生 macOS 菜单栏实用工具,</text>
+      <text x="20" y="162" font-size="13.5" fill="#dbe9f7">音量控制/系统监控/窗口管理一体化,功能可独立开关。</text>
+      <text x="20" y="190" font-size="13" fill="#9fc3e8">deepwiki · zread</text>
+      <text x="20" y="216" font-size="12.5" fill="#8fb6dd">#trending #macos #menubar #swift #appkit</text>
+      <text x="330" y="252" font-size="11.5" fill="#7fa6cc">08:30 ✓✓</text>
+    </g>
+    <!-- OG 卡缩略 -->
+    <rect x="292" y="72" width="88" height="88" rx="10" fill="#1a2c40" stroke="#3d6591"/>
+    <g font-family="monospace" font-size="10" fill="#5f83ab">
+      <text x="302" y="94">og.github</text>
+      <text x="302" y="108">assets.com</text>
+      <text x="302" y="122">/1/repo.png</text>
+    </g>
+    <rect x="292" y="132" width="88" height="28" rx="6" fill="#24466b"/>
+    <text x="336" y="150" text-anchor="middle" font-family="monospace" font-size="11" fill="#9fc3e8">OG card</text>
+  </g>
+</svg>
