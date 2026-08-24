@@ -26,6 +26,7 @@ export async function archiveToGitHub(env: Env, dateStr: string, markdown: strin
     body: JSON.stringify({
       message: `digest: ${dateStr}`,
       content,
+      branch: 'archive', // 存档独立分支, 不污染 main 代码历史、不触发 main CI(contents API 按分支精确跟踪)
       ...(sha ? { sha } : {}),
     }),
   });

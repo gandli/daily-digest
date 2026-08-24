@@ -28,7 +28,7 @@ export async function fetchDeepwikiOverview(repo: string, maxLen = 400): Promise
   try {
     const res = await fetch(`https://deepwiki.com/${repo}`, {
       headers: { 'User-Agent': DW_UA },
-      signal: AbortSignal.timeout(45000),
+      signal: AbortSignal.timeout(12000),
     });
     if (!res.ok) return null;
     const html = await res.text();
