@@ -198,9 +198,12 @@ export default {
           items,
         });
       }
-      // /run: 手动触发完整管线(含发送)。需 token=WEBHOOK_SECRET。测试/运维两用。
+      // /run: 手动触发完整管线(含发送)。需 POST + X-Runner-Token header(token 不进 URL, 避免落日志)。
       if (url.pathname === '/run') {
-        if (!env.WEBHOOK_SECRET || url.searchParams.get('token') !== env.WEBHOOK_SECRET) {
+        // fetch handler 入口已过滤 method==='GET', 此处 TS 收窄为 'GET'——运行时仍可能 POST, 用 as 断言
+        if ((req.method as string) !== 'POST') return new Response('method not allowed', { status: 405 });
+        const got = req.headers.get('X-Runner-Token') ?? '';
+        if (!env.WEBHOOK_SECRET || got !== env.WEBHOOK_SECRET) {
           return new Response('forbidden', { status: 403 });
         }
         const n = await runDigest(env, url.searchParams.get('cache') !== '0');
