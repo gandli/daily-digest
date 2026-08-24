@@ -4,6 +4,7 @@ import { resolveDescriptions } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes } from './render';
 import { sendPerRepoMessages, sendTelegram, registerCommands, safeEqual } from './notify';
 import { archiveToGitHub, createTelegraphPage } from './archive';
+import { extractRepo, lookupRepo } from './lookup';
 
 // 北京时间日期串 YYYY-MM-DD(UTC+8 无 DST,直接偏移即可)
 export const shanghaiDate = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
@@ -163,7 +164,13 @@ export default {
       );
       return new Response('ok');
     } else {
-      ctx.waitUntil(sendTelegram(env.BOT_TOKEN, chatId, HELP));
+      // GitHub 链接 → 单仓库 lookup(描述+OG图+回复+存档)
+      const repo = extractRepo(text);
+      if (repo) {
+        ctx.waitUntil(lookupRepo(env, chatId, repo));
+      } else {
+        ctx.waitUntil(sendTelegram(env.BOT_TOKEN, chatId, HELP));
+      }
     }
 
     // b) 立即应答,处理放后台
