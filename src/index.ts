@@ -41,26 +41,26 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
     return -1;
   }
 
-  // 2. 批量翻译(内部多级回退,不抛出)
-  const translated = await translateBatch(env, items);
+  // 2. zread.ai wiki 描述(中文, 主描述源)——优先; 失败的条目才走翻译兜底
+  const wikis = await fetchZreadBatch(items.map((i) => i.title)).catch(() => new Map<string, string>());
+  for (const it of items) {
+    const w = wikis.get(it.title);
+    if (w) it.descZh = w;
+    else it.needTranslate = true;
+  }
+  const toTranslate = items.filter((i) => i.needTranslate);
+  console.log(`zread wiki: ${wikis.size}/${items.length}, translate fallback: ${toTranslate.length}`);
 
-  // 2.5 zread.ai wiki 深度描述(免key网页版, 失败静默)——补足一句话翻译不够的"这repo到底干嘛"
-  try {
-    const wikis = await fetchZreadBatch(translated.map((i) => i.title));
-    for (const it of translated) {
-      const w = wikis.get(it.title);
-      if (w) it.wikiDesc = w;
-    }
-    console.log(`zread wiki: ${wikis.size}/${translated.length}`);
-  } catch (e) {
-    console.error('zread batch failed', String(e).slice(0, 80));
+  // 2.5 只对 wiki 缺失的条目批量翻译(省子请求)
+  if (toTranslate.length) {
+    await translateBatch(env, toTranslate as SourceItem[]); // 内部回填 descZh
   }
 
   // 2.6 GitHub topics(GH_TOKEN 已配)——做消息标签。
   // ponytail: Worker 单次调用子请求上限50, 全链路已近顶——只拉前4个 repo 的 topics
   try {
     await Promise.all(
-      translated.slice(0, 4).map(async (it) => {
+      items.slice(0, 4).map(async (it) => {
         const r = await fetch(`https://api.github.com/repos/${it.title}`, {
           headers: {
             Authorization: `Bearer ${env.GH_TOKEN}`,
@@ -82,22 +82,22 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
   // 3. Telegraph 备份页(可选,失败静默)
   let telegraphUrl: string | null = null;
   if (env.TELEGRAPH_TOKEN) {
-    telegraphUrl = await createTelegraphPage(env.TELEGRAPH_TOKEN, dateStr, renderTelegraphNodes(translated));
+    telegraphUrl = await createTelegraphPage(env.TELEGRAPH_TOKEN, dateStr, renderTelegraphNodes(items));
   }
 
   // 4. 渲染并发送: 每项目一条消息(OG 图做照片 + 完整条目做 caption), 头条带日期头, 末条带存档链接
-  const chunks = renderMessage(dateStr, translated, telegraphUrl ?? undefined);
+  const chunks = renderMessage(dateStr, items, telegraphUrl ?? undefined);
   await sendPerRepoMessages(
     env.BOT_TOKEN,
     env.CHAT_ID,
-    chunks.map((html, i) => ({ html, repo: translated[i].title })),
+    chunks.map((html, i) => ({ html, repo: items[i].title })),
   );
   // 纯文字兜底副本不再发——sendPhoto 失败时 sendPerRepoMessages 内部已降级纯文字
 
   // 5. 缓存 + 存档(失败不影响已发消息)
   await env.CACHE.put(cacheKey, JSON.stringify(chunks), { expirationTtl: 86400 });
-  await archiveToGitHub(env, dateStr, renderMarkdown(dateStr, translated, telegraphUrl ?? undefined));
-  console.log('digest sent', dateStr, `${translated.length} items`);
+  await archiveToGitHub(env, dateStr, renderMarkdown(dateStr, items, telegraphUrl ?? undefined));
+  console.log('digest sent', dateStr, `${items.length} items`);
   return chunks.length;
 }
 
@@ -113,7 +113,7 @@ export default {
         for (const s of sources) items = items.concat(await s.fetch(env));
         const tErrors: string[] = [];
         const translated = await translateBatch(env, items, tErrors);
-        const nodes = renderTelegraphNodes(translated);
+        const nodes = renderTelegraphNodes(items);
         let telegraphUrl: string | null = null;
         if (env.TELEGRAPH_TOKEN) {
           telegraphUrl = await createTelegraphPage(env.TELEGRAPH_TOKEN, dateStr, nodes);

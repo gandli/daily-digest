@@ -18,7 +18,7 @@ export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl
     const body =
       `🚀 <b><a href="${esc(it.url)}">${esc(it.title)}</a></b>${stars}${langTag}\n` + // 标题层
       `📝 ${esc(unesc(it.descZh || it.desc))}\n` + // 一句话描述层
-      (it.wikiDesc ? `\n📚 ${esc(unesc(it.wikiDesc))}\n` : '\n') + // wiki 深度层
+      `\n` + // wiki 已并入 descZh, 不再单独一层
       `🔗 <a href="https://deepwiki.com/${esc(it.title)}">deepwiki</a> · <a href="https://zread.ai/${esc(it.title)}">zread</a>\n` +
       (tags ? `${tags}` : '');
     // ponytail: wikiDesc 极端超长时仍可能超4096——截断到安全长度
@@ -35,7 +35,7 @@ export function renderMarkdown(dateStr: string, items: SourceItem[], telegraphUr
       (it, i) =>
         `${i + 1}. **[${it.title}](${it.url})** ⭐ ${fmtK(it.stars)}${
           it.starsToday ? ` (+${fmtK(it.starsToday)})` : ''
-        }${it.lang ? ` · ${it.lang}` : ''}\n   - ${unesc(it.descZh || it.desc)}${it.wikiDesc ? `\n   - 📚 ${esc(unesc(it.wikiDesc))}` : ''}\n   - [deepwiki](https://deepwiki.com/${it.title}) · [zread](https://zread.ai/${it.title})`,
+        }${it.lang ? ` · ${it.lang}` : ''}\n   - ${unesc(it.descZh || it.desc)}\n   - [deepwiki](https://deepwiki.com/${it.title}) · [zread](https://zread.ai/${it.title})`,
     )
     .join('\n');
   return (
