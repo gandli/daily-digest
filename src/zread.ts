@@ -2,26 +2,38 @@
 // 免 key(robots.txt User-agent:* Allow:/)。Accept-Language: zh-CN 拿中文版。失败不抛——增强层。
 const ZREAD_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126';
 
-/** 提取"是什么"定义句: 含定位动词、中文为主、非目录/表格/RSC杂讯; 优先含仓库名的最长定义段, 无则退回最长 */
+/** 提取"是什么"定义句: 优先取 "概览/Overview" 标题后的概述段 → 含仓库名的最长定义段 → 退回最长 */
 export function extractDesc(payload: string, maxLen: number, subject?: string): string | null {
   const tail = payload.slice(30000);
   const end = tail.indexOf('\nSources: ');
   const body = end > 0 ? tail.slice(0, end) : tail.slice(0, 20000);
-  let best: { clean: string; len: number; subj: boolean } | null = null;
-  for (let blk of body.split('\n\n')) {
+  // 按 \n\n 切块, 记录每块是否紧跟概览标题(## 概览 / ## Overview)
+  const blocks = body.split('\n\n');
+  let expectOverview = false;
+  let best: { clean: string; len: number; subj: boolean; ov: boolean } | null = null;
+  for (let blk of blocks) {
     blk = blk.trim();
-    if (!blk || /^[#```|[!]/.test(blk)) continue;
+    // 标题行: 命中概览类 → 下一块是概述段
+    if (/^#{1,3}\s*(概览|概述|Overview|简介)\s*$/i.test(blk)) { expectOverview = true; continue; }
+    if (blk && (/^#{1,3}\s/.test(blk) || /^[-*]/.test(blk))) { expectOverview = false; continue; } // 其他标题重置
+    if (!blk || /^[```|[!]/.test(blk)) continue;
     if (blk.includes('.js') || blk.includes('static/') || blk.includes('$')) continue; // RSC 杂讯
     if (/^\d+[.)]/.test(blk) || /^\d+\s*\|/.test(blk)) continue; // 编号目录/表格行
     const clean = blk.replace(/`[^`]*`/g, '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[#*>|!]/g, '').replace(/\n/g, ' ').trim();
     const cjk = (clean.match(/[\u4e00-\u9fff]/g) ?? []).length;
     if (cjk < 15 || cjk < clean.length * 0.3) continue; // 必须中文为主
     if (!/(是一个|是一套|是一款|旨在|专注于|让你|帮助你|解决了|用于构建|用于管理|核心思路|本质上|由 .* 开发)/.test(clean)) continue;
-    const cand = { clean, len: clean.length, subj: subject ? clean.toLowerCase().includes(subject.toLowerCase()) : false };
-    // 升级: (a) best 空 → 采纳; (b) cand 含 subject 且 best 不含 → 采纳; (c) 相同 subj 状态 → 取更长
+    const cand = {
+      clean, len: clean.length,
+      subj: subject ? clean.toLowerCase().includes(subject.toLowerCase()) : false,
+      ov: expectOverview,
+    };
+    // 升级优先级: (1)概览段最高 (2)含 subject 次之 (3)同权重取更长
     if (!best) { best = cand; }
-    else if (cand.subj && !best.subj) { best = cand; }
-    else if (cand.subj === best.subj && cand.len > best.len) { best = cand; }
+    else if (cand.ov && !best.ov) { best = cand; }
+    else if (cand.ov === best.ov && cand.subj && !best.subj) { best = cand; }
+    else if (cand.ov === best.ov && cand.subj === best.subj && cand.len > best.len) { best = cand; }
+    expectOverview = false;
   }
   if (!best) return null;
   return best.clean.length > maxLen ? best.clean.slice(0, maxLen - 1) + '…' : best.clean;

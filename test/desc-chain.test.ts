@@ -48,6 +48,18 @@ describe('extractDesc: zread 中文提取', () => {
     expect(d).not.toBeNull();
     expect(d!).toContain('终端工具'); // 最长定义段胜出
   });
+
+  it('优先"概览/Overview"标题后的概述段', () => {
+    // 概览标题后的概述段 vs 更长的原理段 → 应取概览段
+    const p = payload(
+      '\n## 原理\n\nECC 这一整套系统融合了极其复杂的多级架构设计与高度耦合的模块化组件，涵盖了指令流水线、智能体编排、技能库里数十种工具的协调调度以及底层无状态内核的高并发处理机制，构成一个纵深防御式的工程实现。\n\n' +
+        '## 概览\n\nECC 是一款开源的 Agent 支撑操作系统，它将 AI 编程 Agent 从单打独斗转变为协同工作的工程系统。\n',
+    );
+    const d = extractDesc(p, 280);
+    expect(d).not.toBeNull();
+    expect(d!).toContain('Agent 支撑操作系统'); // 概览段优先(即使更短)
+    expect(d!).not.toContain('纵深防御');        // 不误选更长的原理段
+  });
 });
 
 // ---------- deepwiki 提取(英文, 待翻译) ----------
