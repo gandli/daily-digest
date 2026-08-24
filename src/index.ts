@@ -4,7 +4,8 @@ import { resolveDescriptions, isChinese } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes } from './render';
 import { sendPerRepoMessages, sendTelegram, registerCommands, safeEqual } from './notify';
 import { archiveToGitHub, createTelegraphPage } from './archive';
-import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems } from './lookup';
+import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl } from './lookup';
+import { extractUrl } from './urlmd';
 
 // 北京时间日期串 YYYY-MM-DD(UTC+8 无 DST,直接偏移即可)
 export const shanghaiDate = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
@@ -14,6 +15,7 @@ const HELP = `📊 daily-digest 使用:
 /search <关键词> — 搜索历史存档
 /archive — 查看历史存档链接
 发 GitHub 仓库链接 = 单仓查询(自动去重)。
+发任意网页链接 = 转 markdown 存档。
 每天 08:30(北京时间)自动推送一条。`;
 
 // /search: 查 KV 存档索引(archive:idx:<repo> → {date, path, desc})。GitHub code search 只索引
@@ -205,14 +207,17 @@ export default {
       }
       return new Response('ok');
     } else {
-      // GitHub 链接 → 单仓库 lookup(描述+OG图+回复+存档); 同 repo 当日已查 → 提示去重
+      // GitHub 链接 → 单仓库 lookup; 任意 URL → 转 markdown 存档; 都不是 → 帮助
       const repo = extractRepo(text);
+      const url = extractUrl(text);
       if (repo) {
         if (await seenToday(env, repo)) {
           ctx.waitUntil(sendTelegram(env.BOT_TOKEN, chatId, `♻️ ${repo} 今天已查询过, 存档未重复写入。`));
         } else {
           ctx.waitUntil(lookupRepo(env, chatId, repo));
         }
+      } else if (url) {
+        ctx.waitUntil(archiveUrl(env, chatId, url));
       } else {
         ctx.waitUntil(sendTelegram(env.BOT_TOKEN, chatId, HELP));
       }

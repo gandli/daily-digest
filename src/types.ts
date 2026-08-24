@@ -11,6 +11,8 @@ export interface Env {
   GH_TOKEN: string;
   TELEGRAPH_TOKEN?: string;
   GH_ARCHIVE_REPO?: string;
+  CF_ACCOUNT_ID?: string; // Browser Rendering /markdown 兜底用(可选, 缺省跳过该级)
+  CF_API_TOKEN?: string; // 同上, 需 Browser Rendering - Edit 权限
 }
 
 export type SourceItem = {
