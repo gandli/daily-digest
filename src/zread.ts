@@ -76,8 +76,12 @@ export async function fetchZreadWikiDesc(repo: string, maxLen = 280): Promise<st
         signal: AbortSignal.timeout(75000),
       });
       if (!res.ok) {
-        if (attempt === 0) await new Promise((r) => setTimeout(r, 3000));
-        continue;
+        // 仅重试瞬态 5xx(504 波动); 4xx 永久失败立即落兜底链, 不浪费第二次请求
+        if (res.status >= 500 && attempt === 0) {
+          await new Promise((r) => setTimeout(r, 3000));
+          continue;
+        }
+        return null;
       }
       const html = await res.text();
       // 拼接全部 RSC 字符串块
