@@ -9,6 +9,20 @@ export async function sendTelegram(token: string, chatId: string, html: string):
   if (!res.ok) console.error(`sendMessage ${res.status}: ${await res.text()}`);
 }
 
+/** 图卡合一: photo=直链图 → sendPhoto(caption=html); 失败 → 纯文字 sendMessage。每条消息必带图的总入口。 */
+export async function sendPhotoOrText(token: string, chatId: string, photo: string | undefined, html: string): Promise<void> {
+  if (photo) {
+    const res = await fetch(`${API}/bot${token}/sendPhoto`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, photo, caption: html.slice(0, 1020), parse_mode: 'HTML' }),
+    }).catch(() => null);
+    if (res?.ok) return;
+    console.error(`sendPhoto ${res?.status ?? 'net'}, fallback text`);
+  }
+  await sendTelegram(token, chatId, html);
+}
+
 // Telegram 机器人命令菜单(bot 输入框 "/" 弹菜单)。幂等,setMyCommands repeated 安全。
 export async function registerCommands(token: string): Promise<void> {
   const res = await fetch(`${API}/bot${token}/setMyCommands`, {

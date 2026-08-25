@@ -2,7 +2,7 @@ import type { Env, SourceItem } from './types';
 import { sources } from './sources';
 import { resolveDescriptions } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes } from './render';
-import { sendPerRepoMessages, sendTelegram, registerCommands, safeEqual } from './notify';
+import { sendPerRepoMessages, sendTelegram, sendPhotoOrText, registerCommands, safeEqual } from './notify';
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage } from './archive';
 import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess } from './lookup';
 import { extractUrl } from './urlmd';
@@ -78,7 +78,16 @@ export async function archiveTweet(
   const textZh = tweet.text ? await translateTextZh(env, tweet.text).catch(() => null) : null;
   const hasZh = !!textZh && isChinese(textZh) && textZh !== tweet.text;
   const zhLine = hasZh ? `\n\n<b>🌐 中文翻译</b>\n${esc(textZh!).slice(0, 3500)}` : '';
-  await sendTelegram(env.BOT_TOKEN, chatId, renderTweetHtml(tweet) + zhLine);
+  // 卡片配图(消息必带图): 媒体 photo→直链 / video·gif→缩略图; 无媒体→帖内首个 github repo 的 og 图; 终保底 s2 favicon
+  const media0 = (tweet.media?.all ?? [])[0];
+  const repoRef = tweet.text?.match(/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/i)?.[1]
+    ?? `x.com/${tweet.author?.screen_name ?? handle}`;
+  const photo =
+    (media0?.type === 'photo' ? media0.url : media0?.thumbnail_url) ??
+    (tweet.text?.includes('github.com')
+      ? `https://opengraph.githubassets.com/1/${repoRef}`
+      : `https://www.google.com/s2/favicons?domain=x.com&sz=64`);
+  await sendPhotoOrText(env.BOT_TOKEN, chatId, photo, renderTweetHtml(tweet) + zhLine);
   const stamp = `${shanghaiDate()}-${Date.now() % 86400000}`;
   const tUrl = tweet.url ?? `https://x.com/${handle}/status/${id}`;
   const md = [
