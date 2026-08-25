@@ -256,7 +256,9 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
         const origin = new URL(url).origin;
         for (const fav of [`${origin}/apple-touch-icon.png`, `${origin}/favicon.ico`]) {
           const fr = await fetch(fav, { method: 'HEAD', signal: AbortSignal.timeout(5000) }).catch(() => null);
-          if (fr?.ok && (fr.headers.get('content-type') ?? '').startsWith('image/')) {
+          const ct = fr?.headers.get('content-type') ?? '';
+          // ICO 格式 Telegram sendPhoto 不收(JPG/PNG/WebP), 跳过留给 s2 保底(必返 PNG)
+          if (fr && fr.ok && ct.startsWith('image/') && !ct.includes('icon')) {
             photo = fav;
             break;
           }
