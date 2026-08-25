@@ -51,7 +51,6 @@ export async function translateBatch(
 ): Promise<SourceItem[]> {
   const descs = items.map((i) => i.desc).filter(Boolean);
   if (!descs.length) return items;
-
   let zh: string[] | null = null;
   try {
     zh = await viaWorkersAI(env, descs);
@@ -90,6 +89,13 @@ export async function translateBatch(
 
   // 最终守卫: 仍非中文的不回填
   return items.map((it, i) => ({ ...it, descZh: isChinese(zh![i]) ? zh![i] : it.descZh ?? undefined }));
+}
+
+/** 单段文本 → 中文(X 帖正文用; 复用四级链, 全挂返回 null)。 */
+export async function translateTextZh(env: Env, text: string): Promise<string | null> {
+  if (!text.trim() || isChinese(text)) return text || null;
+  const out = await translateBatch(env, [{ title: 'x', url: '', desc: text } as SourceItem]);
+  return out[0]?.descZh ?? null;
 }
 
 // m2m100-1.2b: 专职翻译模型。llama 系列已于 2026-05 弃用。

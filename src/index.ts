@@ -1,13 +1,13 @@
 import type { Env, SourceItem } from './types';
 import { sources } from './sources';
-import { resolveDescriptions, isChinese } from './translate';
+import { resolveDescriptions } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes } from './render';
 import { sendPerRepoMessages, sendTelegram, registerCommands, safeEqual } from './notify';
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage } from './archive';
 import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs } from './lookup';
 import { extractUrl } from './urlmd';
 import { extractTweet, fetchTweet, renderTweetHtml, type FxTweet } from './fxtweet';
-import { summarizeZh } from './translate';
+import { summarizeZh, translateTextZh, isChinese } from './translate';
 
 // 北京时间日期串 YYYY-MM-DD(UTC+8 无 DST,直接偏移即可)
 export const shanghaiDate = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
@@ -74,6 +74,11 @@ export async function archiveTweet(
     return;
   }
   await sendTelegram(env.BOT_TOKEN, chatId, renderTweetHtml(tweet));
+  // 正文翻译(非中文时; 失败回退原文)——主卡片与 Telegraph 共用
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const textZh = tweet.text ? await translateTextZh(env, tweet.text).catch(() => null) : null;
+  const hasZh = !!textZh && isChinese(textZh) && textZh !== tweet.text;
+  const zhLine = hasZh ? `\n\n<b>🀄 中文翻译</b>\n${esc(textZh!).slice(0, 3500)}` : '';
   const stamp = `${shanghaiDate()}-${Date.now() % 86400000}`;
   const tUrl = tweet.url ?? `https://x.com/${handle}/status/${id}`;
   const md = [
@@ -87,6 +92,7 @@ export async function archiveTweet(
     '---',
     '',
     tweet.text ?? '',
+    ...(hasZh ? [`\n---\n\n**🀄 中文翻译**\n\n${textZh}`] : []),
     ...(tweet.media?.all ?? []).map((m) => `\n![${m.type ?? 'media'}](${m.url ?? m.thumbnail_url})`),
     '',
     '---',
@@ -100,6 +106,7 @@ export async function archiveTweet(
       const nodes: unknown[] = [
         { tag: 'p', children: [`@${tweet.author?.screen_name ?? handle} · ${tweet.created_at ?? ''}`] },
         { tag: 'p', children: [tweet.text ?? ''] },
+        ...(hasZh ? [{ tag: 'h3' as const, children: ['🀄 中文翻译'] }, { tag: 'p', children: [textZh!] }] : []),
         ...(tweet.media?.all ?? []).map((m) => ({ tag: 'figure' as const, children: [{ tag: 'img' as const, attrs: { src: m.thumbnail_url ?? m.url ?? '' } }] })),
         { tag: 'p', children: [{ tag: 'a', attrs: { href: tUrl }, children: ['原帖'] }] },
       ];
