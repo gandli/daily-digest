@@ -12,12 +12,21 @@ import type { Env } from './types';
 const UA_DESKTOP =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
-/** 从 HTML 提取 og:image / twitter:image URL(无则 null)。 */
+/**
+ * 从 HTML 提取 OG 图(og:image 双属性序 + twitter:image), 相对 URL 转绝对, HTML 实体解码。
+ * ponytail: 正则而非 DOM 解析——只取 meta 头部 100KB, 完整解析器(open-graph-scraper 等)是 Node 依赖, Worker 里 YAGNI。
+ */
 export function extractOgImage(html: string): string | null {
-  const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
-    ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)
-    ?? html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);
-  return m ? m[1] : null;
+  const m =
+    html.match(/<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/i) ??
+    html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i) ??
+    html.match(/<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["']/i);
+  if (!m) return null;
+  // HTML 实体解码(&amp; 最常见); 仅收绝对/协议相对 URL(sendPhoto 需完整 https), 页面相对路径无 base → 放弃
+  const raw = m[1].replace(/&amp;/g, '&').replace(/&#0?39;/g, "'").replace(/&quot;/g, '"');
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (raw.startsWith('//')) return `https:${raw}`;
+  return null;
 }
 
 /** 抓取 URL 原始字节(带 UA; 失败抛给调用方)。 */

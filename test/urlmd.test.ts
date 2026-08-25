@@ -34,4 +34,14 @@ describe('extractOgImage: og:image 提取', () => {
     expect(extractOgImage('<meta name="twitter:image" content="https://x/c.jpg">')).toBe('https://x/c.jpg');
     expect(extractOgImage('<html><body>no meta</body></html>')).toBeNull();
   });
+  it('相对路径无 base → 放弃', () => {
+    expect(extractOgImage('<meta property="og:image" content="/img/cover.png">')).toBeNull();
+  });
+  it('HTML 实体解码(&amp;)', () => {
+    expect(extractOgImage('<meta property="og:image" content="https://x/p?a=1&amp;b=2">')).toBe('https://x/p?a=1&b=2');
+  });
+  it('og:image:secure_url 与 twitter:image:src 变体', () => {
+    expect(extractOgImage('<meta property="og:image:secure_url" content="https://x/s.png">')).toBe('https://x/s.png');
+    expect(extractOgImage('<meta name="twitter:image:src" content="https://x/t.jpg">')).toBe('https://x/t.jpg');
+  });
 });
