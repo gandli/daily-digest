@@ -20,12 +20,10 @@ export async function seenToday(env: Env, repo: string): Promise<boolean> {
 
 /**
  * URL 重发语义: 记录上次处理质量, 决定重发时是否重跑全管线(翻译/描述/归档)。
- * - 首次提交 → false(正常处理, 写记录)
- * - 上次未翻译 或 未取到 deepwiki/zread 描述 → true(重跑)
- * - 上次成功 / 损坏值 → false(跳过, 防无限重试)
- * ponytail: 单 KV 键存布尔对而非状态机; 重跑成功与否由本次处理结果覆写。
+ * 返回 'first'(首次, 正常处理) | 'retry'(上次翻译/描述有缺失, 重跑) | 'done'(上次成功, 跳过)。
+ * ponytail: 单 KV 键存布尔对而非状态机; 处理方结束后必须 markProcessed 回填真实结果。
  */
-export async function shouldReprocess(env: Env, url: string): Promise<boolean> {
+export async function shouldReprocess(env: Env, url: string): Promise<'first' | 'retry' | 'done'> {
   const key = `reproc:${url}`;
   let prev: { translated?: boolean; descOk?: boolean } | null = null;
   try {
@@ -37,9 +35,9 @@ export async function shouldReprocess(env: Env, url: string): Promise<boolean> {
   // 首次: 先占位(默认失败态, 处理方负责覆写为真实结果)——防并发双跑
   if (!prev || (prev.translated === undefined && prev.descOk === undefined)) {
     await env.CACHE.put(key, JSON.stringify({ ts: Date.now(), translated: false, descOk: false }), { expirationTtl: 7 * 86400 });
-    return false;
+    return 'first';
   }
-  return !(prev.translated && prev.descOk);
+  return prev.translated && prev.descOk ? 'done' : 'retry';
 }
 
 /** shouldReprocess 的配对写: 处理结束后回填真实质量。 */

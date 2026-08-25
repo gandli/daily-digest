@@ -58,7 +58,7 @@ describe('extractRepoRefs: 存档内容 repo 联动扫描', () => {
   });
 });
 
-// ---------- 重发语义: shouldReprocess 判定 ----------
+// ---------- 重发语义: shouldReprocess 三态判定 ----------
 import { shouldReprocess } from '../src/lookup';
 
 describe('shouldReprocess: 同 URL 重发是否重跑全管线', () => {
@@ -66,26 +66,26 @@ describe('shouldReprocess: 同 URL 重发是否重跑全管线', () => {
   const env = { CACHE: { get: (k: string) => kv.get(k) ?? null, put: async (k: string, v: string) => void kv.set(k, v) } } as never;
   const url = 'https://example.com/a';
   const key = 'reproc:https://example.com/a';
-  it('首次提交 → 不重跑(正常处理)', async () => {
-    expect(await shouldReprocess(env, url)).toBe(false);
+  it('首次提交 → first(正常处理)', async () => {
+    expect(await shouldReprocess(env, url)).toBe('first');
     expect(kv.get(key)).toBeTruthy();
   });
-  it('上次未翻译(descZh 缺失) → 重跑', async () => {
+  it('上次未翻译(translated=false) → retry', async () => {
     await env.CACHE.put(key, JSON.stringify({ ts: Date.now(), translated: false, descOk: true }));
-    expect(await shouldReprocess(env, url)).toBe(true);
+    expect(await shouldReprocess(env, url)).toBe('retry');
   });
-  it('上次无 deepwiki/zread 描述(descOk=false) → 重跑', async () => {
+  it('上次无描述(descOk=false) → retry', async () => {
     await env.CACHE.put(key, JSON.stringify({ ts: Date.now(), translated: true, descOk: false }));
-    expect(await shouldReprocess(env, url)).toBe(true);
+    expect(await shouldReprocess(env, url)).toBe('retry');
   });
-  it('上次成功(translated+descOk) → 跳过', async () => {
+  it('上次成功(translated+descOk) → done', async () => {
     await env.CACHE.put(key, JSON.stringify({ ts: Date.now(), translated: true, descOk: true }));
-    expect(await shouldReprocess(env, url)).toBe(false);
+    expect(await shouldReprocess(env, url)).toBe('done');
   });
-  it('损坏值/缺失字段 → 宽松跳过(不无限重试)', async () => {
+  it('损坏值/缺失字段 → 宽松视同首次(不无限重试)', async () => {
     await env.CACHE.put(key, 'garbage');
-    expect(await shouldReprocess(env, url)).toBe(false);
-    await env.CACHE.delete?.(key); kv.delete(key);
-    expect(await shouldReprocess(env, url)).toBe(false); // 无记录=首次
+    expect(await shouldReprocess(env, url)).toBe('first');
+    kv.delete(key);
+    expect(await shouldReprocess(env, url)).toBe('first'); // 无记录=首次
   });
 });
