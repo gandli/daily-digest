@@ -73,12 +73,12 @@ export async function archiveTweet(
     await archiveUrl(env, chatId, `https://x.com/${handle}/status/${id}`);
     return;
   }
-  await sendTelegram(env.BOT_TOKEN, chatId, renderTweetHtml(tweet));
-  // 正文翻译(非中文时; 失败回退原文)——主卡片与 Telegraph 共用
+  // 正文翻译(非中文时; 失败回退原文)——必须在发卡片前算好, 否则🌐段无处安放
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const textZh = tweet.text ? await translateTextZh(env, tweet.text).catch(() => null) : null;
   const hasZh = !!textZh && isChinese(textZh) && textZh !== tweet.text;
   const zhLine = hasZh ? `\n\n<b>🌐 中文翻译</b>\n${esc(textZh!).slice(0, 3500)}` : '';
+  await sendTelegram(env.BOT_TOKEN, chatId, renderTweetHtml(tweet) + zhLine);
   const stamp = `${shanghaiDate()}-${Date.now() % 86400000}`;
   const tUrl = tweet.url ?? `https://x.com/${handle}/status/${id}`;
   const md = [
