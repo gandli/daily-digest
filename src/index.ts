@@ -90,8 +90,14 @@ function done(env: Env, chatId: string, query: string, hits: string[]): Promise<
     }
     return true;
   };
-  push(archHits);
-  push(libHits);
+  // 两来源交替取样: 各先取一条, 轮流填充——宽泛词下 archive 塞满预算时 lib 结果仍可见
+  let ai = 0, li = 0;
+  while ((ai < archHits.length || li < libHits.length) && text.length <= 3800) {
+    if (ai < archHits.length && text.length + archHits[ai].length + 1 <= 3800) { push([archHits[ai]]); ai++; }
+    if (li < libHits.length && text.length + libHits[li].length + 1 <= 3800) { push([libHits[li]]); li++; }
+    if (ai >= archHits.length && li >= libHits.length) break;
+    if (text.length + Math.min(archHits[ai]?.length ?? Infinity, libHits[li]?.length ?? Infinity) + 1 > 3800) break;
+  }
   const note = text.length < total.toString().length + 40 ? `\n\n⚠️ 结果过多已截断(${total} 条命中), 请用更具体的关键词` : '';
   if (!text && total) {
     // 单条就超限的极端情况: 保底第一条的前 500 字符
