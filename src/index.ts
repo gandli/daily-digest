@@ -98,12 +98,14 @@ function done(env: Env, chatId: string, query: string, hits: string[]): Promise<
     if (ai >= archHits.length && li >= libHits.length) break;
     if (text.length + Math.min(archHits[ai]?.length ?? Infinity, libHits[li]?.length ?? Infinity) + 1 > 3800) break;
   }
-  const note = text.length < total.toString().length + 40 ? `\n\n⚠️ 结果过多已截断(${total} 条命中), 请用更具体的关键词` : '';
+  const omitted = total - ai - li; // 真实未展示数, 警告条件与截断事实绑定(Greptile P1)
+  const note = omitted > 0 ? `\n\n⚠️ 结果过多已截断(${total} 条命中, 显示 ${total - omitted} 条), 请用更具体的关键词` : '';
   if (!text && total) {
     // 单条就超限的极端情况: 保底第一条的前 500 字符
     text = hits[0].slice(0, 500);
+    return sendTelegram(env.BOT_TOKEN, chatId, `🔍 「${eq}」${total} 条命中:\n${text}\n\n⚠️ 已截断(${total} 条命中), 请用更具体的关键词`);
   }
-  return sendTelegram(env.BOT_TOKEN, chatId, `🔍 「${eq}」${total} 条命中:\n${text}${note}`);
+  return sendTelegram(env.BOT_TOKEN, chatId, `🔍 「${eq}」${omitted > 0 ? `显示 ${total - omitted}/${total}` : total + ' 条命中'}:\n${text}${note}`);
 }
 
 /** 存档成功后写搜索索引(lookup 单仓与 digest 批量共用)。实现见 lookup.ts(indexArchivedItems)。 */
