@@ -3,3 +3,5 @@ node_modules/
 .wrangler/
 .cf-prod.env
 .webhook_secret
+data/kv-bulk.json
+data/library.jsonl
