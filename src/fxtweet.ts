@@ -46,10 +46,21 @@ export function renderTweetHtml(t: FxTweet): string {
     t.replies !== undefined ? `💬 ${t.replies}` : '',
   ].filter(Boolean).join(' · ');
   const media = (t.media?.all ?? []);
+  const zhType = (ty?: string) => (ty === 'photo' ? '图片' : ty === 'video' ? '视频' : ty === 'gif' ? 'GIF' : ty ?? 'media');
   const mediaLine = media.length
-    ? `\n\n📎 ${media.map((m) => `<a href="${esc(m.url ?? m.thumbnail_url ?? '')}">${esc(m.type ?? 'media')}</a>`).join(' · ')}`
+    ? `\n\n📎 ${media.map((m) => `<a href="${esc(m.url ?? m.thumbnail_url ?? '')}">${esc(zhType(m.type))}</a>`).join(' · ')}`
     : '';
-  const date = t.created_at ? `\n\n🗓 ${t.created_at.slice(0, 16)}` : '';
+  const date = t.created_at
+    ? // Twitter UTC 时间串 → 北京时间 YYYY-MM-DD HH:mm(纯字符串变换, 无 Date 解析)
+      `\n\n🗓 ${t.created_at.replace(
+        /^(\w{3}) (\w{3}) (\d{2}) (\d{2}):(\d{2}):\d{2} \+\d{4} (\d{4})$/,
+        (_s, _wd, mon, d, hh, mm, yr) => {
+          const months: Record<string, string> = { Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06', Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12' };
+          const h = (Number(hh) + 8) % 24;
+          return `${yr}-${months[mon] ?? '??'}-${d} ${String(h).padStart(2, '0')}:${mm}`;
+        },
+      )}`
+    : '';
   return [
     `<b>🐦 ${esc(a.name ?? a.screen_name ?? '')} <a href="${esc(t.url ?? '')}">@${esc(a.screen_name ?? '')}</a></b>`,
     '',
