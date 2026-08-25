@@ -136,6 +136,15 @@ describe('翻译服务优先级', () => {
     vi.unstubAllGlobals();
   });
 
+  it('混合空/非空 desc → pos 映射对齐, 空项透传不错位(回归锁 P2-A)', async () => {
+    const items = [item('a/b', 'First English description.'), item('c/d', ''), item('e/f', 'Third English description.')] as any[];
+    (items[1] as { desc: string }).desc = ''; // 显式空串
+    const done = await translateBatch(mkEnv('ok'), items);
+    expect(done[0].descZh).toContain('中文翻译');
+    expect(done[1].descZh).toBeUndefined(); // 空 desc 原样透传, 不吃别人的翻译
+    expect(done[2].descZh).toContain('中文翻译'); // 第三项拿到自己的翻译, 不错位到第二项
+  });
+
   it('WorkersAI 挂 → 落 TranSmart(fetch 首个外呼是 transmart.qq.com)', async () => {
     const calls: string[] = [];
     vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
