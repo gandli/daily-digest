@@ -56,7 +56,31 @@ describe('/search 合并搜索', () => {
     const { searchArchive } = await import('../src/index');
     await searchArchive(bigEnv as any, 1, 'ai');
     const text = sendMock.mock.calls[0][2] as string;
-    expect(text).toContain('命中 20 条');
     expect(text.length).toBeLessThanOrEqual(4096);
+  });
+
+  it('KV 分页: 超单页(~1000)的 lib 数据全部可见(Greptile P1 回归锁)', async () => {
+    // 1500 条跨两页, 目标 key 在第二页开头——单页 list 永远搜不到它
+    const many = Array.from({ length: 1500 }, (_, i) =>
+      [`lib:star:x/r${String(i).padStart(4, '0')}`, JSON.stringify({ src: 'star', name: `repo-${i}`, url: `https://github.com/x/${i}`, tags: [] })]);
+    many.push(['lib:star:x/needle', JSON.stringify({ src: 'star', name: 'needle-unique-name', url: 'https://github.com/x/needle', tags: [] })]); // 排序在最后
+    const pagedKv = (() => {
+      const keys = many.map(([k]) => k as string).sort();
+      const store = new Map(many);
+      return {
+        list: async ({ prefix, cursor }: { prefix: string; cursor?: string }) => {
+          const all = keys.filter((k) => k.startsWith(prefix));
+          const start = cursor ? parseInt(cursor) : 0;
+          const page = all.slice(start, start + 1000).map((name) => ({ name }));
+          return { keys: page, list_complete: start + 1000 >= all.length, cursor: String(start + 1000) };
+        },
+        get: async (k: string) => store.get(k) as string,
+      };
+    })();
+    const bigEnv2 = { ...env, CACHE: pagedKv };
+    const { searchArchive } = await import('../src/index');
+    await searchArchive(bigEnv2 as any, 1, 'needle-unique');
+    expect(sendMock.mock.calls[0][2]).toContain('⭐');
+    expect(sendMock.mock.calls[0][2]).toContain('needle-unique-name');
   });
 });

@@ -29,8 +29,8 @@ export async function searchArchive(env: Env, chatId: string, query: string): Pr
   try {
     // 库索引(lib:* 星标/书签)与存档索引(archive:idx:)合并搜索——导入的库数据也要能被搜到
     const [arch, lib] = await Promise.all([
-      env.CACHE.list({ prefix: 'archive:idx:' }),
-      env.CACHE.list({ prefix: 'lib:' }),
+      listAll(env, 'archive:idx:'),
+      listAll(env, 'lib:'),
     ]);
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const hits: string[] = [];
@@ -45,7 +45,6 @@ export async function searchArchive(env: Env, chatId: string, query: string): Pr
         // 描述优先中文, 无则截英文原文——结果必须可读(用户硬性要求)
         const d = it.descZh ?? it.desc;
         hits.push(`📄 <a href="${link}">${esc(it.repo)} · ${it.date}</a>${d ? `\n   ${d.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').slice(0, 120)}` : ''}`);
-        if (hits.length >= 20) return done(env, chatId, query, hits);
       }
     }
     for (const k of lib.keys) {
@@ -55,7 +54,6 @@ export async function searchArchive(env: Env, chatId: string, query: string): Pr
       const hay = `${e.name} ${e.desc ?? ''} ${(e.tags ?? []).join(' ')} ${e.folder ?? ''}`.toLowerCase();
       if (hay.includes(q)) {
         hits.push(`${e.src === 'star' ? '⭐' : '📑'} <a href="${e.url}">${esc(e.name)}</a>${e.tags?.length ? ` · ${esc(e.tags.join(','))}` : ''}${e.desc ? `\n   ${esc(e.desc).slice(0, 120)}` : ''}`);
-        if (hits.length >= 20) break;
       }
     }
     return done(env, chatId, query, hits);
@@ -63,6 +61,18 @@ export async function searchArchive(env: Env, chatId: string, query: string): Pr
     console.error('searchArchive failed', String(e).slice(0, 80));
     await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ 搜索失败(网络异常), 请稍后再试。');
   }
+}
+
+/** KV list 分页遍历(list 默认单页 ~1000 条, lib: 有 6041 条必须翻完)。 */
+async function listAll(env: Env, prefix: string): Promise<{ keys: { name: string }[] }> {
+  const keys: { name: string }[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await env.CACHE.list({ prefix, cursor });
+    keys.push(...page.keys);
+    cursor = page.list_complete ? undefined : (page as { cursor?: string }).cursor;
+  } while (cursor);
+  return { keys };
 }
 
 function done(env: Env, chatId: string, query: string, hits: string[]): Promise<void> {
