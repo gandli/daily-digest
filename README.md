@@ -80,5 +80,5 @@ PR 合并 main → GitHub Actions 自动 `wrangler deploy`(需 repo secrets CLOU
 ---
 
 <p align="center">
-  <sub>Cloudflare Workers 免费层 · 无 DB · KV only · 测试 82/82 · CI 自动部署</sub>
+  <sub>Cloudflare Workers 免费层 · 无 DB · KV only · 测试 95/95 · CI 自动部署</sub>
 </p>

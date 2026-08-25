@@ -49,7 +49,10 @@ export async function translateBatch(
   items: SourceItem[],
   errors: string[] = [],
 ): Promise<SourceItem[]> {
-  const descs = items.map((i) => i.desc).filter(Boolean);
+  // pos 映射: 记录非空 desc 在原数组的下标——翻译数组始终与 pos 对齐,
+  // 空 desc 项(未来调用方可能出现)不会造成 filter(Boolean) 压缩错位
+  const pos = items.map((it, i) => (it.desc ? i : -1)).filter((i) => i >= 0);
+  const descs = pos.map((i) => items[i].desc!);
   if (!descs.length) return items;
   let zh: string[] | null = null;
   try {
@@ -80,15 +83,18 @@ export async function translateBatch(
   const bad = [...new Set(zh!.map((z, i) => (isChinese(z) ? -1 : i)).filter((i) => i >= 0))];
   if (bad.length) {
     try {
-      const fix = await viaTranSmart(bad.map((i) => items[i].desc));
+      const fix = await viaTranSmart(bad.map((i) => descs[i]));
       for (let k = 0; k < bad.length; k++) if (isChinese(fix[k])) zh![bad[k]] = fix[k];
     } catch {
       /* TranSmart 也挂则维持守卫拒绝 */
     }
   }
 
-  // 最终守卫: 仍非中文的不回填
-  return items.map((it, i) => ({ ...it, descZh: isChinese(zh![i]) ? zh![i] : it.descZh ?? undefined }));
+  // 最终守卫: 仍非中文的不回填(空 desc 项原样透传)
+  return items.map((it, i) => {
+    const j = pos.indexOf(i);
+    return { ...it, descZh: j >= 0 && isChinese(zh![j]) ? zh![j] : it.descZh ?? undefined };
+  });
 }
 
 /** 单段文本 → 中文(X 帖正文用; 复用四级链, 全挂返回 null)。 */
