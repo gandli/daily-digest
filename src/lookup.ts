@@ -168,9 +168,9 @@ export async function lookupRepo(env: Env, chatId: string, repo: string): Promis
     }
     console.log('lookup: fallback to GitHub desc translation');
   }
-  // 一条消息: OG 图做照片, 条目做 caption
+  // 一条消息: OG 图做照片, 条目做 caption(优先自家 og-images 存档域, 规避官方域对 TG 出口的 IP 配额)
   const chunks = renderMessage(today(), [item]);
-  await sendPerRepoMessages(env.BOT_TOKEN, chatId, chunks.map((html) => ({ html, repo: item.title })));
+  await sendPerRepoMessages(env.BOT_TOKEN, chatId, chunks.map((html) => ({ html, repo: item.title })), env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
   // 存档: OG 图入库 og-images/, markdown 引用相对路径(失败回退远程 URL)
   try {
     const ogPath = await archiveOgImage(env, item.title);
