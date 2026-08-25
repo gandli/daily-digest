@@ -18,6 +18,35 @@ export async function seenToday(env: Env, repo: string): Promise<boolean> {
   return false;
 }
 
+/**
+ * URL 重发语义: 记录上次处理质量, 决定重发时是否重跑全管线(翻译/描述/归档)。
+ * - 首次提交 → false(正常处理, 写记录)
+ * - 上次未翻译 或 未取到 deepwiki/zread 描述 → true(重跑)
+ * - 上次成功 / 损坏值 → false(跳过, 防无限重试)
+ * ponytail: 单 KV 键存布尔对而非状态机; 重跑成功与否由本次处理结果覆写。
+ */
+export async function shouldReprocess(env: Env, url: string): Promise<boolean> {
+  const key = `reproc:${url}`;
+  let prev: { translated?: boolean; descOk?: boolean } | null = null;
+  try {
+    const raw = await env.CACHE.get(key);
+    if (raw) prev = JSON.parse(raw) as { translated?: boolean; descOk?: boolean };
+  } catch {
+    prev = null; // 损坏值视同首次
+  }
+  // 首次: 先占位(默认失败态, 处理方负责覆写为真实结果)——防并发双跑
+  if (!prev || (prev.translated === undefined && prev.descOk === undefined)) {
+    await env.CACHE.put(key, JSON.stringify({ ts: Date.now(), translated: false, descOk: false }), { expirationTtl: 7 * 86400 });
+    return false;
+  }
+  return !(prev.translated && prev.descOk);
+}
+
+/** shouldReprocess 的配对写: 处理结束后回填真实质量。 */
+export async function markProcessed(env: Env, url: string, translated: boolean, descOk: boolean): Promise<void> {
+  await env.CACHE.put(`reproc:${url}`, JSON.stringify({ ts: Date.now(), translated, descOk }), { expirationTtl: 7 * 86400 });
+}
+
 /** 提取文本中的 GitHub repo 引用(去重、滤文件路径、上限 3 个省子请求)。 */
 export function extractRepoRefs(text: string): string[] {
   return [...new Set([...text.matchAll(/https?:\/\/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/g)].map((m) => m[1]))]
@@ -259,15 +288,19 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
   const stamp = `${today()}-${Date.now() % 86400000}`;
   // 中文摘要(非中文内容翻译; 失败回退原文截断)——回复与 /search 索引共用
   let summaryZh = await summarizeZh(env, clipped).catch(() => null);
+  let translatedOk = false;
   if (!summaryZh) {
     const plain = clipped.replace(/[#>*`\[\]]/g, '').slice(0, 120);
     if (!isChinese(plain)) {
       const t = await translateBatch(env, [{ title: url, url, desc: plain } as SourceItem]);
       summaryZh = t[0]?.descZh ?? null;
-    } else summaryZh = plain;
-  }
+      translatedOk = isChinese(summaryZh ?? '');
+    } else { summaryZh = plain; translatedOk = true; }
+  } else translatedOk = isChinese(summaryZh);
   try {
     await archiveToGitHub(env, stamp, `# Web Archive · ${url}\n\n${clipped}\n\n---\n由 daily-digest bot 自动生成`);
+    // 重发质量记录: translated=中文摘要成功; descOk 网页无 deepwiki/zread 概念, 归档+摘要齐即 true
+    ctx?.waitUntil?.(markProcessed(env, url, translatedOk, true));
     // 内容含 GitHub repo 链接 → 逐个走 repo lookup(去重防递归; 上限 3 个省子请求)
     await fanoutRepoRefs(env, chatId, clipped, ctx);
     const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
