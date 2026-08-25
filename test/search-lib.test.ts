@@ -1,0 +1,51 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// /search 合并搜索回归锁: lib:* (星标/书签) 与 archive:idx:* 都要能被搜到
+const sendMock = vi.fn();
+vi.mock('../src/notify', () => ({ sendTelegram: (...a: unknown[]) => sendMock(...a) }));
+
+// ponytail: 最小 KV stub——list 按 prefix 过滤 + get 读内存 map
+function kvStub(data: Record<string, unknown>) {
+  const store = new Map(Object.entries(data));
+  return {
+    list: async ({ prefix }: { prefix: string }) => ({
+      keys: [...store.keys()].filter((k) => k.startsWith(prefix)).map((name) => ({ name })),
+    }),
+    get: async (k: string) => store.get(k) as string,
+    put: async () => {},
+  };
+}
+const env = { BOT_TOKEN: 't', CACHE: kvStub({
+  'archive:idx:foo/bar': JSON.stringify({ repo: 'foo/bar', date: '2026-08-24', desc: 'archived repo' }),
+  'lib:star:vitest-dev/vitest': JSON.stringify({ src: 'star', name: 'vitest', url: 'https://github.com/vitest-dev/vitest', desc: 'A Vite-native test runner', tags: ['ts', 'known'] }),
+  'lib:bm:x': JSON.stringify({ src: 'bookmark', name: '潮流周刊', url: 'https://weekly.tw93.fun/', folder: 'newsletter', tags: ['f:newsletter'] }),
+}) as any };
+
+describe('/search 合并搜索', () => {
+  beforeEach(() => sendMock.mockClear());
+
+  it('lib 星标命中(名称)', async () => {
+    const { searchArchive } = await import('../src/index');
+    await searchArchive(env, 1, 'vitest');
+    expect(sendMock.mock.calls[0][2]).toContain('⭐');
+    expect(sendMock.mock.calls[0][2]).toContain('vitest-dev/vitest'.slice(-6)); // url in anchor
+  });
+
+  it('lib 书签命中(tags/folder/中文名)', async () => {
+    const { searchArchive } = await import('../src/index');
+    await searchArchive(env, 1, 'newsletter');
+    expect(sendMock.mock.calls[0][2]).toContain('📑');
+  });
+
+  it('archive 索引仍可命中(原行为不回退)', async () => {
+    const { searchArchive } = await import('../src/index');
+    await searchArchive(env, 1, 'foo/bar');
+    expect(sendMock.mock.calls[0][2]).toContain('📄');
+  });
+
+  it('无命中给统一未找到文案', async () => {
+    const { searchArchive } = await import('../src/index');
+    await searchArchive(env, 1, 'zzz-not-exist');
+    expect(sendMock.mock.calls[0][2]).toContain('没有找到');
+  });
+});

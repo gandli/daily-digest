@@ -27,10 +27,14 @@ export async function searchArchive(env: Env, chatId: string, query: string): Pr
   const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
   const q = query.toLowerCase();
   try {
-    const page = await env.CACHE.list({ prefix: 'archive:idx:' });
+    // 库索引(lib:* 星标/书签)与存档索引(archive:idx:)合并搜索——导入的库数据也要能被搜到
+    const [arch, lib] = await Promise.all([
+      env.CACHE.list({ prefix: 'archive:idx:' }),
+      env.CACHE.list({ prefix: 'lib:' }),
+    ]);
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const hits: string[] = [];
-    for (const k of page.keys) {
+    for (const k of arch.keys) {
       const raw = await env.CACHE.get(k.name);
       if (!raw) continue;
       const it = JSON.parse(raw) as { repo: string; date: string; desc?: string; descZh?: string };
@@ -41,18 +45,29 @@ export async function searchArchive(env: Env, chatId: string, query: string): Pr
         // 描述优先中文, 无则截英文原文——结果必须可读(用户硬性要求)
         const d = it.descZh ?? it.desc;
         hits.push(`📄 <a href="${link}">${esc(it.repo)} · ${it.date}</a>${d ? `\n   ${d.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').slice(0, 120)}` : ''}`);
+        if (hits.length >= 5) return done(env, chatId, query, hits);
+      }
+    }
+    for (const k of lib.keys) {
+      const raw = await env.CACHE.get(k.name);
+      if (!raw) continue;
+      const e = JSON.parse(raw) as { src: string; name: string; url: string; desc?: string; folder?: string; tags: string[] };
+      const hay = `${e.name} ${e.desc ?? ''} ${(e.tags ?? []).join(' ')} ${e.folder ?? ''}`.toLowerCase();
+      if (hay.includes(q)) {
+        hits.push(`${e.src === 'star' ? '⭐' : '📑'} <a href="${e.url}">${esc(e.name)}</a>${e.tags?.length ? ` · ${esc(e.tags.join(','))}` : ''}${e.desc ? `\n   ${esc(e.desc).slice(0, 120)}` : ''}`);
         if (hits.length >= 5) break;
       }
     }
-    if (!hits.length) {
-      await sendTelegram(env.BOT_TOKEN, chatId, `🔍 存档中没有找到「${esc(query)}」`);
-      return;
-    }
-    await sendTelegram(env.BOT_TOKEN, chatId, `🔍 「${esc(query)}」命中 ${hits.length} 条存档:\n${hits.join('\n')}`);
+    return done(env, chatId, query, hits);
   } catch (e) {
     console.error('searchArchive failed', String(e).slice(0, 80));
     await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ 搜索失败(网络异常), 请稍后再试。');
   }
+}
+
+function done(env: Env, chatId: string, query: string, hits: string[]): Promise<void> {
+  if (!hits.length) return sendTelegram(env.BOT_TOKEN, chatId, `🔍 没有找到「${query.replace(/&/g, '&amp;').replace(/</g, '&lt;')}」`);
+  return sendTelegram(env.BOT_TOKEN, chatId, `🔍 「${query.replace(/&/g, '&amp;').replace(/</g, '&lt;')}」命中 ${hits.length} 条:\n${hits.join('\n')}`);
 }
 
 /** 存档成功后写搜索索引(lookup 单仓与 digest 批量共用)。实现见 lookup.ts(indexArchivedItems)。 */
