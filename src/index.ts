@@ -4,7 +4,7 @@ import { resolveDescriptions } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes } from './render';
 import { sendPerRepoMessages, sendTelegram, registerCommands, safeEqual } from './notify';
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage } from './archive';
-import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs } from './lookup';
+import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess } from './lookup';
 import { extractUrl } from './urlmd';
 import { extractTweet, fetchTweet, renderTweetHtml, type FxTweet } from './fxtweet';
 import { summarizeZh, translateTextZh, isChinese } from './translate';
@@ -312,7 +312,13 @@ export default {
       } else if (tweet) {
         ctx.waitUntil(archiveTweet(env, chatId, tweet.handle, tweet.id, ctx));
       } else if (url) {
-        ctx.waitUntil(archiveUrl(env, chatId, url, ctx));
+        // 重发语义: 首次→处理; 重发且上次未翻译/未提取描述→重跑; 上次成功→跳过
+        if (await shouldReprocess(env, url)) {
+          ctx.waitUntil(archiveUrl(env, chatId, url, ctx));
+          await sendTelegram(env.BOT_TOKEN, chatId, '🔁 检测到上次处理不完整(未翻译或缺描述), 重新归档中…');
+        } else {
+          ctx.waitUntil(archiveUrl(env, chatId, url, ctx));
+        }
       } else {
         ctx.waitUntil(sendTelegram(env.BOT_TOKEN, chatId, HELP));
       }
