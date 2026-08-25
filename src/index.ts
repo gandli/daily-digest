@@ -205,7 +205,7 @@ export async function archiveTweet(
     await sendTelegram(env.BOT_TOKEN, chatId, confirm);
   } catch (e) {
     console.error('archiveTweet store failed', String(e).slice(0, 100));
-    await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ 已取到帖子但存档失败(GitHub 写入异常)。');
+    await sendTelegram(env.BOT_TOKEN, chatId, `⚠️ 已取到帖子但存档失败(${String(e).slice(0, 120)})。请重发一次该链接重试。`);
   }
 }
 
