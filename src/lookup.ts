@@ -224,7 +224,7 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
     if (h.ok) {
       const head = (await h.text()).slice(0, 100_000); // meta 在头部
       photo = extractOgImage(head) ?? undefined;
-      // OG 缺失兜底: favicon/apple-touch-icon(几乎每站都有; HEAD 探活省流量)
+      // OG 缺失兜底: apple-touch-icon / favicon(HEAD 探活省流量)
       if (!photo) {
         const origin = new URL(url).origin;
         for (const fav of [`${origin}/apple-touch-icon.png`, `${origin}/favicon.ico`]) {
@@ -236,7 +236,16 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
         }
       }
     }
-  } catch { /* 无图直发文字 */ }
+    // 最终保底: Google s2 favicon(有 favicon 的站点必出 PNG 图; 真无图站点 404 → sendPhoto 失败自动落回纯文字)
+    if (!photo && h?.ok !== false) {
+      photo = `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=64`;
+    }
+  } catch {
+    // 页面拉取失败也走 s2 保底
+    try {
+      photo = `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=64`;
+    } catch { /* URL 都解析不了则纯文字 */ }
+  }
 
   let md: string;
   try {
