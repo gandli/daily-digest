@@ -14,7 +14,7 @@ export const shanghaiDate = (): string => new Date(Date.now() + 8 * 3600_000).to
 
 const HELP = `📊 daily-digest 使用:
 /trending — 获取今日 GitHub Trending
-/search <关键词> — 搜索历史存档
+/search 关键词 — 搜索历史存档
 /archive — 查看历史存档链接
 发 GitHub 仓库链接 = 单仓查询(自动去重)。
 发 X/Twitter 帖子链接 = 帖子存档。
@@ -369,7 +369,7 @@ export default {
     } else if (text.startsWith('/search')) {
       const query = text.slice('/search'.length).trim();
       if (!query) {
-        ctx.waitUntil(sendTelegram(env.BOT_TOKEN, chatId, '用法: /search <关键词>\n例: /search rust cli'));
+        ctx.waitUntil(sendTelegram(env.BOT_TOKEN, chatId, '用法: /search 关键词\n例: /search rust cli'));
       } else {
         ctx.waitUntil(searchArchive(env, chatId, query));
       }
