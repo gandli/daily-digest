@@ -80,5 +80,5 @@ Web-page and X-post sources — each is just a fetch function plugged into `src/
 ---
 
 <p align="center">
-  <sub>Cloudflare Workers free tier · no DB · KV only · 82/82 tests · CI auto-deploy</sub>
+  <sub>Cloudflare Workers free tier · no DB · KV only · 95/95 tests · CI auto-deploy</sub>
 </p>

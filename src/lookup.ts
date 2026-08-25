@@ -24,7 +24,7 @@ export async function seenToday(env: Env, repo: string): Promise<boolean> {
  * ponytail: 单 KV 键存布尔对而非状态机; 处理方结束后必须 markProcessed 回填真实结果。
  */
 export async function shouldReprocess(env: Env, url: string): Promise<'first' | 'retry' | 'done'> {
-  const key = `reproc:${url}`;
+  const key = `reproc:${url.slice(0, 400)}`; // 与 markProcessed 同一截断, 保证读写对齐
   let prev: { translated?: boolean; descOk?: boolean } | null = null;
   try {
     const raw = await env.CACHE.get(key);
@@ -42,7 +42,8 @@ export async function shouldReprocess(env: Env, url: string): Promise<'first' | 
 
 /** shouldReprocess 的配对写: 处理结束后回填真实质量。 */
 export async function markProcessed(env: Env, url: string, translated: boolean, descOk: boolean): Promise<void> {
-  await env.CACHE.put(`reproc:${url}`, JSON.stringify({ ts: Date.now(), translated, descOk }), { expirationTtl: 7 * 86400 });
+  // ponytail: 键截断防 KV 512B 上限抛错(url 理论上可超长); 截断碰撞仅影响 7 天 TTL 去重, 可接受
+  await env.CACHE.put(`reproc:${url.slice(0, 400)}`, JSON.stringify({ ts: Date.now(), translated, descOk }), { expirationTtl: 7 * 86400 });
 }
 
 /** 提取文本中的 GitHub repo 引用(去重、滤文件路径、上限 3 个省子请求)。 */

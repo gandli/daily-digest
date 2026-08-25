@@ -28,6 +28,7 @@ export async function searchArchive(env: Env, chatId: string, query: string): Pr
   const q = query.toLowerCase();
   try {
     const page = await env.CACHE.list({ prefix: 'archive:idx:' });
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const hits: string[] = [];
     for (const k of page.keys) {
       const raw = await env.CACHE.get(k.name);
@@ -39,7 +40,7 @@ export async function searchArchive(env: Env, chatId: string, query: string): Pr
         const link = `https://github.com/${repo}/blob/archive/archive/${year}/${it.date}.md`;
         // 描述优先中文, 无则截英文原文——结果必须可读(用户硬性要求)
         const d = it.descZh ?? it.desc;
-        hits.push(`📄 <a href="${link}">${it.repo} · ${it.date}</a>${d ? `\n   ${d.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').slice(0, 120)}` : ''}`);
+        hits.push(`📄 <a href="${link}">${esc(it.repo)} · ${it.date}</a>${d ? `\n   ${d.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').slice(0, 120)}` : ''}`);
         if (hits.length >= 5) break;
       }
     }
