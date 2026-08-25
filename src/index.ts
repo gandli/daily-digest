@@ -45,10 +45,10 @@ export async function searchArchive(env: Env, chatId: string, query: string): Pr
       }
     }
     if (!hits.length) {
-      await sendTelegram(env.BOT_TOKEN, chatId, `🔍 存档中没有找到「${query}」`);
+      await sendTelegram(env.BOT_TOKEN, chatId, `🔍 存档中没有找到「${esc(query)}」`);
       return;
     }
-    await sendTelegram(env.BOT_TOKEN, chatId, `🔍 「${query}」命中 ${hits.length} 条存档:\n${hits.join('\n')}`);
+    await sendTelegram(env.BOT_TOKEN, chatId, `🔍 「${esc(query)}」命中 ${hits.length} 条存档:\n${hits.join('\n')}`);
   } catch (e) {
     console.error('searchArchive failed', String(e).slice(0, 80));
     await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ 搜索失败(网络异常), 请稍后再试。');
