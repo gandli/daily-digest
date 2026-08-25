@@ -173,3 +173,20 @@ async function viaMyMemory(descs: string[]): Promise<string[]> {
   }
   return out;
 }
+
+/**
+ * 长文(网页/X 帖)→ 中文摘要, 用于 /search 描述。
+ * CF Summarization 模型(bart-ledger)出英文要点 → m2m100 译中。失败返回 null(调用方回退原文截断)。
+ */
+export async function summarizeZh(env: Env, text: string): Promise<string | null> {
+  try {
+    const sum = (await env.AI.run('@cf/facebook/bart-large-cnn', { input_text: text.slice(0, 2000), max_length: 120 })) as {
+      summary?: string;
+    };
+    if (!sum.summary) return null;
+    const zh = (await viaWorkersAI(env, [sum.summary]))[0];
+    return isChinese(zh) ? zh : null;
+  } catch {
+    return null;
+  }
+}
