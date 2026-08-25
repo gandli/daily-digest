@@ -48,4 +48,15 @@ describe('/search 合并搜索', () => {
     await searchArchive(env, 1, 'zzz-not-exist');
     expect(sendMock.mock.calls[0][2]).toContain('没有找到');
   });
+
+  it('宽泛词(ai)最多返回 20 条且不超 Telegram 4096', async () => {
+    const bigEnv = { ...env, CACHE: kvStub(Object.fromEntries(
+      Array.from({ length: 60 }, (_, i) => [`lib:star:x/ai-${i}`, JSON.stringify({ src: 'star', name: `ai-tool-${i}`, url: `https://github.com/x/ai-${i}`, desc: 'ai powered thing ' + 'x'.repeat(80), tags: ['ai'] })]),
+    )) };
+    const { searchArchive } = await import('../src/index');
+    await searchArchive(bigEnv as any, 1, 'ai');
+    const text = sendMock.mock.calls[0][2] as string;
+    expect(text).toContain('命中 20 条');
+    expect(text.length).toBeLessThanOrEqual(4096);
+  });
 });

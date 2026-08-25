@@ -45,7 +45,7 @@ export async function searchArchive(env: Env, chatId: string, query: string): Pr
         // 描述优先中文, 无则截英文原文——结果必须可读(用户硬性要求)
         const d = it.descZh ?? it.desc;
         hits.push(`📄 <a href="${link}">${esc(it.repo)} · ${it.date}</a>${d ? `\n   ${d.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').slice(0, 120)}` : ''}`);
-        if (hits.length >= 5) return done(env, chatId, query, hits);
+        if (hits.length >= 20) return done(env, chatId, query, hits);
       }
     }
     for (const k of lib.keys) {
@@ -55,7 +55,7 @@ export async function searchArchive(env: Env, chatId: string, query: string): Pr
       const hay = `${e.name} ${e.desc ?? ''} ${(e.tags ?? []).join(' ')} ${e.folder ?? ''}`.toLowerCase();
       if (hay.includes(q)) {
         hits.push(`${e.src === 'star' ? '⭐' : '📑'} <a href="${e.url}">${esc(e.name)}</a>${e.tags?.length ? ` · ${esc(e.tags.join(','))}` : ''}${e.desc ? `\n   ${esc(e.desc).slice(0, 120)}` : ''}`);
-        if (hits.length >= 5) break;
+        if (hits.length >= 20) break;
       }
     }
     return done(env, chatId, query, hits);
@@ -66,8 +66,14 @@ export async function searchArchive(env: Env, chatId: string, query: string): Pr
 }
 
 function done(env: Env, chatId: string, query: string, hits: string[]): Promise<void> {
-  if (!hits.length) return sendTelegram(env.BOT_TOKEN, chatId, `🔍 没有找到「${query.replace(/&/g, '&amp;').replace(/</g, '&lt;')}」`);
-  return sendTelegram(env.BOT_TOKEN, chatId, `🔍 「${query.replace(/&/g, '&amp;').replace(/</g, '&lt;')}」命中 ${hits.length} 条:\n${hits.join('\n')}`);
+  const eq = query.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  if (!hits.length) return sendTelegram(env.BOT_TOKEN, chatId, `🔍 没有找到「${eq}」`);
+  // Telegram sendMessage 上限 4096 字符——超长截尾并提示缩小关键词
+  let text = `🔍 「${eq}」命中 ${hits.length} 条:\n${hits.join('\n')}`;
+  if (text.length > 4000) {
+    text = text.slice(0, 4000).replace(/\n[^\n]*$/, '') + `\n\n⚠️ 结果过多已截断, 请用更具体的关键词`;
+  }
+  return sendTelegram(env.BOT_TOKEN, chatId, text);
 }
 
 /** 存档成功后写搜索索引(lookup 单仓与 digest 批量共用)。实现见 lookup.ts(indexArchivedItems)。 */
