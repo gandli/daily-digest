@@ -6,8 +6,12 @@
 //   书签:   bun scripts/ingest/import-library.ts bookmarks
 //   全量:   bun scripts/ingest/import-library.ts all
 import { execSync } from 'node:child_process';
-import { writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import os from 'node:os';
+
+// bun/node 双跑: Web Crypto 不可用时落 node crypto
+const sha256 = (s: string): string => createHash('sha256').update(s).digest('hex');
 
 type Entry = {
   key: string;            // kv key: lib:<src>:<id>
@@ -112,10 +116,12 @@ function importBookmarks(): Entry[] {
       try { host = new URL(n.url).hostname.replace(/^www\./, ''); } catch { return; }
       if (seen.has(n.url)) return;
       seen.add(n.url);
+      // 空标题书签用父文件夹名兜底, 不丢分类语义(Greptile P1)
+      const name = n.name?.trim() || host;
       entries.push({
-        key: `lib:bm:${Buffer.from(n.url).toString('base64url').slice(0, 40)}`,
+        key: `lib:bm:${sha256(n.url).slice(0, 32)}`, // 全量哈希前 32 hex——截断会碰撞覆盖不同 URL
         value: {
-          src: 'bookmark', id: n.url, name: n.name || host, url: n.url,
+          src: 'bookmark', id: n.url, name, url: n.url,
           folder: folder || undefined, tags: [...new Set([tagUrl(host)[0], ...(folder ? [`f:${folder}`] : [])])],
         },
       });
@@ -128,6 +134,10 @@ function importBookmarks(): Entry[] {
 
 // ---------- main ----------
 const mode = process.argv[2] ?? 'all';
+if (!['stars', 'bookmarks', 'all'].includes(mode)) {
+  console.error(`unknown mode: ${mode} (use stars|bookmarks|all)`);
+  process.exit(2); // 先校验后写盘——坏参数不能覆盖已生成的产物
+}
 let all: Entry[] = [];
 if (mode === 'stars' || mode === 'all') {
   all = all.concat(await importStars());
@@ -142,6 +152,7 @@ console.log(`total unique: ${finalEntries.length} (star=${finalEntries.filter((e
 
 writeFileSync('data/library.jsonl', finalEntries.map((e) => JSON.stringify(e.value)).join('\n'));
 // wrangler kv bulk 格式: [{key, value(string)}]
+mkdirSync('data', { recursive: true }); // fresh clone 无 data/ 时自建(Greptile P1)
 writeFileSync('data/kv-bulk.json', JSON.stringify(finalEntries.map((e) => ({ key: e.key, value: JSON.stringify(e.value) }))));
 // 自检
 const sample = finalEntries[Math.floor(finalEntries.length / 2)].value;
