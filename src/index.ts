@@ -116,7 +116,15 @@ export async function archiveTweet(
     // 帖子正文含 GitHub repo 链接 → 联动查询(与 URL 存档同款扫描)
     await fanoutRepoRefs(env, chatId, md, ctx);
     const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
-    await sendTelegram(env.BOT_TOKEN, chatId, `📁 存档: https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md${tgLine}`);
+    // 统一格式化回复(与网页存档同款三行式): 标题行 / 中文摘要 / 双存档链接
+    const escT = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const confirm = [
+      `🐦 <b>X 存档</b> · @${escT(handle)}`,
+      tweetDesc ? `\n💬 ${escT(tweetDesc).slice(0, 300)}` : '',
+      `\n📁 <a href="https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md">查看存档</a>` +
+        (tgLine ? ` · <a href="${tgLine.split(' ').pop()}">Telegraph</a>` : ''),
+    ].join('');
+    await sendTelegram(env.BOT_TOKEN, chatId, confirm);
   } catch (e) {
     console.error('archiveTweet store failed', String(e).slice(0, 100));
     await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ 已取到帖子但存档失败(GitHub 写入异常)。');
