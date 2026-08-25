@@ -42,4 +42,15 @@ describe('KV put 失败不杀主路径', () => {
     const { markProcessed } = await import('../src/lookup');
     await expect(markProcessed(env, 'https://example.com/b', true, true)).resolves.toBeUndefined();
   });
+
+  it('runDigest: 缓存写抛错不影响 digest 完成(走到存档段不炸)', async () => {
+    // fetch 源在无网络环境下返回空列表 → 走完管线, 断言不抛且正常返回
+    const { runDigest } = await import('../src/index');
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await expect(runDigest(env, true)).resolves.toEqual(expect.anything());
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });
