@@ -78,12 +78,26 @@ async function listAll(env: Env, prefix: string): Promise<{ keys: { name: string
 function done(env: Env, chatId: string, query: string, hits: string[]): Promise<void> {
   const eq = query.replace(/&/g, '&amp;').replace(/</g, '&lt;');
   if (!hits.length) return sendTelegram(env.BOT_TOKEN, chatId, `🔍 没有找到「${eq}」`);
-  // Telegram sendMessage 上限 4096 字符——超长截尾并提示缩小关键词
-  let text = `🔍 「${eq}」命中 ${hits.length} 条:\n${hits.join('\n')}`;
-  if (text.length > 4000) {
-    text = text.slice(0, 4000).replace(/\n[^\n]*$/, '') + `\n\n⚠️ 结果过多已截断, 请用更具体的关键词`;
+  // Telegram sendMessage 上限 4096 字符——archive 与 lib 交替取样截断, 不让单一来源占满(Greptile P1)
+  const archHits = hits.filter((h) => h.startsWith('📄'));
+  const libHits = hits.filter((h) => !h.startsWith('📄'));
+  let text = '';
+  const total = hits.length;
+  const push = (arr: string[]) => {
+    for (const h of arr) {
+      if (text.length + h.length + 1 > 3800) return false;
+      text += (text ? '\n' : '') + h;
+    }
+    return true;
+  };
+  push(archHits);
+  push(libHits);
+  const note = text.length < total.toString().length + 40 ? `\n\n⚠️ 结果过多已截断(${total} 条命中), 请用更具体的关键词` : '';
+  if (!text && total) {
+    // 单条就超限的极端情况: 保底第一条的前 500 字符
+    text = hits[0].slice(0, 500);
   }
-  return sendTelegram(env.BOT_TOKEN, chatId, text);
+  return sendTelegram(env.BOT_TOKEN, chatId, `🔍 「${eq}」${total} 条命中:\n${text}${note}`);
 }
 
 /** 存档成功后写搜索索引(lookup 单仓与 digest 批量共用)。实现见 lookup.ts(indexArchivedItems)。 */
