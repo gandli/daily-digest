@@ -32,19 +32,35 @@ export async function sendPerRepoMessages(
   token: string,
   chatId: string,
   messages: { html: string; repo: string }[],
+  archiveRepo?: string,
 ): Promise<void> {
   for (const m of messages) {
-    // TG 服务端代抓 OG 图(photo=URL)——省 Worker 子请求(10张图×1 = 10个), 代抓失败自动降级纯文字
+    // 图源优先自家存档域(og-images/ 已入库, raw.githubusercontent 无 IP 配额), 未入库回退 GitHub 官方 OG
+    // (官方域对 TG 出口 IP 池限 100 req/IP, 易被耗尽→sendPhoto 失败降纯文字——"缺图"根因)
+    const selfHosted = archiveRepo
+      ? `https://raw.githubusercontent.com/${archiveRepo}/archive/og-images/${m.repo.replace('/', '__')}.png`
+      : null;
+    const photoUrl = selfHosted ?? `https://opengraph.githubassets.com/1/${m.repo}`;
+    // TG 服务端代抓(photo=URL)——省 Worker 子请求, 代抓失败自动降级纯文字
     const res = await fetch(`${API}/bot${token}/sendPhoto`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         chat_id: chatId,
-        photo: `https://opengraph.githubassets.com/1/${m.repo}`,
+        photo: photoUrl,
         caption: m.html.slice(0, 1020),
         parse_mode: 'HTML',
       }),
     });
+    // 自托管图 404(该 repo 尚未入库) → 回退官方 OG 再试一次
+    if (!res.ok && selfHosted) {
+      const retry = await fetch(`${API}/bot${token}/sendPhoto`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, photo: `https://opengraph.githubassets.com/1/${m.repo}`, caption: m.html.slice(0, 1020), parse_mode: 'HTML' }),
+      });
+      if (retry.ok) continue;
+    }
     if (!res.ok) {
       console.error(`sendPhoto ${m.repo} ${res.status}, fallback to text`);
       const fb = await fetch(`${API}/bot${token}/sendMessage`, {

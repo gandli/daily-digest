@@ -204,6 +204,7 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
     env.BOT_TOKEN,
     env.CHAT_ID,
     chunks.map((html, i) => ({ html, repo: items[i].title })),
+    env.GH_ARCHIVE_REPO || 'gandli/daily-digest',
   );
   // 纯文字兜底副本不再发——sendPhoto 失败时 sendPerRepoMessages 内部已降级纯文字
 
