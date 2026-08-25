@@ -67,24 +67,31 @@ export function extractDesc(payload: string, maxLen: number, subject?: string): 
 
 /** 从 zread.ai /:owner/:repo/wiki 页面的 Next.js RSC payload 里提取 Overview 中文描述 */
 export async function fetchZreadWikiDesc(repo: string, maxLen = 280): Promise<string | null> {
-  try {
-    // zread.ai 2026-08 起变慢且风控。优先但尽力而为: 15s 超时兜底最坏情况(串行10个×15s=150s<curl预算), 失败即落 deepwiki/翻译
-    const res = await fetch(`https://zread.ai/${repo}/wiki`, {
-      headers: { 'User-Agent': ZREAD_UA, 'Accept-Language': 'zh-CN,zh;q=0.9' },
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!res.ok) return null;
-    const html = await res.text();
-    // 拼接全部 RSC 字符串块
-    const chunkRe = /self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)/g;
-    let payload = '';
-    for (const m of html.matchAll(chunkRe)) {
-      payload += JSON.parse(m[1] as string) as string;
+  // 2026-08 zread 风控波动: 504(Cloudflare 错误页, ~6s)与 200(慢渲染 48-67s 或缓存快回 1s)混杂, 实测命中率 4/5。
+  // 策略: 超时放宽到 75s + 非 200 重试一次(间隔 3s)。仍失败落 deepwiki/翻译链。
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(`https://zread.ai/${repo}/wiki`, {
+        headers: { 'User-Agent': ZREAD_UA, 'Accept-Language': 'zh-CN,zh;q=0.9' },
+        signal: AbortSignal.timeout(75000),
+      });
+      if (!res.ok) {
+        if (attempt === 0) await new Promise((r) => setTimeout(r, 3000));
+        continue;
+      }
+      const html = await res.text();
+      // 拼接全部 RSC 字符串块
+      const chunkRe = /self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)/g;
+      let payload = '';
+      for (const m of html.matchAll(chunkRe)) {
+        payload += JSON.parse(m[1] as string) as string;
+      }
+      return extractDesc(payload, maxLen, repo.split('/').pop()?.split(/[-_]/)[0]); // subject = 仓库名首段(hermes-agent→hermes), 优先含它的定义段
+    } catch {
+      return null; // 网络/解析异常不重试——重试只针对 504 波动
     }
-    return extractDesc(payload, maxLen, repo.split('/').pop()?.split(/[-_]/)[0]); // subject = 仓库名首段(hermes-agent→hermes), 优先含它的定义段
-  } catch {
-    return null;
   }
+  return null;
 }
 
 /** 批量抓取——串行限速, 逐个小间隔。 */
