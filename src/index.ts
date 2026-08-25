@@ -27,10 +27,14 @@ export async function searchArchive(env: Env, chatId: string, query: string): Pr
   const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
   const q = query.toLowerCase();
   try {
-    const page = await env.CACHE.list({ prefix: 'archive:idx:' });
+    // 库索引(lib:* 星标/书签)与存档索引(archive:idx:)合并搜索——导入的库数据也要能被搜到
+    const [arch, lib] = await Promise.all([
+      listAll(env, 'archive:idx:'),
+      listAll(env, 'lib:'),
+    ]);
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const hits: string[] = [];
-    for (const k of page.keys) {
+    for (const k of arch.keys) {
       const raw = await env.CACHE.get(k.name);
       if (!raw) continue;
       const it = JSON.parse(raw) as { repo: string; date: string; desc?: string; descZh?: string };
@@ -41,18 +45,67 @@ export async function searchArchive(env: Env, chatId: string, query: string): Pr
         // 描述优先中文, 无则截英文原文——结果必须可读(用户硬性要求)
         const d = it.descZh ?? it.desc;
         hits.push(`📄 <a href="${link}">${esc(it.repo)} · ${it.date}</a>${d ? `\n   ${d.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').slice(0, 120)}` : ''}`);
-        if (hits.length >= 5) break;
       }
     }
-    if (!hits.length) {
-      await sendTelegram(env.BOT_TOKEN, chatId, `🔍 存档中没有找到「${esc(query)}」`);
-      return;
+    for (const k of lib.keys) {
+      const raw = await env.CACHE.get(k.name);
+      if (!raw) continue;
+      const e = JSON.parse(raw) as { src: string; name: string; url: string; desc?: string; folder?: string; tags: string[] };
+      const hay = `${e.name} ${e.desc ?? ''} ${(e.tags ?? []).join(' ')} ${e.folder ?? ''}`.toLowerCase();
+      if (hay.includes(q)) {
+        hits.push(`${e.src === 'star' ? '⭐' : '📑'} <a href="${e.url}">${esc(e.name)}</a>${e.tags?.length ? ` · ${esc(e.tags.join(','))}` : ''}${e.desc ? `\n   ${esc(e.desc).slice(0, 120)}` : ''}`);
+      }
     }
-    await sendTelegram(env.BOT_TOKEN, chatId, `🔍 「${esc(query)}」命中 ${hits.length} 条存档:\n${hits.join('\n')}`);
+    return done(env, chatId, query, hits);
   } catch (e) {
     console.error('searchArchive failed', String(e).slice(0, 80));
     await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ 搜索失败(网络异常), 请稍后再试。');
   }
+}
+
+/** KV list 分页遍历(list 默认单页 ~1000 条, lib: 有 6041 条必须翻完)。 */
+async function listAll(env: Env, prefix: string): Promise<{ keys: { name: string }[] }> {
+  const keys: { name: string }[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await env.CACHE.list({ prefix, cursor });
+    keys.push(...page.keys);
+    cursor = page.list_complete ? undefined : (page as { cursor?: string }).cursor;
+  } while (cursor);
+  return { keys };
+}
+
+function done(env: Env, chatId: string, query: string, hits: string[]): Promise<void> {
+  const eq = query.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  if (!hits.length) return sendTelegram(env.BOT_TOKEN, chatId, `🔍 没有找到「${eq}」`);
+  // Telegram sendMessage 上限 4096 字符——archive 与 lib 交替取样截断, 不让单一来源占满(Greptile P1)
+  const archHits = hits.filter((h) => h.startsWith('📄'));
+  const libHits = hits.filter((h) => !h.startsWith('📄'));
+  let text = '';
+  const total = hits.length;
+  const push = (arr: string[]) => {
+    for (const h of arr) {
+      if (text.length + h.length + 1 > 3800) return false;
+      text += (text ? '\n' : '') + h;
+    }
+    return true;
+  };
+  // 两来源交替取样: 各先取一条, 轮流填充——宽泛词下 archive 塞满预算时 lib 结果仍可见
+  let ai = 0, li = 0;
+  while ((ai < archHits.length || li < libHits.length) && text.length <= 3800) {
+    if (ai < archHits.length && text.length + archHits[ai].length + 1 <= 3800) { push([archHits[ai]]); ai++; }
+    if (li < libHits.length && text.length + libHits[li].length + 1 <= 3800) { push([libHits[li]]); li++; }
+    if (ai >= archHits.length && li >= libHits.length) break;
+    if (text.length + Math.min(archHits[ai]?.length ?? Infinity, libHits[li]?.length ?? Infinity) + 1 > 3800) break;
+  }
+  const omitted = total - ai - li; // 真实未展示数, 警告条件与截断事实绑定(Greptile P1)
+  const note = omitted > 0 ? `\n\n⚠️ 结果过多已截断(${total} 条命中, 显示 ${total - omitted} 条), 请用更具体的关键词` : '';
+  if (!text && total) {
+    // 单条就超限的极端情况: 保底第一条的前 500 字符
+    text = hits[0].slice(0, 500);
+    return sendTelegram(env.BOT_TOKEN, chatId, `🔍 「${eq}」${total} 条命中:\n${text}\n\n⚠️ 已截断(${total} 条命中), 请用更具体的关键词`);
+  }
+  return sendTelegram(env.BOT_TOKEN, chatId, `🔍 「${eq}」${omitted > 0 ? `显示 ${total - omitted}/${total}` : total + ' 条命中'}:\n${text}${note}`);
 }
 
 /** 存档成功后写搜索索引(lookup 单仓与 digest 批量共用)。实现见 lookup.ts(indexArchivedItems)。 */
@@ -152,7 +205,7 @@ export async function archiveTweet(
     await sendTelegram(env.BOT_TOKEN, chatId, confirm);
   } catch (e) {
     console.error('archiveTweet store failed', String(e).slice(0, 100));
-    await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ 已取到帖子但存档失败(GitHub 写入异常)。');
+    await sendTelegram(env.BOT_TOKEN, chatId, `⚠️ 已取到帖子但存档失败(${String(e).slice(0, 120)})。请重发一次该链接重试。`);
   }
 }
 
