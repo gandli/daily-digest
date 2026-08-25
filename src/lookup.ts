@@ -224,6 +224,17 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
     if (h.ok) {
       const head = (await h.text()).slice(0, 100_000); // meta 在头部
       photo = extractOgImage(head) ?? undefined;
+      // OG 缺失兜底: favicon/apple-touch-icon(几乎每站都有; HEAD 探活省流量)
+      if (!photo) {
+        const origin = new URL(url).origin;
+        for (const fav of [`${origin}/apple-touch-icon.png`, `${origin}/favicon.ico`]) {
+          const fr = await fetch(fav, { method: 'HEAD', signal: AbortSignal.timeout(5000) }).catch(() => null);
+          if (fr?.ok && (fr.headers.get('content-type') ?? '').startsWith('image/')) {
+            photo = fav;
+            break;
+          }
+        }
+      }
     }
   } catch { /* 无图直发文字 */ }
 
