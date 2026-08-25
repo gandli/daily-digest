@@ -237,17 +237,29 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
   // 截断保护: 超长页面只存前 ~80KB(GitHub 文件无硬限, 但 API PUT 体面优先)
   const clipped = md.length > 80_000 ? md.slice(0, 80_000) + '\n\n…(truncated)' : md;
   const stamp = `${today()}-${Date.now() % 86400000}`;
+  // 中文摘要(非中文内容翻译; 失败回退原文截断)——回复与 /search 索引共用
+  let summaryZh = await summarizeZh(env, clipped).catch(() => null);
+  if (!summaryZh) {
+    const plain = clipped.replace(/[#>*`\[\]]/g, '').slice(0, 120);
+    if (!isChinese(plain)) {
+      const t = await translateBatch(env, [{ title: url, url, desc: plain } as SourceItem]);
+      summaryZh = t[0]?.descZh ?? null;
+    } else summaryZh = plain;
+  }
   try {
     await archiveToGitHub(env, stamp, `# Web Archive · ${url}\n\n${clipped}\n\n---\n由 daily-digest bot 自动生成`);
-    // /search 描述: CF Summarization 出中文摘要(失败回退原文截断)
-    let webDesc: string | undefined = clipped.replace(/[#>*`\[\]]/g, '').slice(0, 120);
-    const s = await summarizeZh(env, clipped).catch(() => null);
-    if (s) webDesc = s;
     // 内容含 GitHub repo 链接 → 逐个走 repo lookup(去重防递归; 上限 3 个省子请求)
     await fanoutRepoRefs(env, chatId, clipped, ctx);
     const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
-    await indexArchivedItems(env, [{ title: new URL(url).hostname, url, desc: webDesc, descZh: undefined } as SourceItem], stamp);
-    const confirm = `✅ 已存档 ${new URL(url).hostname}\n📁 https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`;
+    await indexArchivedItems(env, [{ title: new URL(url).hostname, url, desc: summaryZh, descZh: undefined } as SourceItem], stamp);
+    // 统一格式化回复: 标题行 / 中文摘要 / 存档链接(HTML 转义)
+    const host = new URL(url).hostname;
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const confirm = [
+      `📄 <b>网页存档</b> · ${esc(host)}`,
+      summaryZh ? `\n💬 ${esc(summaryZh).slice(0, 300)}` : '',
+      `\n📁 <a href="https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md">查看存档</a>`,
+    ].join('');
     // 有 og:image → sendPhoto(图=OG 卡, caption=确认+链接); 无图/发送失败 → 纯文字
     if (photo) {
       const res = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendPhoto`, {
