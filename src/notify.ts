@@ -23,6 +23,20 @@ export async function sendPhotoOrText(token: string, chatId: string, photo: stri
   await sendTelegram(token, chatId, html);
 }
 
+/** 视频卡: sendVideo(mp4 直链内嵌播放, caption=html); 失败落 sendPhotoOrText(缩略图/纯文字)。 */
+export async function sendVideoOrText(token: string, chatId: string, video: string | undefined, thumb: string | undefined, html: string): Promise<void> {
+  if (video) {
+    const res = await fetch(`${API}/bot${token}/sendVideo`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, video, caption: html.slice(0, 1020), parse_mode: 'HTML', supports_streaming: true }),
+    }).catch(() => null);
+    if (res?.ok) return;
+    console.error(`sendVideo ${res?.status ?? 'net'}, fallback photo`);
+  }
+  await sendPhotoOrText(token, chatId, thumb, html);
+}
+
 // Telegram 机器人命令菜单(bot 输入框 "/" 弹菜单)。幂等,setMyCommands repeated 安全。
 export async function registerCommands(token: string): Promise<void> {
   const res = await fetch(`${API}/bot${token}/setMyCommands`, {

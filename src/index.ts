@@ -2,7 +2,7 @@ import type { Env, SourceItem } from './types';
 import { sources } from './sources';
 import { resolveDescriptions } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes } from './render';
-import { sendPerRepoMessages, sendTelegram, sendPhotoOrText, registerCommands, safeEqual } from './notify';
+import { sendPerRepoMessages, sendTelegram, sendPhotoOrText, sendVideoOrText, registerCommands, safeEqual } from './notify';
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage } from './archive';
 import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess } from './lookup';
 import { extractUrl } from './urlmd';
@@ -83,7 +83,7 @@ export async function archiveTweet(
     : null;
   const hasZh = !!textZh && isChinese(textZh) && textZh !== tweet.text;
   const zhLine = hasZh ? `\n\n<b>🌐 中文翻译</b>\n${esc(textZh!).slice(0, 3500)}` : '';
-  // 卡片配图(消息必带图): 媒体 photo→直链 / video·gif→缩略图; 无媒体→帖内首个 github repo 的 og 图; 终保底 s2 favicon
+  // 卡片媒体: video→sendVideo 内嵌播放(mp4 直链, 失败落缩略图卡); photo→直链图; 无媒体→帖内 repo og 图/s2 保底
   const media0 = (tweet.media?.all ?? [])[0];
   const repoRef = tweet.text?.match(/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/i)?.[1]
     ?? `x.com/${tweet.author?.screen_name ?? handle}`;
@@ -92,7 +92,11 @@ export async function archiveTweet(
     (tweet.text?.includes('github.com')
       ? `https://opengraph.githubassets.com/1/${repoRef}`
       : `https://www.google.com/s2/favicons?domain=x.com&sz=64`);
-  await sendPhotoOrText(env.BOT_TOKEN, chatId, photo, renderTweetHtml(tweet) + zhLine);
+  if (media0?.type === 'video' && media0.url) {
+    await sendVideoOrText(env.BOT_TOKEN, chatId, media0.url, photo, renderTweetHtml(tweet) + zhLine);
+  } else {
+    await sendPhotoOrText(env.BOT_TOKEN, chatId, photo, renderTweetHtml(tweet) + zhLine);
+  }
   const stamp = `${shanghaiDate()}-${Date.now() % 86400000}`;
   const tUrl = tweet.url ?? `https://x.com/${handle}/status/${id}`;
   const md = [
