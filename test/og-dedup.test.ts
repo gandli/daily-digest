@@ -5,8 +5,8 @@ import { renderMarkdown } from '../src/render';
 describe('renderMarkdown: og-images 本地相对路径', () => {
   const items = [{ title: 'owner/repo', url: 'https://github.com/owner/repo', desc: 'd', descZh: '中文描述测试' }];
   it('传入 ogPaths → 用相对路径', () => {
-    const md = renderMarkdown('2026-08-25', items, undefined, new Map([['owner/repo', '../og-images/owner__repo.png']]));
-    expect(md).toContain('src="../og-images/owner__repo.png"');
+    const md = renderMarkdown('2026-08-25', items, undefined, new Map([['owner/repo', '../../og-images/owner__repo.png']]));
+    expect(md).toContain('src="../../og-images/owner__repo.png"');
     expect(md).not.toContain('opengraph.githubassets.com');
   });
   it('未传 ogPaths → 回退远程 URL(兼容)', () => {
