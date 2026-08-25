@@ -126,7 +126,11 @@ function importBookmarks(): Entry[] {
         },
       });
     }
-    for (const c of n.children ?? []) walk(c, n.type === 'folder' ? c?.name && n.name !== '书签栏' && n.name !== '其他书签' && n.name !== '移动设备书签' ? n.name : '' : folder);
+    // 递归下传父文件夹名: 根层(书签栏/其他书签/移动设备书签)不计入, 其余 folder 节点名即分类
+    for (const c of n.children ?? []) {
+      const isRootLevel = n === d.roots.bookmark_bar || n === d.roots.other || n === d.roots.synced;
+      walk(c, n.type === 'folder' && !isRootLevel ? n.name : folder);
+    }
   };
   for (const r of Object.values<any>(d.roots)) walk(r, '');
   return entries;
@@ -150,9 +154,10 @@ const dedup = new Map(all.map((e) => [e.key, e]));
 const finalEntries = [...dedup.values()];
 console.log(`total unique: ${finalEntries.length} (star=${finalEntries.filter((e) => e.value.src === 'star').length}, bm=${finalEntries.filter((e) => e.value.src === 'bookmark').length})`);
 
+// fresh clone 无 data/ 时自建——必须在首次 writeFileSync 之前(Greptile P1)
+mkdirSync('data', { recursive: true });
 writeFileSync('data/library.jsonl', finalEntries.map((e) => JSON.stringify(e.value)).join('\n'));
 // wrangler kv bulk 格式: [{key, value(string)}]
-mkdirSync('data', { recursive: true }); // fresh clone 无 data/ 时自建(Greptile P1)
 writeFileSync('data/kv-bulk.json', JSON.stringify(finalEntries.map((e) => ({ key: e.key, value: JSON.stringify(e.value) }))));
 // 自检
 const sample = finalEntries[Math.floor(finalEntries.length / 2)].value;
