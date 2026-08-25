@@ -160,6 +160,11 @@ writeFileSync('data/library.jsonl', finalEntries.map((e) => JSON.stringify(e.val
 // wrangler kv bulk 格式: [{key, value(string)}]
 writeFileSync('data/kv-bulk.json', JSON.stringify(finalEntries.map((e) => ({ key: e.key, value: JSON.stringify(e.value) }))));
 // 自检
+// 自检: 空导入直接退出, 避免对空数组取 .value 崩溃
+if (!finalEntries.length) {
+  console.error('no entries imported — check source (AccountBookmarks empty? gh auth?)');
+  process.exit(1);
+}
 const sample = finalEntries[Math.floor(finalEntries.length / 2)].value;
 console.assert(sample.tags.length > 0, 'sample has no tags');
 console.log('written: data/library.jsonl + data/kv-bulk.json');
