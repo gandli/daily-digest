@@ -31,6 +31,16 @@ describe('renderTweetHtml: 转义与拼装', () => {
   });
   it('媒体行渲染为 HTML 链接(parse_mode:HTML)', () => {
     const html = renderTweetHtml({ text: 'pic', media: { all: [{ type: 'photo', url: 'https://pbs.twimg.com/x.jpg' }] } });
-    expect(html).toContain('<a href="https://pbs.twimg.com/x.jpg">photo</a>');
+    expect(html).toContain('<a href="https://pbs.twimg.com/x.jpg">图片</a>');
+  });
+  it('媒体类型标签中文化(photo→图片 video→视频 gif→GIF)', () => {
+    const html = renderTweetHtml({ text: 'x', media: { all: [{ type: 'photo', url: 'https://p/1' }, { type: 'video', url: 'https://v/2.mp4' }, { type: 'gif', url: 'https://g/3' }] } });
+    expect(html).toContain('>图片</a>');
+    expect(html).toContain('>视频</a>');
+    expect(html).toContain('>GIF</a>');
+  });
+  it('日期格式化为 YYYY-MM-DD HH:mm(北京时间)', () => {
+    const html = renderTweetHtml({ text: 'd', created_at: 'Mon Jul 13 01:16:37 +0000 2026' });
+    expect(html).toContain('2026-07-13 09:16');
   });
 });
