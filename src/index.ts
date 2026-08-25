@@ -73,9 +73,13 @@ export async function archiveTweet(
     await archiveUrl(env, chatId, `https://x.com/${handle}/status/${id}`);
     return;
   }
-  // 正文翻译(非中文时; 失败回退原文)——必须在发卡片前算好, 否则🌐段无处安放
+  // 正文翻译(非中文时; 失败回退原文)——必须在发卡片前算好, 否则🌐段无处安放。
+  // 首选 FxEmbed 内嵌翻译(/zh-cn URL 后缀触发, Grok 引擎质量高); 空/失败落四级链
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const textZh = tweet.text ? await translateTextZh(env, tweet.text).catch(() => null) : null;
+  const fxZh = tweet.translation?.text;
+  const textZh = tweet.text
+    ? (fxZh && isChinese(fxZh) && fxZh !== tweet.text ? fxZh : await translateTextZh(env, tweet.text).catch(() => null))
+    : null;
   const hasZh = !!textZh && isChinese(textZh) && textZh !== tweet.text;
   const zhLine = hasZh ? `\n\n<b>🌐 中文翻译</b>\n${esc(textZh!).slice(0, 3500)}` : '';
   // 卡片配图(消息必带图): 媒体 photo→直链 / video·gif→缩略图; 无媒体→帖内首个 github repo 的 og 图; 终保底 s2 favicon

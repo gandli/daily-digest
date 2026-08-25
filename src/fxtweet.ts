@@ -18,12 +18,13 @@ export type FxTweet = {
   created_at?: string;
   likes?: number; retweets?: number; replies?: number;
   media?: { all?: FxMedia[] } | null;
+  translation?: { text?: string } | null;
 };
 
 /** 拉取帖子 JSON。网络/解析失败返回 null(调用方落回 URL 链)。 */
 export async function fetchTweet(handle: string, id: string): Promise<FxTweet | null> {
   try {
-    const res = await fetch(`${API}/${handle}/status/${id}`, {
+    const res = await fetch(`${API}/${handle}/status/${id}/zh-cn`, {
       headers: { 'User-Agent': ZH_UA },
       signal: AbortSignal.timeout(15000),
     });
