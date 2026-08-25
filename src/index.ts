@@ -312,10 +312,13 @@ export default {
       } else if (tweet) {
         ctx.waitUntil(archiveTweet(env, chatId, tweet.handle, tweet.id, ctx));
       } else if (url) {
-        // 重发语义: 首次→处理; 重发且上次未翻译/未提取描述→重跑; 上次成功→跳过
-        if (await shouldReprocess(env, url)) {
+        // 重发语义: first→处理; retry(上次未翻译或缺 deepwiki/zread 描述)→重跑+提示; done→跳过
+        const verdict = await shouldReprocess(env, url);
+        if (verdict === 'retry') {
           ctx.waitUntil(archiveUrl(env, chatId, url, ctx));
           await sendTelegram(env.BOT_TOKEN, chatId, '🔁 检测到上次处理不完整(未翻译或缺描述), 重新归档中…');
+        } else if (verdict === 'done') {
+          await sendTelegram(env.BOT_TOKEN, chatId, '♻️ 该链接已完整处理过(已翻译已归档), 无需重复。');
         } else {
           ctx.waitUntil(archiveUrl(env, chatId, url, ctx));
         }
