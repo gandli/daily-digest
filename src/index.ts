@@ -113,13 +113,13 @@ export async function archiveTweet(
       const pageUrl = await createTelegraphPage(env.TELEGRAPH_TOKEN, `X · @${handle} · ${stamp.slice(0, 10)}`, nodes);
       if (pageUrl) tgLine = `\n📄 Telegraph: ${pageUrl}`;
     }
-    // /search 描述: X 帖用 CF Summarization 出中文摘要(失败回退原文截断)
-    let tweetDesc: string | undefined = tweet.text?.slice(0, 120);
-    if (tweet.text && tweet.text.length > 140) {
+    // /search 描述: X 帖中文摘要(短帖直译; 长帖 CF Summarization 摘要后已是中文)——失败回退原文截断
+    let tweetDescZh: string | undefined;
+    if (tweet.text) {
       const s = await summarizeZh(env, tweet.text).catch(() => null);
-      if (s) tweetDesc = s;
+      tweetDescZh = (s && isChinese(s) ? s : await translateTextZh(env, tweet.text.slice(0, 120)).catch(() => null)) ?? undefined;
     }
-    await indexArchivedItems(env, [{ title: `x/@${handle}`, url: tweet.url ?? '', desc: tweetDesc, descZh: undefined } as SourceItem], stamp);
+    await indexArchivedItems(env, [{ title: `x/@${handle}`, url: tweet.url ?? '', desc: tweetDescZh, descZh: tweetDescZh } as SourceItem], stamp);
     // 帖子正文含 GitHub repo 链接 → 联动查询(与 URL 存档同款扫描)
     await fanoutRepoRefs(env, chatId, md, ctx);
     const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
@@ -127,7 +127,7 @@ export async function archiveTweet(
     const escT = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const confirm = [
       `🐦 <b>X 存档</b> · @${escT(handle)}`,
-      tweetDesc ? `\n💬 ${escT(tweetDesc).slice(0, 300)}` : '',
+      tweetDescZh ? `\n💬 ${escT(tweetDescZh).slice(0, 300)}` : '',
       `\n📁 <a href="https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md">查看存档</a>` +
         (tgLine ? ` · <a href="${tgLine.split(' ').pop()}">Telegraph</a>` : ''),
     ].join('');
