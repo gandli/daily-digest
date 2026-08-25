@@ -280,7 +280,11 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
   // 纯文字兜底副本不再发——sendPhoto 失败时 sendPerRepoMessages 内部已降级纯文字
 
   // 5. 缓存 + 存档(失败不影响已发消息)
-  await env.CACHE.put(cacheKey, JSON.stringify(chunks), { expirationTtl: 86400 });
+  try {
+    await env.CACHE.put(cacheKey, JSON.stringify(chunks), { expirationTtl: 86400 });
+  } catch {
+    // KV 额度/网络异常只损失当日缓存
+  }
   await archiveToGitHub(env, dateStr, renderMarkdown(dateStr, items, telegraphUrl ?? undefined));
   await indexArchivedItems(env, items, dateStr); // /search 索引
   console.log('digest sent', dateStr, `${items.length} items`);

@@ -14,7 +14,11 @@ export async function seenToday(env: Env, repo: string): Promise<boolean> {
   const key = `lookup:${today()}:${repo.toLowerCase()}`;
   const hit = await env.CACHE.get(key);
   if (hit) return true;
-  await env.CACHE.put(key, '1', { expirationTtl: 172800 });
+  try {
+    await env.CACHE.put(key, '1', { expirationTtl: 172800 });
+  } catch {
+    // ponytail: KV 额度/网络异常只损失去重标记(webhook 主路径, 原裸 put 曾把 bot 整个打挂)
+  }
   return false;
 }
 
@@ -34,7 +38,11 @@ export async function shouldReprocess(env: Env, url: string): Promise<'first' | 
   }
   // 首次: 先占位(默认失败态, 处理方负责覆写为真实结果)——防并发双跑
   if (!prev || (prev.translated === undefined && prev.descOk === undefined)) {
-    await env.CACHE.put(key, JSON.stringify({ ts: Date.now(), translated: false, descOk: false }), { expirationTtl: 7 * 86400 });
+    try {
+      await env.CACHE.put(key, JSON.stringify({ ts: Date.now(), translated: false, descOk: false }), { expirationTtl: 7 * 86400 });
+    } catch {
+      // ponytail: KV 写失败按首次处理(重发会重跑管线, 幂等)
+    }
     return 'first';
   }
   return prev.translated && prev.descOk ? 'done' : 'retry';
@@ -43,7 +51,11 @@ export async function shouldReprocess(env: Env, url: string): Promise<'first' | 
 /** shouldReprocess 的配对写: 处理结束后回填真实质量。 */
 export async function markProcessed(env: Env, url: string, translated: boolean, descOk: boolean): Promise<void> {
   // ponytail: 键截断防 KV 512B 上限抛错(url 理论上可超长); 截断碰撞仅影响 7 天 TTL 去重, 可接受
-  await env.CACHE.put(`reproc:${url.slice(0, 400)}`, JSON.stringify({ ts: Date.now(), translated, descOk }), { expirationTtl: 7 * 86400 });
+  try {
+    await env.CACHE.put(`reproc:${url.slice(0, 400)}`, JSON.stringify({ ts: Date.now(), translated, descOk }), { expirationTtl: 7 * 86400 });
+  } catch {
+    // 写失败只影响重发判定(下次按 retry 重跑), 不杀调用方
+  }
 }
 
 /** 提取文本中的 GitHub repo 引用(去重、滤文件路径、上限 3 个省子请求)。 */
