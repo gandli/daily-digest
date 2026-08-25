@@ -34,6 +34,12 @@ describe('extractOgImage: og:image 提取', () => {
     expect(extractOgImage('<meta name="twitter:image" content="https://x/c.jpg">')).toBe('https://x/c.jpg');
     expect(extractOgImage('<html><body>no meta</body></html>')).toBeNull();
   });
+  it('name= 形态的 og:image(ogs 兼容)', () => {
+    expect(extractOgImage('<meta name="og:image" content="https://x/d.jpg">')).toBe('https://x/d.jpg');
+  });
+  it('og:image:url 变体', () => {
+    expect(extractOgImage('<meta property="og:image:url" content="https://x/e.jpg">')).toBe('https://x/e.jpg');
+  });
   it('相对路径无 base → 放弃', () => {
     expect(extractOgImage('<meta property="og:image" content="/img/cover.png">')).toBeNull();
   });

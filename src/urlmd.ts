@@ -13,14 +13,19 @@ const UA_DESKTOP =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
 /**
- * 从 HTML 提取 OG 图(og:image 双属性序 + twitter:image), 相对 URL 转绝对, HTML 实体解码。
- * ponytail: 正则而非 DOM 解析——只取 meta 头部 100KB, 完整解析器(open-graph-scraper 等)是 Node 依赖, Worker 里 YAGNI。
+ * 从 HTML 提取 OG 图, 相对 URL 转绝对, HTML 实体解码。
+ * 字段覆盖对齐 open-graph-scraper(og:image/:secure_url/:url + twitter:image/:src),
+ * 且同时接受 property= 与 name= 两种属性形态、content 前置/后置两种属性序。
+ * ponytail: 正则而非 DOM 解析——只取 meta 头部 100KB, 完整解析器是 Node 依赖, Worker 里 YAGNI。
  */
 export function extractOgImage(html: string): string | null {
+  const IMG = 'og:image(?::secure_url|:url)?';
+  const TW = 'twitter:image(?::src)?';
   const m =
-    html.match(/<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/i) ??
-    html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i) ??
-    html.match(/<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["']/i);
+    html.match(new RegExp(String.raw`<meta[^>]+(?:property|name)=["'](?:${IMG})["'][^>]+content=["']([^"']+)["']`, 'i')) ??
+    html.match(new RegExp(String.raw`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:${IMG})["']`, 'i')) ??
+    html.match(new RegExp(String.raw`<meta[^>]+(?:property|name)=["'](?:${TW})["'][^>]+content=["']([^"']+)["']`, 'i')) ??
+    html.match(new RegExp(String.raw`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:${TW})["']`, 'i'));
   if (!m) return null;
   // HTML 实体解码(&amp; 最常见); 仅收绝对/协议相对 URL(sendPhoto 需完整 https), 页面相对路径无 base → 放弃
   const raw = m[1].replace(/&amp;/g, '&').replace(/&#0?39;/g, "'").replace(/&quot;/g, '"');
