@@ -7,6 +7,7 @@ import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage } from './ar
 import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs } from './lookup';
 import { extractUrl } from './urlmd';
 import { extractTweet, fetchTweet, renderTweetHtml, type FxTweet } from './fxtweet';
+import { summarizeZh } from './translate';
 
 // 北京时间日期串 YYYY-MM-DD(UTC+8 无 DST,直接偏移即可)
 export const shanghaiDate = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
@@ -105,7 +106,13 @@ export async function archiveTweet(
       const pageUrl = await createTelegraphPage(env.TELEGRAPH_TOKEN, `X · @${handle} · ${stamp.slice(0, 10)}`, nodes);
       if (pageUrl) tgLine = `\n📄 Telegraph: ${pageUrl}`;
     }
-    await indexArchivedItems(env, [{ title: `x/@${handle}`, url: tweet.url ?? '', desc: '', descZh: tweet.text?.slice(0, 120) } as SourceItem], stamp);
+    // /search 描述: X 帖用 CF Summarization 出中文摘要(失败回退原文截断)
+    let tweetDesc: string | undefined = tweet.text?.slice(0, 120);
+    if (tweet.text && tweet.text.length > 140) {
+      const s = await summarizeZh(env, tweet.text).catch(() => null);
+      if (s) tweetDesc = s;
+    }
+    await indexArchivedItems(env, [{ title: `x/@${handle}`, url: tweet.url ?? '', desc: tweetDesc, descZh: undefined } as SourceItem], stamp);
     // 帖子正文含 GitHub repo 链接 → 联动查询(与 URL 存档同款扫描)
     await fanoutRepoRefs(env, chatId, md, ctx);
     const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';

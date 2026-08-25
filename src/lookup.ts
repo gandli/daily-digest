@@ -1,5 +1,5 @@
 import type { Env, SourceItem } from './types';
-import { resolveDescriptions, translateBatch, isChinese } from './translate';
+import { resolveDescriptions, translateBatch, isChinese, summarizeZh } from './translate';
 import { fetchDeepwikiOverview } from './deepwiki';
 import { renderMessage, renderMarkdown } from './render';
 import { sendPerRepoMessages, sendTelegram } from './notify';
@@ -239,9 +239,14 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
   const stamp = `${today()}-${Date.now() % 86400000}`;
   try {
     await archiveToGitHub(env, stamp, `# Web Archive · ${url}\n\n${clipped}\n\n---\n由 daily-digest bot 自动生成`);
+    // /search 描述: CF Summarization 出中文摘要(失败回退原文截断)
+    let webDesc: string | undefined = clipped.replace(/[#>*`\[\]]/g, '').slice(0, 120);
+    const s = await summarizeZh(env, clipped).catch(() => null);
+    if (s) webDesc = s;
     // 内容含 GitHub repo 链接 → 逐个走 repo lookup(去重防递归; 上限 3 个省子请求)
     await fanoutRepoRefs(env, chatId, clipped, ctx);
     const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
+    await indexArchivedItems(env, [{ title: new URL(url).hostname, url, desc: webDesc, descZh: undefined } as SourceItem], stamp);
     const confirm = `✅ 已存档 ${new URL(url).hostname}\n📁 https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`;
     // 有 og:image → sendPhoto(图=OG 卡, caption=确认+链接); 无图/发送失败 → 纯文字
     if (photo) {
