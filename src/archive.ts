@@ -77,7 +77,7 @@ export async function archiveOgImage(env: Env, repoFull: string): Promise<string
     });
     if (head.ok) {
       sha = ((await head.json()) as { sha?: string }).sha; // 已有同名图 → 跳过重传(OG 卡内容随 stars 变化可接受)
-      if (sha) return `../og-images/${name}`;
+      if (sha) return `../../og-images/${name}`;
     }
     const put = await fetch(`https://api.github.com/repos/${repo}/contents/og-images/${name}`, {
       method: 'PUT',
@@ -94,7 +94,7 @@ export async function archiveOgImage(env: Env, repoFull: string): Promise<string
       }),
     });
     if (!put.ok) console.error(`og upload ${put.status}`);
-    return put.ok ? `../og-images/${name}` : null;
+    return put.ok ? `../../og-images/${name}` : null;
   } catch (e) {
     console.error('archiveOgImage failed', String(e).slice(0, 80));
     return null;
