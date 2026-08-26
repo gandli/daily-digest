@@ -13,6 +13,7 @@ export interface Env {
   GH_ARCHIVE_REPO?: string;
   CF_ACCOUNT_ID?: string; // Browser Rendering /markdown 兜底用(可选, 缺省跳过该级)
   CF_API_TOKEN?: string; // 同上, 需 Browser Rendering - Edit 权限
+  OPENROUTER_API_KEY?: string; // OpenRouter 免费模型做 /product 深度中文摘要(可选, 缺省回退 CF bart)
 }
 
 export type SourceItem = {

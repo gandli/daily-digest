@@ -202,3 +202,36 @@ export async function summarizeZh(env: Env, text: string): Promise<string | null
     return null;
   }
 }
+
+// 单条长文 → OpenRouter 免费模型深度中文摘要(zeli 风格: 背景/功能/亮点/场景)。
+// model: openrouter/auto-beta(用户指定自动路由)。必须带 HTTP-Referer + X-Title 头(否则 402)。
+// 失败/无 key/额度满 → 返回 null(调用方回退 CF bart summarizeZh)。
+const OPENROUTER_MODEL = 'openrouter/auto-beta';
+export async function summarizeZhDeep(env: Env, article: string): Promise<string | null> {
+  if (!env.OPENROUTER_API_KEY) return null;
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
+        'HTTP-Referer': 'https://github.com/gandli/daily-digest',
+        'X-Title': 'daily-digest',
+      },
+      body: JSON.stringify({
+        model: OPENROUTER_MODEL,
+        messages: [
+          { role: 'system', content: '你是科技产品分析员。用中文输出 4-6 句深度摘要：背景、核心功能、亮点、适用场景。直接给摘要，不要开场白，不要 markdown。' },
+          { role: 'user', content: `请用中文总结这篇产品文章：\n\n${article.slice(0, 8000)}` },
+        ],
+        temperature: 0.4,
+      }),
+    });
+    if (!res.ok) return null; // 402(缺头)/429(限流)/余额 全回退
+    const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+    const out = j.choices?.[0]?.message?.content?.trim();
+    return out && out.length > 10 && isChinese(out) ? out : null;
+  } catch {
+    return null;
+  }
+}
