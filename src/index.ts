@@ -193,7 +193,7 @@ export async function archiveTweet(
     const escT = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const confirm = [
       `🐦 <b>X 存档</b> · @${escT(handle)}`,
-      tweetDescZh ? `\n💬 ${escT(tweetDescZh).slice(0, 300)}` : '',
+      tweetDescZh ? `\n📝 <b>摘要</b> ${escT(tweetDescZh).slice(0, 300)}` : '',
       `\n📁 <a href="https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md">查看存档</a>` +
         (tgLine ? ` · <a href="${tgLine.split(' ').pop()}">Telegraph</a>` : ''),
     ].join('');

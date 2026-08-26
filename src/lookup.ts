@@ -328,7 +328,7 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const confirm = [
       `📄 <b>网页存档</b> · ${esc(host)}`,
-      summaryZh ? `\n💬 ${esc(summaryZh).slice(0, 300)}` : '',
+      summaryZh ? `\n📝 <b>摘要</b> ${esc(summaryZh).slice(0, 300)}` : '',
       `\n📁 <a href="https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md">查看存档</a>`,
     ].join('');
     // 有 og:image → sendPhoto(图=OG 卡, caption=确认+链接); 无图/发送失败 → 纯文字
