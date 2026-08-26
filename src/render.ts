@@ -5,10 +5,19 @@ const unesc = (s: string) => s.replace(/&amp;/g, '&').replace(/&#39;/g, "'").rep
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const fmtK = (n?: number) => (n === undefined ? '' : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 
-// Telegram HTML 消息。一个项目一条消息(首条带头部+存档链接), 标题/描述/wiki 分层有区分度, 带 topics 标签。
-export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl?: string): string[] {
+// Telegram HTML 消息。一个项目一条消息(首条带头部), 标题/描述/wiki 分层, 带 topics 标签 + 存档三链。
+// archiveRepo: GitHub 存档仓库(用于拼 md 链接); 三链 = Telegraph(当日页,有则) → web.archive → GitHub md。
+export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl?: string, archiveRepo = 'gandli/daily-digest'): string[] {
   const header = `📊 <b>Daily Digest</b> · ${dateStr}\n#digest #d${dateStr.replace(/-/g, '')}`;
-  const footer = telegraphUrl ? `\n\n📁 <a href="${esc(telegraphUrl)}">Telegraph 存档</a>` : '';
+  const mdPath = `https://github.com/${archiveRepo}/blob/archive/archive/${dateStr.slice(0, 4)}/${dateStr}.md`;
+  const links = (it: SourceItem): string => {
+    const l: string[] = [];
+    if (telegraphUrl) l.push(`<a href="${esc(telegraphUrl)}">Telegraph</a>`);
+    const wb = `https://web.archive.org/web/2/${encodeURIComponent(it.url).replace(/%3A/g, ':').replace(/%2F/g, '/')}`;
+    l.push(`<a href="${wb}">Wayback</a>`);
+    l.push(`<a href="${esc(mdPath)}">GitHub md</a>`);
+    return `\n\n📁 ${l.join(' · ')}`;
+  };
   return items.map((it, i) => {
     const langTag = it.lang ? ` · #${it.lang}` : '';
     const today = it.starsToday ? ` (+${fmtK(it.starsToday)} 今日)` : '';
@@ -23,7 +32,7 @@ export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl
       `<a href="https://deepwiki.com/${esc(it.title)}">deepwiki</a> · <a href="https://zread.ai/${esc(it.title)}">zread</a>` +
       (tags ? `\n\n${tags}` : '');
     // ponytail: wikiDesc 极端超长时仍可能超4096——截断到安全长度
-    let msg = head + body + (i === items.length - 1 ? footer : '');
+    let msg = head + body + links(it);
     if (msg.length > 4000) msg = msg.slice(0, 3999) + '…';
     return msg;
   });
