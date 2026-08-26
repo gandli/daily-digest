@@ -15,6 +15,7 @@ export interface Env {
   CF_API_TOKEN?: string; // 同上, 需 Browser Rendering - Edit 权限
   OPENROUTER_API_KEY?: string; // OpenRouter 免费模型做 /product 深度中文摘要(可选, 缺省回退 CF bart)
   JINA_API_KEY?: string; // Jina Reader (r.jina.ai) URL→markdown(可选, 有则优先; 干净 markdown 去导航噪声)
+  GENEDAI_API_KEY?: string; // md.genedai.me URL→markdown(可选; Jina 失败时的另一兜底)
 }
 
 export type SourceItem = {
