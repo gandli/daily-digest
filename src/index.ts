@@ -17,7 +17,7 @@ const HELP = `📊 daily-digest 使用
 
 <b>命令</b>
 /trending — 今日 GitHub Trending
-/product — 今日 HN 新品/开源
+/product — 今日 HN 酷产品
 /search 关键词 — 搜索历史存档
 /archive — 历史存档(分页+三链)
 

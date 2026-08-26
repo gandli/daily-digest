@@ -40,7 +40,7 @@ export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl
 
 // HN 新产品/开源项目消息(仿 trending 但独立)。无 deepwiki/repo — 标题直链 + 中文描述 + #product 标签。
 export function renderProductMessage(dateStr: string, items: SourceItem[], telegraphUrl?: string): string[] {
-  const header = `🚀 <b>HN 新品/开源</b> · ${dateStr}\n#product #d${dateStr.replace(/-/g, '')}`;
+  const header = `🚀 <b>HN 酷产品</b> · ${dateStr}\n#product #d${dateStr.replace(/-/g, '')}`;
   const footer = telegraphUrl ? `\n\n📁 <a href="${esc(telegraphUrl)}">Telegraph 存档</a>` : '';
   return items.map((it, i) => {
     const score = it.stars ? ` ⭐ ${fmtK(it.stars)}` : '';
