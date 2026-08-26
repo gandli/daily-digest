@@ -30,6 +30,22 @@ describe('渲染: 描述层诚实降级', () => {
     const withDesc = renderMarkdown('2026-08-24', [mk('a/aa', ZH)]);
     expect(withDesc).toContain(ZH);
   });
+
+  it('每条带存档三链(Telegraph/Wayback/GitHub md), 非仅末条', () => {
+    const msgs = renderMessage('2026-08-24', [mk('a/aa', ZH), mk('b/bb', ZH)], 'https://telegra.ph/x');
+    for (const m of msgs) {
+      expect(m).toContain('Telegraph');
+      expect(m).toContain('Wayback');
+      expect(m).toContain('GitHub md');
+      expect(m).toContain('web.archive.org/web/2/');
+    }
+  });
+  it('无 telegraphUrl → 三链含 Wayback + GitHub md, 无 Telegraph 项', () => {
+    const [m] = renderMessage('2026-08-24', [mk('a/aa', ZH)]);
+    expect(m).toContain('Wayback');
+    expect(m).toContain('GitHub md');
+    expect(m).not.toContain('Telegraph');
+  });
 });
 describe('Telegraph 渲染: 中文守卫(P1-A)', () => {
   const base = { title: 'o/r', url: 'https://github.com/o/r', desc: 'English fallback desc' };

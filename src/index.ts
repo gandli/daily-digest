@@ -330,7 +330,7 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
   }
 
   // 4. 渲染并发送: 每项目一条消息(OG 图做照片 + 完整条目做 caption), 头条带日期头, 末条带存档链接
-  const chunks = renderMessage(dateStr, items, telegraphUrl ?? undefined);
+  const chunks = renderMessage(dateStr, items, telegraphUrl ?? undefined, env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
   await sendPerRepoMessages(
     env.BOT_TOKEN,
     env.CHAT_ID,
@@ -520,7 +520,7 @@ export default {
           count: items.length,
           translatedCount: items.filter((i) => i.descZh).length,
           translateErrors: [],
-          message: renderMessage(dateStr, items, telegraphUrl ?? undefined),
+          message: renderMessage(dateStr, items, telegraphUrl ?? undefined, env.GH_ARCHIVE_REPO || 'gandli/daily-digest'),
           markdown: renderMarkdown(dateStr, items),
           items,
         });
