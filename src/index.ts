@@ -396,26 +396,33 @@ export async function runProductDigest(env: Env, useCache = true): Promise<numbe
     return -1;
   }
   if (!items.length) { console.log('hn: no new products today'); return 0; }
-  // HN Show HN 多为空正文: ① 有 url → 拉正文 → CF Summarization 中文摘要(分批 2 防子请求爆);
+  // HN Show HN 多为空正文: ① 有 url → 拉正文 → OpenRouter 深度中文摘要(存 KV 防重复生成);
   // ② 无 url/正文拉取失败 → 标题翻译兜底。③ 从标题抽领域标签。
-  const needBody = items.filter((it) => !it.desc && it.url && /^https?:\/\//.test(it.url));
-  // ponytail: OpenRouter 深度摘要(2-4s/篇) + urlToMarkdown(2-3子请求) —— 全量超 30s waitUntil 限, 缓存永不落。
-  // 只前 2 篇做深度摘要(≈10s), 其余落标题翻译兜底, 保缓存/主卡必达。
-  for (let i = 0; i < Math.min(needBody.length, 2); i += 2) {
-    await Promise.all(
-      needBody.slice(i, i + 2).map(async (it) => {
-        try {
-          const md = await urlToMarkdown(env, it.url, { accountId: env.CF_ACCOUNT_ID, apiToken: env.CF_API_TOKEN });
-          const body = md.replace(/[#*>`|!\-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 6000);
-          // 正文有内容 → 优先 OpenRouter 免费模型深度中文摘要(zeli 级), 失败/无 key 回退 CF bart
-          if (body.length > 40) {
-            it.desc = body;
-            it.descZh = (await summarizeZhDeep(env, body).catch(() => null)) ?? (await summarizeZh(env, body).catch(() => null)) ?? undefined;
-          }
-        } catch { /* 拉正文失败 → 落标题翻译兜底 */ }
-      }),
-    );
-  }
+    const needBody = items.filter((it) => !it.desc && it.url && /^https?:\/\//.test(it.url));
+    // ponytail: OpenRouter 深度摘要(2-4s/篇) + urlToMarkdown(2-3子请求) —— 全量超 30s waitUntil 限。
+    // 只前 2 篇深摘要(≈10s), 结果存 KV(7天) 防重抓重生成; 其余标题翻译兜底。深度摘要本质是 url 级不变 → 一次生成反复用。
+    for (let i = 0; i < Math.min(needBody.length, 2); i += 2) {
+      await Promise.all(
+        needBody.slice(i, i + 2).map(async (it) => {
+          try {
+            const cacheKey = `product:deep:${btoa(it.url).replace(/=+$/,'').slice(0,40)}`;
+            const cached = await env.CACHE.get(cacheKey).catch(() => null);
+            if (cached) { const c = JSON.parse(cached); it.desc = c.desc; it.descZh = c.descZh; it.quote = c.quote; return; }
+            const md = await urlToMarkdown(env, it.url, { accountId: env.CF_ACCOUNT_ID, apiToken: env.CF_API_TOKEN });
+            const body = md.replace(/[#*>`|\!-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 6000);
+            // 正文有内容 → 优先 OpenRouter 免费模型深度中文摘要(zeli 级+引文), 失败/无 key 回退 CF bart
+            if (body.length > 40) {
+              it.desc = body;
+              const deep = await summarizeZhDeep(env, body).catch(() => null);
+              if (deep) { it.descZh = deep.summaryZh; it.quote = deep.quote; }
+              else it.descZh = (await summarizeZh(env, body).catch(() => null)) ?? undefined;
+              // 存档深度摘要结果(KV 7天): 下次 /product 直接读, 不再重抓重生成
+              try { await env.CACHE.put(cacheKey, JSON.stringify({ desc: it.desc, descZh: it.descZh, quote: it.quote }), { expirationTtl: 604800 }); } catch { /* KV 额度忽略 */ }
+            }
+          } catch { /* 拉正文失败 → 落标题翻译兜底 */ }
+        }),
+      );
+    }
   await Promise.all(
     items.map(async (it) => {
       if (!it.desc) it.desc = it.title; // 仍无正文 → 标题作描述

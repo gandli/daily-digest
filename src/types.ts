@@ -22,6 +22,7 @@ export type SourceItem = {
   desc: string; // 原文描述(翻译前)
   descZh?: string; // 主描述: zread wiki 中文优先, 缺失时翻译兜底
   topics?: string[]; // GitHub repo topics(前4个做标签)
+  quote?: string; // 深度摘要附带的原文核心句(zeli 引文风格)
   lang?: string;
   stars?: number; // 总星数
   starsToday?: number; // 今日新增

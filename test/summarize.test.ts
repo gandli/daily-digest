@@ -52,11 +52,20 @@ describe('summarizeZhDeep(OpenRouter 深度摘要)', () => {
     expect(await summarizeZhDeep(env, 'article')).toBeNull();
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
-  it('成功 → 返回中文摘要', async () => {
+  it('成功 → 返回 {summaryZh, quote}', async () => {
     const env = { OPENROUTER_API_KEY: 'test-key' } as any;
-    globalThis.fetch = (async () => new Response(JSON.stringify({ choices: [{ message: { content: '这是一款很棒的 macOS 主机切换工具，支持快速切换。' } }] }))) as typeof fetch;
+    // mock 含 QUOTE: 行 → 拆出引文
+    globalThis.fetch = (async () => new Response(JSON.stringify({ choices: [{ message: { content: '这是一款很棒的 macOS 主机切换工具，支持快速切换。\nQUOTE: Hostflip is a hosts switcher for macOS.' } }] }))) as typeof fetch;
     const out = await summarizeZhDeep(env, 'Hostflip is a hosts switcher');
-    expect(out).toContain('主机切换');
+    expect(out?.summaryZh).toContain('主机切换');
+    expect(out?.quote).toContain('Hostflip is a hosts switcher');
+  });
+  it('无 QUOTE 行 → 整体作摘要, 无引文', async () => {
+    const env = { OPENROUTER_API_KEY: 'test-key' } as any;
+    globalThis.fetch = (async () => new Response(JSON.stringify({ choices: [{ message: { content: '这是纯中文摘要内容，没有引文标记。' } }] }))) as typeof fetch;
+    const out = await summarizeZhDeep(env, 'x');
+    expect(out?.summaryZh).toContain('纯中文摘要');
+    expect(out?.quote).toBeUndefined();
   });
   it('HTTP 非OK → null(402/限流回退)', async () => {
     const env = { OPENROUTER_API_KEY: 'test-key' } as any;

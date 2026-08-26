@@ -56,6 +56,10 @@ describe('renderProductMessage(HN 酷产品)', () => {
     expect(msg).toContain('Wayback');
     expect(msg).toContain('Archive');
   });
+  it('有引文(quote) → 显示 💬 引文行', () => {
+    const [msg] = renderProductMessage('2026-08-26', [{ title: 'Show HN: A', url: 'https://x.dev', descZh: '这是一段中文摘要。', quote: 'A cool AI tool for builders.' } as never]);
+    expect(msg).toContain('💬 "A cool AI tool for builders."');
+  });
   it('无中文描述 → 不显示描述行(仍有标题/标签/三链)', () => {
     const [msg] = renderProductMessage('2026-08-26', [{ title: 'Show HN: X', url: 'https://x.dev', descZh: undefined } as never]);
     expect(msg).not.toContain('📝');
