@@ -29,6 +29,44 @@
 * **/product:** 加 Telegraph 独立存档页(archive:tg:product:<date>) + 三链首项 Telegraph 优先——对齐 trending ([#101](https://github.com/gandli/daily-digest/issues/101)) ([2205850](https://github.com/gandli/daily-digest/commit/2205850b94b22b7772ab59d08be908587415cea0))
 * **/product:** 摘要加引文(💬 原文核心句, zeli 式) + 深度摘要结果存档 KV(7天)防重抓重生成; summarizeZhDeep 返回 {summaryZh,quote} ([#107](https://github.com/gandli/daily-digest/issues/107)) ([4a2a206](https://github.com/gandli/daily-digest/commit/4a2a206fce6849a3612191206e64f35c991bfe4a))
 * **/product:** 每条补中文描述(标题翻译) + 领域标签(topicsFromTitle) + 渲染📝描述/标签——修复 HN 条目无描述/翻译/摘要/标签 ([#97](https://github.com/gandli/daily-digest/issues/97)) ([f9f3e5b](https://github.com/gandli/daily-digest/commit/f9f3e5bc837afe839b18235d63dd2d3e259d6c91))
+* **/product:** 深摘要分块续跑——遍历全部未缓存 url, KV命中直接读, 未命中每请求最多2篇生成, 其余下次 /product 续跑累积补全全部10篇; 打破单请求30s墙钟限 ([#114](https://github.com/gandli/daily-digest/issues/114)) ([6c168a3](https://github.com/gandli/daily-digest/commit/6c168a3166b036d089b0c107efc4d0ca1dc6a657))
+* **/product:** 空正文条目拉 url 正文 → CF summarize 中文摘要(分批2防子请求爆); 无url/失败回退标题翻译 ([#98](https://github.com/gandli/daily-digest/issues/98)) ([2f31fc1](https://github.com/gandli/daily-digest/commit/2f31fc1905f719f4cbfb8c98ef13f50d2089fd6a))
+* **/trending:** 每 repo 消息底部加存档三链(Telegraph·Wayback·GitHub md); renderMessage 加 archiveRepo 参数 ([#86](https://github.com/gandli/daily-digest/issues/86)) ([dd76788](https://github.com/gandli/daily-digest/commit/dd76788d143c7ecf96369fc999783f947266887d))
+* **urlmd:** Jina Reader r.jina.ai 优先 URL→markdown(有 key)——干净 markdown 去导航噪声, 通用覆盖普通官网; key 存 CF secret ([#110](https://github.com/gandli/daily-digest/issues/110)) ([ba7cfd1](https://github.com/gandli/daily-digest/commit/ba7cfd15887704f80d6f2394e32c803e318d2b7e))
+* **urlmd:** 加 markdown.new 免 key 兜底(覆盖 JS 动态页)——URL→markdown 七级链可靠 ([#112](https://github.com/gandli/daily-digest/issues/112)) ([754ea49](https://github.com/gandli/daily-digest/commit/754ea4998aadd7127b0971112f1c1db91263e2a8))
+* **urlmd:** 加 md.genedai.me reader(有 key) 作 Jina 失败兜底——URL→markdown 多服务可靠; key 存 CF secret ([#111](https://github.com/gandli/daily-digest/issues/111)) ([78df21d](https://github.com/gandli/daily-digest/commit/78df21d97cecaf3059c95f9ebd44fb794daa870d))
+* 每日低速增量补星标仓缺/未译描述 — backfillDescriptions(cron, 每天40条, deepwiki→译中→lookup:desc); /search 渲染优先取 lookup:desc 覆盖 ([#80](https://github.com/gandli/daily-digest/issues/80)) ([1f22f77](https://github.com/gandli/daily-digest/commit/1f22f778f9c8ad99d2b8cacd8cbbb93ffec7d9d5))
+# [](https://github.com/gandli/daily-digest/compare/v0.0.1...v) (2026-08-26)
+
+
+### Bug Fixes
+
+* **/product 10条:** HN 源改 Algolia search_by_date tags=story,show_hn——一次拿当日 Show HN 新品, 替代逐条扫 topstories(前60可能0条, 凑不满10) ([#95](https://github.com/gandli/daily-digest/issues/95)) ([3f9340a](https://github.com/gandli/daily-digest/commit/3f9340a4411b74820a544a49a4578a2f3b5f2fbc))
+* **/product 深度摘要:** openrouter/free 随机路由语言不稳→固定中文模型候选按序尝试(minimax-m3→ox-alpha→dots-3); 实测出 zeli 级摘要+引文; 单点429多模型兜底 ([#108](https://github.com/gandli/daily-digest/issues/108)) ([99dc624](https://github.com/gandli/daily-digest/commit/99dc624295dfaa5d314dd3a999a3da10ec2b0f33))
+* **/product:** 深度摘要 4→2 篇 —— 4篇(OpenRouter+urlToMarkdown+Telegraph)仍踩30s waitUntil限致缓存不落; 2篇≈10s保缓存/主卡必达 ([#105](https://github.com/gandli/daily-digest/issues/105)) ([979f7f5](https://github.com/gandli/daily-digest/commit/979f7f5157c3298d98f92c5b32dfdb7338580690))
+* **/product:** 深度摘要只做前4篇——全量10篇(OpenRouter+urlToMarkdown)超30s waitUntil限致缓存永不落/主卡不发; 前4篇≈20s保功能 ([#104](https://github.com/gandli/daily-digest/issues/104)) ([efc106c](https://github.com/gandli/daily-digest/commit/efc106c649a516f1487065868bb3aaa5e60cd53d))
+* **/product:** 深摘要单篇硬10s超时(必带)——七级url链+OpenRouter慢致30s waitUntil爆, 汇总缓存不落(响应差根因); 超时落标题翻译保缓存/主卡必达 ([#113](https://github.com/gandli/daily-digest/issues/113)) ([b21327b](https://github.com/gandli/daily-digest/commit/b21327b166d55444f76d8e0bb326476736fe25cb))
+* extractRepo 剥离 .git 克隆后缀——修复 https://github.com/apple/container.git 误判为 apple/container.git 的 404 bug ([#90](https://github.com/gandli/daily-digest/issues/90)) ([014296d](https://github.com/gandli/daily-digest/commit/014296d2f03d8b6dd8cdcd9e9058c68372b2eb60))
+* repo 联动分批串行(3/批)全量解析 + 主卡不阻塞——串行单waitUntil超时截断后半repo, 并发超50子请求, 分批折中保全部 ([#92](https://github.com/gandli/daily-digest/issues/92)) ([a03e301](https://github.com/gandli/daily-digest/commit/a03e301969c0b7768c7e57fc642c4c609368f68e))
+* **urlmd:** 加方法4 HTML 剥文本兜底(viaHtmlStrip)——普通非 CF 官网(DBLift/Typebase)三级链全失败(Browser Rendering 未配置)致深摘要无正文; HTML 剥 nav/script/tag 取正文; urlToMarkdown 不再 throw 返回空串, lookup 加空串守卫 ([#109](https://github.com/gandli/daily-digest/issues/109)) ([6db2766](https://github.com/gandli/daily-digest/commit/6db27668c05d9de0a1b0ccd718f782753169fe8e))
+* X/网页内容 repo 联动全量解析(去 3 条上限→10); 顺序 await 防 50 子请求爆——修复 X 帖只解析部分 repo ([#91](https://github.com/gandli/daily-digest/issues/91)) ([35f9f93](https://github.com/gandli/daily-digest/commit/35f9f93e1077bb05a23e45b75660111ed63e73a9))
+* **存档三链:** 去 📎 双 emoji 前缀 + 互联网档案馆→Wayback 短名——三链行精简 ([#84](https://github.com/gandli/daily-digest/issues/84)) ([3e33454](https://github.com/gandli/daily-digest/commit/3e33454c2f7782b4c26372c64095ac494a7d8d56))
+
+
+### Features
+
+* **/archive 排版:** 每条多行结构化(标题/📝摘要/🏷标签/📎三链); archive:idx 存 topics 供标签; replyArchived 同款加标签 ([#83](https://github.com/gandli/daily-digest/issues/83)) ([e89a46a](https://github.com/gandli/daily-digest/commit/e89a46a86a154a02188bd7a852309e258d1c7c48))
+* /archive 项目间空行间隔; 存档三链第三项统一 'Archive'(原'GitHub md'); /product(HN酷产品)每条补三链——所有项目/帖子/网页都有三链 ([#88](https://github.com/gandli/daily-digest/issues/88)) ([d0d5716](https://github.com/gandli/daily-digest/commit/d0d5716c12b090d154b61601719cb7cb1bb9b9b2))
+* **/archive:** 每条标题指向原链接(https://github.com/repo); replyArchived 标题同款 ([#89](https://github.com/gandli/daily-digest/issues/89)) ([2d63284](https://github.com/gandli/daily-digest/commit/2d63284a2de91a3aaa74c287390f5fa880d43f95))
+* **/help:** 排版分组优化——命令/链接分区 + <b>加粗标题 + 空行间隔, 更易读 ([#85](https://github.com/gandli/daily-digest/issues/85)) ([0db75dc](https://github.com/gandli/daily-digest/commit/0db75dca73e49a3ff6f0debac953a1b13abfa292))
+* **/product OG:** GitHub repo → GitHub OG 卡; 非 GitHub 网页 → 抓页面 og:image 作封面; 保留自托管→官方 retry ([#99](https://github.com/gandli/daily-digest/issues/99)) ([e0314ba](https://github.com/gandli/daily-digest/commit/e0314baf3ac273406d9ef42cf37ea67103ca24d3))
+* /product OpenRouter 深度中文摘要(回退 CF bart) ([#102](https://github.com/gandli/daily-digest/issues/102)) ([0a38ab6](https://github.com/gandli/daily-digest/commit/0a38ab658f588628a73b2536a52759b69d0dcae6))
+* /product 命令 — HN 新产品/开源项目源, 仿 trending 独立推送/缓存/存档, 不与 digest 合并; CF Summarization 中文摘要; cron 每日推送 ([#82](https://github.com/gandli/daily-digest/issues/82)) ([93414b5](https://github.com/gandli/daily-digest/commit/93414b5371d092e660b811e1381a4e67eda6dcd7))
+* **/product 摘要:** url 正文截断 2000→6000 字符——让 OpenRouter 吸收性能细节, 摘要对齐 zeli 质量(实测 LatticeDB 含 0.13μs/0.83ms 等指标) ([#106](https://github.com/gandli/daily-digest/issues/106)) ([0085f2c](https://github.com/gandli/daily-digest/commit/0085f2c4b283755b25bc93c5a3695e08bc0be0c8))
+* **/product:** HN 源扫描范围 30→60 个 top 凑满 10 条(Show HN/GitHub 在 top 占比不高, 30 常不足 10) ([#94](https://github.com/gandli/daily-digest/issues/94)) ([8235fe6](https://github.com/gandli/daily-digest/commit/8235fe663f2ae74b85589f70286a77725c8e1594))
+* **/product:** 加 Telegraph 独立存档页(archive:tg:product:<date>) + 三链首项 Telegraph 优先——对齐 trending ([#101](https://github.com/gandli/daily-digest/issues/101)) ([2205850](https://github.com/gandli/daily-digest/commit/2205850b94b22b7772ab59d08be908587415cea0))
+* **/product:** 摘要加引文(💬 原文核心句, zeli 式) + 深度摘要结果存档 KV(7天)防重抓重生成; summarizeZhDeep 返回 {summaryZh,quote} ([#107](https://github.com/gandli/daily-digest/issues/107)) ([4a2a206](https://github.com/gandli/daily-digest/commit/4a2a206fce6849a3612191206e64f35c991bfe4a))
+* **/product:** 每条补中文描述(标题翻译) + 领域标签(topicsFromTitle) + 渲染📝描述/标签——修复 HN 条目无描述/翻译/摘要/标签 ([#97](https://github.com/gandli/daily-digest/issues/97)) ([f9f3e5b](https://github.com/gandli/daily-digest/commit/f9f3e5bc837afe839b18235d63dd2d3e259d6c91))
 * **/product:** 空正文条目拉 url 正文 → CF summarize 中文摘要(分批2防子请求爆); 无url/失败回退标题翻译 ([#98](https://github.com/gandli/daily-digest/issues/98)) ([2f31fc1](https://github.com/gandli/daily-digest/commit/2f31fc1905f719f4cbfb8c98ef13f50d2089fd6a))
 * **/trending:** 每 repo 消息底部加存档三链(Telegraph·Wayback·GitHub md); renderMessage 加 archiveRepo 参数 ([#86](https://github.com/gandli/daily-digest/issues/86)) ([dd76788](https://github.com/gandli/daily-digest/commit/dd76788d143c7ecf96369fc999783f947266887d))
 * **urlmd:** Jina Reader r.jina.ai 优先 URL→markdown(有 key)——干净 markdown 去导航噪声, 通用覆盖普通官网; key 存 CF secret ([#110](https://github.com/gandli/daily-digest/issues/110)) ([ba7cfd1](https://github.com/gandli/daily-digest/commit/ba7cfd15887704f80d6f2394e32c803e318d2b7e))
