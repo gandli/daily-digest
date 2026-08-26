@@ -399,33 +399,32 @@ export async function runProductDigest(env: Env, useCache = true): Promise<numbe
   // HN Show HN 多为空正文: ① 有 url → 拉正文 → OpenRouter 深度中文摘要(存 KV 防重复生成);
   // ② 无 url/正文拉取失败 → 标题翻译兜底。③ 从标题抽领域标签。
     const needBody = items.filter((it) => !it.desc && it.url && /^https?:\/\//.test(it.url));
-    // ponytail: 深摘要只前 2 篇 + 每篇整体 10s 超时(必带)——OpenRouter/正文拉取慢会拖爆 30s waitUntil 致汇总缓存不落。
-    // 前 2 篇深摘要(每篇 ≤10s 封顶), 结果存 KV(7天) 防重抓重生成; 超时/失败落标题翻译。其余标题翻译。
-    const deepTargets = needBody.slice(0, 2);
-    for (let i = 0; i < deepTargets.length; i += 2) {
-      await Promise.all(
-        deepTargets.slice(i, i + 2).map(async (it) => {
-          await Promise.race([
-            (async () => {
-              try {
-                const cacheKey = `product:deep:${btoa(it.url).replace(/=+$/, '').slice(0, 40)}`;
-                const cached = await env.CACHE.get(cacheKey).catch(() => null);
-                if (cached) { const c = JSON.parse(cached); it.desc = c.desc; it.descZh = c.descZh; it.quote = c.quote; return; }
-                const md = await urlToMarkdown(env, it.url, { accountId: env.CF_ACCOUNT_ID, apiToken: env.CF_API_TOKEN }).catch(() => '');
-                const body = md.replace(/[#*>`|\!-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 6000);
-                if (body.length > 40) {
-                  it.desc = body;
-                  const deep = await summarizeZhDeep(env, body).catch(() => null);
-                  if (deep) { it.descZh = deep.summaryZh; it.quote = deep.quote; }
-                  else it.descZh = (await summarizeZh(env, body).catch(() => null)) ?? undefined;
-                  try { await env.CACHE.put(cacheKey, JSON.stringify({ desc: it.desc, descZh: it.descZh, quote: it.quote }), { expirationTtl: 604800 }); } catch { /* KV 额度忽略 */ }
-                }
-              } catch { /* 拉正文失败 → 标题翻译兜底 */ }
-            })(),
-            new Promise((r) => setTimeout(r, 10000)), // 单篇深摘要硬 10s 超时
-          ]);
-        }),
-      );
+    // ponytail 分块续跑: 深摘要全量遍历, KV 命中直接读(0开销); 未命中每请求最多生成 MAX 篇, 其余留下次 /product 续。
+    // 累积补全全部 10 篇 zeli 级摘要(每次 <30s), 不出单请求墙钟限。单篇整体 10s 封顶。
+    const MAX_DEEP_PER_RUN = 2;
+    let generated = 0;
+    for (const it of needBody) {
+      await Promise.race([
+        (async () => {
+          try {
+            const cacheKey = `product:deep:${btoa(it.url).replace(/=+$/, '').slice(0, 40)}`;
+            const cached = await env.CACHE.get(cacheKey).catch(() => null);
+            if (cached) { const c = JSON.parse(cached); it.desc = c.desc; it.descZh = c.descZh; it.quote = c.quote; return; }
+            if (generated >= MAX_DEEP_PER_RUN) return; // 未命中但预算尽 → 留下次续
+            generated++;
+            const md = await urlToMarkdown(env, it.url, { accountId: env.CF_ACCOUNT_ID, apiToken: env.CF_API_TOKEN }).catch(() => '');
+            const body = md.replace(/[#*>`|\!-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 6000);
+            if (body.length > 40) {
+              it.desc = body;
+              const deep = await summarizeZhDeep(env, body).catch(() => null);
+              if (deep) { it.descZh = deep.summaryZh; it.quote = deep.quote; }
+              else it.descZh = (await summarizeZh(env, body).catch(() => null)) ?? undefined;
+              try { await env.CACHE.put(cacheKey, JSON.stringify({ desc: it.desc, descZh: it.descZh, quote: it.quote }), { expirationTtl: 604800 }); } catch { /* KV 额度忽略 */ }
+            }
+          } catch { /* 拉正文失败 → 标题翻译兜底 */ }
+        })(),
+        new Promise((r) => setTimeout(r, 10000)), // 单篇深摘要硬 10s 超时
+      ]);
     }
   await Promise.all(
     items.map(async (it) => {
