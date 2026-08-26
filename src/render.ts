@@ -46,6 +46,7 @@ export function renderProductMessage(dateStr: string, items: SourceItem[], teleg
     const score = it.stars ? ` ⭐ ${fmtK(it.stars)}` : '';
     const head = i === 0 ? `${header}\n\n` : `<b>${i + 1}/${items.length}</b> `;
     const descLine = isChinese(it.descZh) ? `\n\n📝 ${esc(unesc(it.descZh!))}\n` : '';
+    const quoteLine = it.quote ? `\n💬 "${esc(it.quote)}"\n` : '';
     const topicTags = (it.topics ?? []).map((t) => `#${t}`).join(' ');
     // 存档三链: Telegraph(当日页有则) → Wayback → Archive
     const links: string[] = [];
@@ -55,6 +56,7 @@ export function renderProductMessage(dateStr: string, items: SourceItem[], teleg
     let msg =
       `${head}<b><a href="${esc(it.url)}">${esc(it.title)}</a></b>${score}` +
       descLine +
+      quoteLine +
       `\n#product ${topicTags}`.replace(/\s+/g, ' ') +
       `\n\n📁 ${links.join(' · ')}`;
     if (msg.length > 4000) msg = msg.slice(0, 3999) + '…';
