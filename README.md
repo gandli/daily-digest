@@ -53,7 +53,7 @@ deepwiki 概述(剥模板开场白)
 - `src/fxtweet.ts` X/Twitter 帖子存档(FxEmbed 公共 API)
 - KV 缓存当日 cron 结果;webhook 验签 timingSafeEqual + chat 白名单;/search 用 KV 存档索引
 
-详见 [`docs/GOAL.md`](docs/GOAL.md)(验收标准 A1–A14)。
+详见 [`docs/GOAL.md`](docs/GOAL.md)(验收标准 A1–A14)。接口/命令/KV 键详表见 [`docs/INTERFACES.md`](docs/INTERFACES.md)， 开发进度见 [`docs/ROADMAP.md`](docs/ROADMAP.md)， 架构/数据流/时序图见 [`docs/diagrams/*.mmd`](docs/diagrams/)。
 
 ## 💻 开发
 

@@ -4,64 +4,81 @@ graph TB
         TA["Telegram Bot API<br/>api.telegram.org"]
     end
 
-    subgraph CF["Cloudflare 免费层 (单 Worker)"]
+    subgraph CF["Cloudflare 免费层 (单 Worker daily-digest)"]
         subgraph ENTRY["入口"]
-            CRON["⏰ scheduled<br/>cron: 30 0 * * *<br/>北京时间 08:30 每日一次"]
-            WH["🌐 fetch handler<br/>POST /telegram webhook"]
+            CRON["⏰ scheduled<br/>cron: 30 0 * * *<br/>北京 08:30 每日"]
+            WH["🌐 fetch handler<br/>POST /telegram webhook<br/>GET /run /preview"]
+            CBPG["callback_query 分派<br/>arch:pg / sch:page 翻页"]
         end
 
-        subgraph CORE["共享管线 (纯函数)"]
-            SEC["验签<br/>X-Telegram-Bot-Api-Secret-Token<br/>timingSafeEqual"]
-            GUARD["chat id 白名单守卫"]
-            ROUTE["命令路由<br/>/trending · /help · 兜底提示"]
-            SRCS["sources 数组 = 注册表<br/>v1: trendingSource"]
-            FETCH["fetchTrending()<br/>刮 github.com/trending<br/>HTMLRewriter 解析 top10"]
-            TRANS["translateBatch()<br/>Workers AI 批量翻译<br/>失败→MyMemory→英文原文"]
-            RENDER["renderMessage()<br/>紧凑格式+标签<br/>#trending #d日期 #语言"]
-            SEND["sendTelegram()<br/>HTML parse_mode<br/>超4096按源拆分"]
-            ARCH["archiveToGitHub()<br/>Contents API PUT commit<br/>archive/trending/日期.md"]
+        subgraph CORE["核心模块 (src/)"]
+            SEC["验签<br/>X-Telegram-Bot-Api-Secret-Token"]
+            GUARD["chat 白名单守卫"]
+            ROUTE["命令路由<br/>/trending /search /archive /help"]
+            SRCS["src/sources/<br/>注册表数组"]
+            FETCH["fetchTrending()<br/>HTMLRewriter 刮 top10"]
+            SEARCH["searchArchive()<br/>search:index 单键索引过滤<br/>+ 当页译中 + 分页"]
+            ARCHIVE["renderArchivePage()<br/>archive:idx 倒序 + 三链"]
+            LOOKUP["lookup.ts<br/>repo/URL/X 存档管线<br/>seenToday/reproc 去重"]
+            TRANS["translate.ts<br/>四级翻译回退<br/>+ CF Summarization 摘要"]
+            RENDER["render.ts<br/>Telegram/GitHub/Telegraph<br/>三种渲染"]
+            SEND["notify.ts<br/>sendPerRepoMessages 每仓 OG 图<br/>sendTelegramKbd/editMessageKbd"]
+            ARCH["archive.ts<br/>GitHub PUT 幂等 + OG图入库"]
+            URLMD["urlmd.ts<br/>任意URL→markdown 三级链"]
+            FXT["fxtweet.ts<br/>X帖 FxEmbed 存档"]
         end
 
-        CACHE[("KV binding: CACHE<br/>当日结果缓存")]
-        AI["Workers AI binding: AI<br/>翻译模型"]
+        CACHE[("KV binding: CACHE<br/>search:index + archive:idx + digest<br/>+ archive:tg + reproc + lookup:desc")]
+        AI["Workers AI binding: AI<br/>翻译 + 摘要模型"]
 
         GW["wrangler.jsonc<br/>KV + ai + crons + observability"]
     end
 
     subgraph GH["GitHub"]
         TREND["github.com/trending<br/>数据源 (HTML 刮取)"]
-        ARCHIVE["gandli/github-trending-archive<br/>每日存档 commit"]
-        REPO["bot 源码 repo<br/>PR 工作流 → main → Actions 自动 deploy"]
+        ARCHIVE["gandli/daily-digest<br/>archive 分支 md 存档 + og-images/"]
+        REPO["bot 源码 repo<br/>PR → main → Actions 自动 deploy"]
     end
 
-    subgraph EXT["外部服务 (回退链)"]
-        MM["MyMemory API<br/>免key翻译回退"]
-        DW["deepwiki.com/owner/repo<br/>消息内链接, 不集成"]
+    subgraph EXT["外部服务"]
+        TGEXT["telegra.ph<br/>每日备份页"]
+        WA["web.archive.org<br/>兜底快照三链"]
+        DW["deepwiki / zread<br/>描绘来源"]
+        MM["TranSmart / MyMemory<br/>免 key 翻译回退"]
     end
 
     %% cron 流
-    CRON -->|"每天1次"| FETCH
-    FETCH -->|"GET HTML"| TREND
-    FETCH -->|"条目数组"| TRANS
-    TRANS -->|"批量 prompt"| AI
-    TRANS -.->|"AI失败回退"| MM
-    TRANS -->|"中文条目"| RENDER
-    RENDER -->|"渲染文本"| SEND
-    SEND -->|"sendMessage HTTPS"| TA
-    TA -->|"每日一条消息"| U
-    RENDER -->|"markdown"| ARCH
-    ARCH -->|"PUT /contents"| ARCHIVE
-    RENDER -->|"写当日缓存"| CACHE
-    SEND -.->|"链接仅展示"| DW
+    CRON -->|"runDigest()"| FETCH
+    FETCH -->|"GET"| TREND
+    FETCH --> TRANS
+    TRANS -.->|"desc 来源"| DW
+    TRANS -.->|"翻译回退"| MM
+    TRANS -->|"onsite"| AI
+    TRANS --> RENDER
+    RENDER --> SEND
+    SEND -->|"每仓 sendPhoto OG 图"| TA
+    TA --> U
+    RENDER -->|"写入"| CACHE
+    RENDER -->|"PUT archive/YYYY/date.md"| ARCH
+    ARCH -->|"commit"| GH(ARCHIVE)
+    RENDER -.->|"createPage"| TGEXT
 
-    %% webhook 流
-    U -->|"/trending 命令"| TA
-    TA -->|"POST webhook"| WH
-    WH -->|"先应答200<br/>waitUntil 后台处理"| SEC
-    SEC --> GUARD
-    GUARD --> ROUTE
-    ROUTE -->|"读缓存命中直接发"| CACHE
-    ROUTE -->|"未命中走管线"| FETCH
+    %% webhook 命令流
+    U -->|"/search /archive /trending 等"| TA
+    TA -->|"POST /telegram"| WH
+    WH --> SEC --> GUARD --> ROUTE
+    ROUTE -->|"/search"| SEARCH
+    ROUTE -->|"/archive"| ARCHIVE
+    ROUTE -->|"repo/URL/X 链接"| LOOKUP
+    ROUTE -->|"/trending 缓存"| CACHE
+    SEARCH -->|"读 search:index"| CACHE
+    SEARCH -->|"描述译中"| TRANS
+    ARCHIVE -->|"archive:idx + 三链"| CACHE
+    ARCHIVE -.->|"web.archive 链"| WA
+    ARCHIVE -.->|"telegraph 链"| TGEXT
+    LOOKUP -->|"读取 seenToday/lookup:desc"| CACHE
+    LOOKUP -->|"存档"| ARCH
+    CBPG -->|"editMessageText 翻页"| SEND
 
     %% 部署流
-    REPO -.->|"wrangler-action deploy"| GW
+    REPO -.->|"CI deploy"| GW
