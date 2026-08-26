@@ -356,6 +356,10 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
     await sendTelegram(env.BOT_TOKEN, chatId, '❌ 无法转换该 URL(markdown 三级链全失败), 请稍后再试或换链接。');
     return;
   }
+  if (!md) {
+    await sendTelegram(env.BOT_TOKEN, chatId, '❌ 无法提取该 URL 内容(四级链全失败), 请稍后再试或换链接。');
+    return;
+  }
   // 截断保护: 超长页面只存前 ~80KB(GitHub 文件无硬限, 但 API PUT 体面优先)
   const clipped = md.length > 80_000 ? md.slice(0, 80_000) + '\n\n…(truncated)' : md;
   const stamp = `${today()}-${Date.now() % 86400000}`;
