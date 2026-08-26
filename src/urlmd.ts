@@ -96,6 +96,26 @@ async function viaBrowserRendering(accountId: string, token: string, url: string
   }
 }
 
+/** 方法4(兜底免费): 直接抓 HTML 剥 script/style/tag → 纯文本正文。覆盖普通非 CF 官网(免 Browser Rendering 配置)。 */
+// ponytail: 正则剥标签 + 去导航噪声(nav/header/footer/script/style), 粗但免费通用; 能做正文即可喂摘要
+async function viaHtmlStrip(url: string): Promise<string | null> {
+  try {
+    const blob = await fetchRaw(url);
+    let html = await blob.text();
+    if (!html.toLowerCase().includes('<!doctype html') && !html.toLowerCase().includes('<html')) return null; // 非 HTML
+    html = html
+      .replace(/<(script|style|noscript|header|nav|footer|aside)[\s\S]*?<\/\1>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').replace(/&quot;/g, '"').replace(/&#0?39;/g, "'")
+      .replace(/\s+/g, ' ').trim();
+    const out = html.replace(/\b\w{1,2}\b/g, '').replace(/\s{2,}/g, ' ').trim();
+    return out.length > 40 ? out : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * 主入口: 依次尝试三级降级链, 返回第一个非空结果; 全失败抛错给调用方提示用户。
  * ponytail: 不做内容类型预判——PDF/图片在方法1必嗅探失败、方法2天然命中,
@@ -117,7 +137,11 @@ export async function urlToMarkdown(
     if (m3) return m3;
   }
 
-  throw new Error('all conversion methods failed');
+  // 方法4 兜底: 普通 HTML 官网(免 Browser Rendering 配置) —— 剥标签取纯文本正文
+  const m4 = await viaHtmlStrip(url);
+  if (m4) return m4;
+
+  return ''; // 全失败 → 空串, 调用方安静兜底(标题翻译), 不再 throw
 }
 
 /** 从消息文本提取首个 http(s) URL(URL 按规范只含 ASCII, 中文跟随自然截断; 尾部标点剥离)。 */
