@@ -189,7 +189,7 @@ export async function archiveTweet(
 }
 
 // 共享管线:cron 与 /trending 都走这里。
-export async function runDigest(env: Env, useCache = true, descDeadlineMs?: number): Promise<number> {
+export async function runDigest(env: Env, useCache = true): Promise<number> {
   const dateStr = shanghaiDate();
   const cacheKey = `digest:${dateStr}`;
 
@@ -217,13 +217,7 @@ export async function runDigest(env: Env, useCache = true, descDeadlineMs?: numb
   }
 
   // 2. 描述解析链: zread wiki 中文 → deepwiki Overview → 翻译成中文(顺序兜底)
-  // 交互路径(/trending)有墙钟 deadline: zread 75s×2 重试在 webhook 30s 窗口跑不完,
-  // deadline 到则放弃待填充描述(renderMessage 无 descZh 自动省略该段)照常发送。
-  if (descDeadlineMs) {
-    await Promise.race([resolveDescriptions(env, items), new Promise((r) => setTimeout(r, descDeadlineMs))]);
-  } else {
-    await resolveDescriptions(env, items);
-  }
+  await resolveDescriptions(env, items);
 
   // 2.6 GitHub topics(GH_TOKEN 已配)——做消息标签。
   // ponytail: Worker 单次调用子请求上限50, 全链路已近顶——只拉前4个 repo 的 topics
@@ -470,14 +464,15 @@ export default {
 
     // 注册命令菜单(幂等)+ 分派命令
     if (text.startsWith('/trending')) {
-      // 直接跑 runDigest, 描述链给 25s 墙钟 deadline(zread 75s×2 重试跑不完; deadline 到则省略描述照发,
-      // 剩余的 fetch 仍在后台跑, 不影响主路径)。不再自调 /run——CF 会拦 Worker→自身 workers.dev 出口。
-      const deadline = 25000;
+      // 直接跑 runDigest(完整描述链)——cron 同款链路已验证 10/10 全带中文描述。
+      // 之前误加 25s deadline 导致描述链被 race 掐断(descZh 全空→renderMessage 省略描述段)
+      // + 发送循环在子请求/墙钟预算内被终止(只发 8 条)。去掉 deadline, 与 cron 一致。
+      // 不再自调 /run——CF 会拦 Worker→自身 workers.dev 出口。
       ctx.waitUntil(
         (async () => {
           await sendTelegram(env.BOT_TOKEN, chatId, '⏳ 正在抓取今日 Trending, 完成后推送…');
           try {
-            await runDigest(env, false, deadline);
+            await runDigest(env, false);
           } catch (e) {
             console.error('/trending failed', String(e).slice(0, 120));
             await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ Trending 抓取失败, 请稍后再试。');
