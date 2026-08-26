@@ -301,7 +301,9 @@ async function replyArchived(env: Env, chatId: string, repo: string): Promise<vo
     }
   }
   if (!it) {
-    await sendTelegram(env.BOT_TOKEN, chatId, `♻️ ${repo} 今天已查询过, 存档未重复写入。`);
+    // 索引缺失 = 上次归档失败(seenToday 已置位但 archive:idx 没写)。
+    // 用户硬性要求返回存档信息——重新查询并归档, 而非回旧提示"已查询过"。
+    await lookupRepo(env, chatId, repo);
     return;
   }
   const archiveRepo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
