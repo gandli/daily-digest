@@ -71,26 +71,31 @@ export async function fanoutRepoRefs(env: Env, chatId: string, text: string, ctx
   if (!ctx) return;
   const repos = extractRepoRefs(text);
   const fresh: string[] = [];
-  // ponytail 修复: 不用 seenToday()(即读即置位, 超时中断也被标记→重发全跳过, 下半批永久丢失)。
-  // 用只读 CACHE.get 过滤; 成功完成才 put 标记 → 中断的 repo 重发续跑。
+  // ponytail 修复: 不用 seenToday()(即读即置位)。只读 CACHE.get 过滤; 成功完成才 put → 中断/失败重发续跑。
   for (const r of repos) {
     const seen = await env.CACHE.get(`lookup:${today()}:${r.toLowerCase()}`).catch(() => null);
     if (!seen) fresh.push(r);
   }
-  // ponytail: 每批 3 个并发, 批间串行——每个 lookupRepo ~6 子请求, 3 个/批 ≈18 子请求 < 50 上限;
-  // 全部解析(不再 slice), 也不单 waitUntil 内同步串行致超时截断。
-  for (let i = 0; i < fresh.length; i += 3) {
-    const batch = fresh.slice(i, i + 3);
-    await Promise.all(
-      batch.map(async (r) => {
-        try {
-          await lookupRepo(env, chatId, r);
-          // 成功完成 → 置 seenToday(防重复); 中断/抛错不置 → 重发续跑
-          await env.CACHE.put(`lookup:${today()}:${r.toLowerCase()}`, '1', { expirationTtl: 172800 }).catch(() => {});
-        } catch { /* 失败不置位, 重发可续 */ }
-      }),
-    );
-  }
+  if (!fresh.length) return;
+  // ponytail 方案A: 多 repo 用精简卡(GitHub 描述原文, 不 deepwiki/翻译/三链) —— 每 repo ~2 子请求, 全并发 9 ≈18 < 50
+  // → 单请求能全出(完整 lookupRepo 5-6 子请求/个 ×9 >50 铁超)。单 repo 查询仍走完整 lookupRepo(其他调用)。
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const stamp = `${today()}-${Date.now() % 86400000}`;
+  await Promise.all(
+    fresh.map(async (r) => {
+      try {
+        const item = await fetchRepo(r, env.GH_TOKEN);
+        if (!item) return;
+        const stars = item.stars ? ` ⭐${item.stars}` : '';
+        const lang = item.lang ? ` · ${item.lang}` : '';
+        const html = `<b><a href="${esc(item.url)}">${esc(item.title)}</a></b>${stars}${lang}\n\n${esc(item.desc ?? item.title)}`;
+        await sendPerRepoMessages(env.BOT_TOKEN, chatId, [{ html, ogUrl: item.url }], env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
+        // 仍索引(为 /search 可查)
+        await indexArchivedItems(env, [item], stamp).catch(() => {});
+        await env.CACHE.put(`lookup:${today()}:${r.toLowerCase()}`, '1', { expirationTtl: 172800 }).catch(() => {});
+      } catch { /* 单个失败不影响其它 */ }
+    }),
+  );
 }
 
 /** 三链存档链接: Telegraph(有则主) → web.archive.org(有源 URL, 简称 Wayback) → GitHub md(兜底)。HTML 转义。纯文本链(调用方加前缀)。 */
