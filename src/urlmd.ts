@@ -45,6 +45,24 @@ async function fetchRaw(url: string): Promise<Blob> {
   return res.blob();
 }
 
+/** 方法0(优先, 有 key): Jina Reader r.jina.ai → 干净 markdown(去导航噪声, 通用)。 */
+async function viaJina(env: Env, url: string): Promise<string | null> {
+  if (!env.JINA_API_KEY) return null;
+  try {
+    const res = await fetch(`https://r.jina.ai/${url}`, {
+      headers: { Authorization: `Bearer ${env.JINA_API_KEY}`, 'User-Agent': UA_DESKTOP },
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!res.ok) return null;
+    const text = await res.text();
+    // 去掉 Jina 头部(title/url/published/markdown content 前缀) → 纯正文
+    const body = text.replace(/Title:.+\n.*\n.*\n(Markdown Content:\s*)/i, '').trim();
+    return body.length > 40 ? body : null;
+  } catch {
+    return null;
+  }
+}
+
 /** 方法1: Markdown for Agents(仅 CF 托管+已开启站点有效)。 */
 async function viaMarkdownForAgents(url: string): Promise<string | null> {
   try {
@@ -126,6 +144,10 @@ export async function urlToMarkdown(
   url: string,
   opts: { accountId?: string; apiToken?: string },
 ): Promise<string> {
+  // 方法0: Jina Reader 优先(有 key, 干净 markdown 通用)
+  const m0 = await viaJina(env, url);
+  if (m0) return m0;
+
   const m1 = await viaMarkdownForAgents(url);
   if (m1) return m1;
 
