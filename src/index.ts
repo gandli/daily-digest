@@ -3,7 +3,7 @@ import { sources } from './sources';
 import { resolveDescriptions } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes, renderProductMessage } from './render';
 import { fetchHackerNewsProducts } from './sources/hn';
-import { sendPerRepoMessages, sendTelegram, sendPhotoOrText, sendVideoOrText, registerCommands, safeEqual, sendTelegramKbd, answerCallbackQuery, editMessageKbd, type InlineKB } from './notify';
+import { sendPerRepoMessages, sendTelegram, sendChatAction, sendPhotoOrText, sendVideoOrText, registerCommands, safeEqual, sendTelegramKbd, answerCallbackQuery, editMessageKbd, type InlineKB } from './notify';
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage } from './archive';
 import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, archiveLinks, backfillDescriptions } from './lookup';
 import { extractUrl, urlToMarkdown } from './urlmd';
@@ -666,6 +666,10 @@ export default {
     }
 
     // 注册命令菜单(幂等)+ 分派命令
+    // 慢命令先显示"正在输入…"(低成本, 标准体验)。/help/空即时跳过。
+    if (text.startsWith('/trending') || text.startsWith('/product') || text.startsWith('/archive') || text.startsWith('/search')) {
+      ctx.waitUntil(sendChatAction(env.BOT_TOKEN, chatId)); // 随主 pipeline 后台, 不 block 分派
+    }
     if (text.startsWith('/trending')) {
       // 用缓存(useCache=true): 当天 GitHub trending 固定不变, 无需每次重抓。
       // cron 早 08:30 已跑一次写 digest:<date> 缓存, /trending 当天后续读缓存秒回。
@@ -702,6 +706,7 @@ export default {
       return new Response('ok');
     } else {
       // GitHub 链接 → 单仓库 lookup; X 帖子 → FxEmbed API 存档; 任意 URL → 转 markdown; 都不是 → 帮助
+      if (text.trim()) ctx.waitUntil(sendChatAction(env.BOT_TOKEN, chatId));
       const repo = extractRepo(text);
       const tweet = extractTweet(text);
       const url = extractUrl(text);
