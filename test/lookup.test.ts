@@ -89,3 +89,49 @@ describe('shouldReprocess: 同 URL 重发是否重跑全管线', () => {
     expect(await shouldReprocess(env, url)).toBe('first'); // 无记录=首次
   });
 });
+
+// ---------- seenToday 去重标记 ----------
+import { seenToday, markProcessed } from '../src/lookup';
+
+describe('seenToday: 同日 repo 去重', () => {
+  // mock today() 不可直接; seenToday 用内部 today()=北京时间. 用真实日期键检查行为
+  const kvm = new Map<string, string>();
+  const envm = { CACHE: { get: (k: string) => kvm.get(k) ?? null, put: async (k: string, v: any) => void kvm.set(k, v) } } as never;
+  const repo = 'NousResearch/Agent';
+
+  it('首次 → false 并写去重标记', async () => {
+    expect(await seenToday(envm, repo)).toBe(false);
+    // 标记键含今日日期(repo 小写)
+    const skey = [...kvm.keys()].find((k) => k.startsWith('lookup:') && k.endsWith('nousresearch/agent'));
+    expect(skey).toBeTruthy();
+  });
+  it('同日再次 → true(去重)', async () => {
+    expect(await seenToday(envm, 'NousResearch/Agent')).toBe(true);
+  });
+  it('不同 repo → false', async () => {
+    expect(await seenToday(envm, 'Other/Repo')).toBe(false);
+  });
+});
+
+describe('markProcessed: 重发质量回填 + md stamp', () => {
+  const kvm = new Map<string, string>();
+  const envm = { CACHE: { get: (k: string) => kvm.get(k) ?? null, put: async (k: string, v: any) => void kvm.set(k, v) } } as never;
+  const url = 'https://example.com/long-url-'.padEnd(500, 'x');
+  const key = `reproc:${url.slice(0, 400)}`;
+
+  it('写 translated/descOk/md, 键截断 400 对齐 shouldReprocess', async () => {
+    await markProcessed(envm, url, true, true, '2026-08-26-12345');
+    const saved = JSON.parse(kvm.get(key)!);
+    expect(saved.translated).toBe(true);
+    expect(saved.descOk).toBe(true);
+    expect(saved.md).toBe('2026-08-26-12345');
+    expect(key.length).toBeLessThanOrEqual(400 + 'reproc:'.length);
+  });
+  it('long url 截断后重发判定仍对齐', async () => {
+    expect(await shouldReprocess(envm, url)).toBe('done'); // md 写入, translated+descOk true
+  });
+  it('写失败静默(不抛)', async () => {
+    const badEnv = { CACHE: { put: async () => { throw new Error('kv down'); } } } as never;
+    await expect(markProcessed(badEnv, 'https://e.com', true, true)).resolves.toBeUndefined();
+  });
+});
