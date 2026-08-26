@@ -1,6 +1,17 @@
 import { extractOgImage } from './urlmd';
 const API = 'https://api.telegram.org';
 
+/** 命令收到即显示"正在输入…"(低成本高回报——处理 2-30s 用户知道在跑)。失败静默。 */
+export async function sendChatAction(token: string, chatId: string, action = 'typing'): Promise<void> {
+  try {
+    await fetch(`${API}/bot${token}/sendChatAction`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, action }),
+    });
+  } catch { /* 状态失败不影响主流程 */ }
+}
+
 export async function sendTelegram(token: string, chatId: string, html: string): Promise<void> {
   const res = await fetch(`${API}/bot${token}/sendMessage`, {
     method: 'POST',
