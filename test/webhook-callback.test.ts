@@ -67,10 +67,12 @@ describe('/archive 翻页端到端', () => {
     const send = calls.find((c) => c.url.includes('/sendMessage'));
     expect(send).toBeTruthy();
     const kb = (send!.body.reply_markup as any).inline_keyboard;
-    // 5 页, 第1页 -> 只有"下一页"(无上一页)
-    const texts = kb.map((row: any[]) => row[0].text);
+    // 扁平化所有行按钮(导航行 + 跳转行)
+    const texts = kb.flat().map((b: any) => b.text) as string[];
     expect(texts).not.toContain('上一页');
     expect(texts).toContain('下一页 ➡');
+    // 页码指示存在(5页)
+    expect(texts).toContain('📄 1/5');
   });
 
   it('点下一页 callback arch:pg:1 -> editMessageText 同消息更新(非新发)', async () => {
@@ -97,7 +99,7 @@ describe('/archive 翻页端到端', () => {
     await postUpdate({ message: { chat: { id: 944783507 }, text: '/archive 4' } }); // 第5页(0-index 4)
     const send = calls.find((c) => c.url.includes('/sendMessage'));
     const kb = (send!.body.reply_markup as any).inline_keyboard;
-    const texts = kb.map((row: any[]) => row[0].text);
+    const texts = kb.flat().map((b: any) => b.text) as string[];
     const joined = texts.join(',');
     expect(joined).toContain('上一页');
     expect(joined).not.toContain('下一页');
