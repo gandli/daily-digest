@@ -418,7 +418,7 @@ async function replyArchived(env: Env, chatId: string, repo: string): Promise<vo
     const tgUrl = (await env.CACHE.get(`archive:tg:${it.date}`).catch(() => null)) || '';
     const repoUrl = `https://github.com/${it.repo}`;
     const html =
-      `♻️ <b>${esc(it.repo)}</b> · 今日已存档\n\n` +
+      `♻️ <b><a href="${esc(repoUrl)}">${esc(it.repo)}</a></b> · 今日已存档\n\n` +
       (d ? `📝 ${esc(d).slice(0, 300)}\n\n` : '') +
       (it.topics?.length ? `🏷 ${it.topics.map((t) => `#${t}`).join(' ')}\n\n` : '') +
       `📁 ${archiveLinks(repoUrl, tgUrl || undefined, link)}`;
@@ -455,9 +455,9 @@ async function renderArchivePage(env: Env, page: number): Promise<{ text: string
         const d = (it.descZh ?? it.desc ?? '').trim();
         // 三链各给: repo 源 URL → web.archive, 当日 telegraph, github md
         const links = archiveLinks(`https://github.com/${it.repo}`, tgUrl || undefined, link);
-        // 排版: 标题行 / 📝摘要(有) / #标签(有) / 📎三链 —— 多行结构化, 摘要与标签分段
+        // 排版: 标题行(指向原链接)/ 📝摘要(有) / 🏷标签(有) / 📎三链 —— 多行结构化, 摘要与标签分段
         const block = [
-          `<b>${esc(it.repo)}</b> · ${date}`,
+          `<b><a href="https://github.com/${esc(it.repo)}">${esc(it.repo)}</a></b> · ${date}`,
         ];
         if (d) block.push(`　📝 ${esc(d).slice(0, 120)}`);
         if (it.topics?.length) block.push(`　🏷 ${it.topics.map((t) => `#${t}`).join(' ')}`);
