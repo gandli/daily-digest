@@ -291,6 +291,33 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
   return chunks.length;
 }
 
+/** 当日已查过的 repo: 回存档数据(索引里的描述+存档链接), 不再提示"已查询过"。 */
+async function replyArchived(env: Env, chatId: string, repo: string): Promise<void> {
+  const raw = await env.CACHE.get(`archive:idx:${repo.toLowerCase()}`);
+  let it: { repo: string; date: string; desc?: string; descZh?: string } | null = null;
+  if (raw) {
+    try {
+      it = JSON.parse(raw);
+    } catch {
+      it = null;
+    }
+  }
+  if (!it) {
+    await sendTelegram(env.BOT_TOKEN, chatId, `♻️ ${repo} 今天已查询过, 存档未重复写入。`);
+    return;
+  }
+  const archiveRepo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
+  const link = `https://github.com/${archiveRepo}/blob/archive/archive/${it.date.slice(0, 4)}/${it.date}.md`;
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const d = it.descZh ?? it.desc;
+  const html =
+    `♻️ <b>${esc(it.repo)}</b> · 今日已存档\n\n` +
+    (d ? `${esc(d).slice(0, 300)}\n\n` : '') +
+    `📁 <a href="${link}">查看存档</a>`;
+  const photo = `https://raw.githubusercontent.com/${archiveRepo}/archive/og-images/${it.repo.replace('/', '__')}.png`;
+  await sendPhotoOrText(env.BOT_TOKEN, chatId, photo, html);
+}
+
 // Telegram webhook 入口:验签 → 秒回200 → waitUntil 后台处理
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -381,7 +408,7 @@ export default {
       const url = extractUrl(text);
       if (repo) {
         if (await seenToday(env, repo)) {
-          ctx.waitUntil(sendTelegram(env.BOT_TOKEN, chatId, `♻️ ${repo} 今天已查询过, 存档未重复写入。`));
+          ctx.waitUntil(replyArchived(env, chatId, repo));
         } else {
           ctx.waitUntil(lookupRepo(env, chatId, repo));
         }
