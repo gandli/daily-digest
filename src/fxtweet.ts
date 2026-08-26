@@ -19,7 +19,21 @@ export type FxTweet = {
   likes?: number; retweets?: number; replies?: number;
   media?: { all?: FxMedia[] } | null;
   translation?: { text?: string } | null;
+  article?: {
+    id?: string; title?: string; preview_text?: string;
+    cover_media?: { media_info?: { original_img_url?: string } };
+    content?: { blocks?: { type?: string; text?: string }[] };
+  } | null;
 };
+
+/** 嵌套文章 blocks → 纯文本正文(提取非空 text 段, 拼接换行)。无文章返回 null。 */
+export function articleToText(t: FxTweet): string | null {
+  const blocks = t.article?.content?.blocks ?? [];
+  if (!blocks.length) return null;
+  const lines = blocks.map((b) => b.text ?? '').filter((s) => s.trim().length > 0);
+  const txt = lines.join('\n\n').trim();
+  return txt.length ? txt : null;
+}
 
 /** 拉取帖子 JSON。网络/解析失败返回 null(调用方落回 URL 链)。 */
 export async function fetchTweet(handle: string, id: string): Promise<FxTweet | null> {

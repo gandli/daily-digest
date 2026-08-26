@@ -7,7 +7,7 @@ import { sendPerRepoMessages, sendTelegram, sendPhotoOrText, sendVideoOrText, re
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage } from './archive';
 import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, archiveLinks, backfillDescriptions } from './lookup';
 import { extractUrl, urlToMarkdown } from './urlmd';
-import { extractTweet, fetchTweet, renderTweetHtml, type FxTweet } from './fxtweet';
+import { extractTweet, fetchTweet, renderTweetHtml, articleToText, type FxTweet } from './fxtweet';
 import { summarizeZh, summarizeZhDeep, translateTextZh, translateBatch, isChinese } from './translate';
 
 // 北京时间日期串 YYYY-MM-DD(UTC+8 无 DST,直接偏移即可)
@@ -218,6 +218,7 @@ export async function archiveTweet(
     '---',
     '',
     tweet.text ?? '',
+    ...(articleToText(tweet) ? [`\n\n### 📄 嵌套文章: ${tweet.article?.title ?? ''}\n\n${articleToText(tweet)}`] : []),
     ...(hasZh ? [`\n---\n\n**🌐 中文翻译**\n\n${textZh}`] : []),
     ...(tweet.media?.all ?? []).map((m) => `\n![${m.type ?? 'media'}](${m.url ?? m.thumbnail_url})`),
     '',
@@ -232,6 +233,7 @@ export async function archiveTweet(
       const nodes: unknown[] = [
         { tag: 'p', children: [`@${tweet.author?.screen_name ?? handle} · ${tweet.created_at ?? ''}`] },
         { tag: 'p', children: [tweet.text ?? ''] },
+        ...(articleToText(tweet) ? [{ tag: 'h3' as const, children: [`📄 ${tweet.article?.title ?? '嵌套文章'}`] }, { tag: 'p', children: [articleToText(tweet)!] }] : []),
         ...(hasZh ? [{ tag: 'h3' as const, children: ['🌐 中文翻译'] }, { tag: 'p', children: [textZh!] }] : []),
         ...(tweet.media?.all ?? []).map((m) => ({ tag: 'figure' as const, children: [{ tag: 'img' as const, attrs: { src: m.thumbnail_url ?? m.url ?? '' } }] })),
         { tag: 'p', children: [{ tag: 'a', attrs: { href: tUrl }, children: ['原帖'] }] },
