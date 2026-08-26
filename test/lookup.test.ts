@@ -24,6 +24,12 @@ describe('extractRepo: 从消息文本提取 GitHub 仓库', () => {
   it('含尾标点 → 干净提取', () => {
     expect(extractRepo('https://github.com/mattpocock/skills。')).toBe('mattpocock/skills');
   });
+  it('含 .git 后缀 → 剥离(仓库克隆 URL)', () => {
+    expect(extractRepo('https://github.com/apple/container.git')).toBe('apple/container');
+  });
+  it('含 .git + 标点 → 都剥离', () => {
+    expect(extractRepo('https://github.com/apple/container.git。')).toBe('apple/container');
+  });
 });
 
 // ---------- 兜底翻译逻辑 ----------

@@ -100,7 +100,7 @@ export async function indexArchivedItems(env: Env, items: SourceItem[], dateStr:
 
 /** 从文本提取 GitHub 仓库链接或裸 owner/repo。优先 github.com 域; 兜底裸 owner/repo(排除文件名形态)。 */
 export function extractRepo(text: string): string | null {
-  const strip = (s: string) => s.replace(/[。.,,;；]$/, '');
+  const strip = (s: string) => s.replace(/\.git$/i, '').replace(/[。.,,;；/>"]$/, '');
   const full = text.match(/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/i);
   if (full) return strip(full[1]);
   // 裸 owner/repo(无域名、斜杠二段、非路径分隔)——宽松匹配常见仓库形态
