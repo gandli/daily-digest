@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="daily-digest — 每日 GitHub Trending 中文摘要 bot,左侧为抓取-描述-翻译-推送管线,右侧为一条 Telegram 消息卡示例">
-</p>
-
 <h1 align="center">daily-digest</h1>
 
 <p align="center">
@@ -12,6 +8,10 @@
   <a href="#-命令与消息"><img src="https://img.shields.io/badge/命令-5_个-2b5278" alt="命令数"></a>
   <a href="#-描述获取链"><img src="https://img.shields.io/badge/中文守卫-100%25-2b5278" alt="中文守卫"></a>
   <a href="https://github.com/gandli/daily-digest/actions/workflows/deploy.yml"><img src="https://github.com/gandli/daily-digest/actions/workflows/deploy.yml/badge.svg" alt="CI"></a>
+</p>
+
+<p align="center">
+  <img src="./assets/readme/hero.svg" width="100%" alt="daily-digest — 每日 GitHub Trending 中文摘要 bot,左侧为抓取-描述-翻译-推送管线,右侧为一条 Telegram 消息卡示例">
 </p>
 
 GitHub Trending → **Telegram 每日中文摘要 bot**。Cloudflare Workers 免费层单项目。
