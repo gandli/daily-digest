@@ -212,7 +212,22 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
   if (useCache) {
     const cached = await env.CACHE.get(cacheKey);
     if (cached) {
-      for (const chunk of JSON.parse(cached) as string[]) await sendTelegram(env.BOT_TOKEN, env.CHAT_ID, chunk);
+      // 新格式 {chunks, repos}：用 sendPerRepoMessages 重放带 OG 图; 旧格式(纯 string[] 数组)回退纯文字
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          for (const chunk of parsed as string[]) await sendTelegram(env.BOT_TOKEN, env.CHAT_ID, chunk);
+        } else if (Array.isArray(parsed.chunks) && Array.isArray(parsed.repos)) {
+          await sendPerRepoMessages(
+            env.BOT_TOKEN,
+            env.CHAT_ID,
+            (parsed.chunks as string[]).map((html, i) => ({ html, repo: parsed.repos[i] })),
+            env.GH_ARCHIVE_REPO || 'gandli/daily-digest',
+          );
+        }
+      } catch {
+        /* 缓存坏格式忽略, 落到重抓 */
+      }
       console.log('sent from cache', cacheKey);
       return 0;
     }
@@ -279,9 +294,10 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
   );
   // 纯文字兜底副本不再发——sendPhoto 失败时 sendPerRepoMessages 内部已降级纯文字
 
-  // 5. 缓存 + 存档(失败不影响已发消息)
+  // 5. 缓存 + 存档(失败不影响已发消息)。缓存存 chunks+repos——重放(/trending 用缓存)能带 OG 图
   try {
-    await env.CACHE.put(cacheKey, JSON.stringify(chunks), { expirationTtl: 86400 });
+    const repos = items.map((i) => i.title);
+    await env.CACHE.put(cacheKey, JSON.stringify({ chunks, repos }), { expirationTtl: 86400 });
   } catch {
     // KV 额度/网络异常只损失当日缓存
   }
