@@ -406,7 +406,7 @@ export async function runProductDigest(env: Env, useCache = true): Promise<numbe
       needBody.slice(i, i + 2).map(async (it) => {
         try {
           const md = await urlToMarkdown(env, it.url, { accountId: env.CF_ACCOUNT_ID, apiToken: env.CF_API_TOKEN });
-          const body = md.replace(/[#*>`|!\-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 2000);
+          const body = md.replace(/[#*>`|!\-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 6000);
           // 正文有内容 → 优先 OpenRouter 免费模型深度中文摘要(zeli 级), 失败/无 key 回退 CF bart
           if (body.length > 40) {
             it.desc = body;
