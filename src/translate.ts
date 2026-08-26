@@ -204,9 +204,9 @@ export async function summarizeZh(env: Env, text: string): Promise<string | null
 }
 
 // 单条长文 → OpenRouter 免费模型深度中文摘要(zeli 风格: 背景/功能/亮点/场景)。
-// model: openrouter/auto-beta(用户指定自动路由)。必须带 HTTP-Referer + X-Title 头(否则 402)。
+// model: openrouter/free(万能免费路由, 自动选可用免费模型)。必须带 HTTP-Referer + X-Title 头(否则 402)。
 // 失败/无 key/额度满 → 返回 null(调用方回退 CF bart summarizeZh)。
-const OPENROUTER_MODEL = 'openrouter/auto-beta';
+const OPENROUTER_MODEL = 'openrouter/free';
 export async function summarizeZhDeep(env: Env, article: string): Promise<string | null> {
   if (!env.OPENROUTER_API_KEY) return null;
   try {
