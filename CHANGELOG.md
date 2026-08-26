@@ -1,4 +1,10 @@
 # [](https://github.com/gandli/daily-digest/compare/v0.0.1...v) (2026-08-26)
+
+
+### Features
+
+* 每日低速增量补星标仓缺/未译描述 — backfillDescriptions(cron, 每天40条, deepwiki→译中→lookup:desc); /search 渲染优先取 lookup:desc 覆盖 ([#80](https://github.com/gandli/daily-digest/issues/80)) ([1f22f77](https://github.com/gandli/daily-digest/commit/1f22f778f9c8ad99d2b8cacd8cbbb93ffec7d9d5))
+# [](https://github.com/gandli/daily-digest/compare/v0.0.1...v) (2026-08-26)
 # [](https://github.com/gandli/daily-digest/compare/v0.0.1...v) (2026-08-26)
 #  (2026-08-26)
 
