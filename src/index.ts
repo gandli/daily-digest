@@ -1,7 +1,8 @@
 import type { Env, SourceItem } from './types';
 import { sources } from './sources';
 import { resolveDescriptions } from './translate';
-import { renderMessage, renderMarkdown, renderTelegraphNodes } from './render';
+import { renderMessage, renderMarkdown, renderTelegraphNodes, renderProductMessage } from './render';
+import { fetchHackerNewsProducts } from './sources/hn';
 import { sendPerRepoMessages, sendTelegram, sendPhotoOrText, sendVideoOrText, registerCommands, safeEqual, sendTelegramKbd, answerCallbackQuery, editMessageKbd, type InlineKB } from './notify';
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage } from './archive';
 import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, archiveLinks, backfillDescriptions } from './lookup';
@@ -14,6 +15,7 @@ export const shanghaiDate = (): string => new Date(Date.now() + 8 * 3600_000).to
 
 const HELP = `📊 daily-digest 使用:
 /trending — 获取今日 GitHub Trending
+/product — 获取今日 HN 新品/开源项目
 /search 关键词 — 搜索历史存档
 /archive — 查看历史存档链接
 发 GitHub 仓库链接 = 单仓查询(自动去重)。
@@ -345,6 +347,47 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
   return chunks.length;
 }
 
+// HN 新产品/开源项目管线(仿 trending 但独立): 独立抓取/描述/渲染/缓存/存档, 不与 trending 合并。
+export async function runProductDigest(env: Env, useCache = true): Promise<number> {
+  const dateStr = shanghaiDate();
+  const cacheKey = `digest:product:${dateStr}`;
+  if (useCache) {
+    const cached = await env.CACHE.get(cacheKey);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed.chunks) && Array.isArray(parsed.repos)) {
+          await sendPerRepoMessages(env.BOT_TOKEN, env.CHAT_ID, parsed.chunks.map((html: string, i: number) => ({ html, repo: parsed.repos[i] })), env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
+          return 0;
+        }
+      } catch { /* 坏缓存落重抓 */ }
+    }
+  }
+  let items: SourceItem[] = [];
+  try {
+    items = await fetchHackerNewsProducts(10);
+  } catch (e) {
+    console.error('hn fetch failed', String(e).slice(0, 100));
+    await sendTelegram(env.BOT_TOKEN, env.CHAT_ID, `⚠️ HN 新品抓取失败: ${String(e).slice(0, 80)}\n明日自动重试。`);
+    return -1;
+  }
+  if (!items.length) { console.log('hn: no new products today'); return 0; }
+  // HN 是文章标题(非 repo) — 用 CF Summarization 出中文摘要, 不走 repo 定制描述链(deepwiki/zread miss 浪费子请求)
+  await Promise.all(
+    items.map(async (it) => {
+      if (it.desc && !isChinese(it.desc)) {
+        it.descZh = (await summarizeZh(env, it.desc.slice(0, 2000)).catch(() => null)) ?? undefined;
+      } else if (it.desc) { it.descZh = it.desc; }
+    }),
+  );
+  const chunks = renderProductMessage(dateStr, items);
+  await sendPerRepoMessages(env.BOT_TOKEN, env.CHAT_ID, chunks.map((html, i) => ({ html, repo: items[i].title })), env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
+  try { await env.CACHE.put(cacheKey, JSON.stringify({ chunks, repos: items.map((i) => i.title) }), { expirationTtl: 86400 }); } catch { /* 忽略 */ }
+  await archiveToGitHub(env, `product/${dateStr}`, renderMarkdown(dateStr, items));
+  console.log('product sent', dateStr, `${items.length} items`);
+  return chunks.length;
+}
+
 /** 当日已查过的 repo: 回存档数据(索引里的描述+存档链接), 不再提示"已查询过"。 */
 async function replyArchived(env: Env, chatId: string, repo: string): Promise<void> {
   const raw = await env.CACHE.get(`archive:idx:${repo.toLowerCase()}`);
@@ -564,6 +607,14 @@ export default {
           if (n < 0) await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ Trending 抓取失败, 请稍后再试。');
         })(),
       );
+    } else if (text.startsWith('/product')) {
+      // HN 新产品/开源项目(独立于 trending): 读 product 缓存; miss 触发独立管线抓取推送。
+      ctx.waitUntil(
+        (async () => {
+          const n = await runProductDigest(env, true);
+          if (n < 0) await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ HN 新品抓取失败, 请稍后再试。');
+        })(),
+      );
     } else if (text.startsWith('/help') || text === '') {
       ctx.waitUntil(Promise.all([registerCommands(env.BOT_TOKEN), sendTelegram(env.BOT_TOKEN, chatId, HELP)]));
       return new Response('ok');
@@ -630,6 +681,7 @@ export default {
 
   async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
     await runDigest(env, false); // cron 不读缓存,保证每日新鲜抓取
+    await runProductDigest(env, false); // HN 新产品/开源项目(独立慢推送, 不与 digest 合并)
     await refreshLookupDescriptions(env); // 已查过的 repo 定期重跑 deepwiki/zread, 同步上游描述
     await backfillDescriptions(env, 40); // 星标仓缺/未译描述 → 每天低速补 40 条
   },

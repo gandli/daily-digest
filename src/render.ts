@@ -29,6 +29,23 @@ export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl
   });
 }
 
+// HN 新产品/开源项目消息(仿 trending 但独立)。无 deepwiki/repo — 标题直链 + 中文描述 + #product 标签。
+export function renderProductMessage(dateStr: string, items: SourceItem[], telegraphUrl?: string): string[] {
+  const header = `🚀 <b>HN 新品/开源</b> · ${dateStr}\n#product #d${dateStr.replace(/-/g, '')}`;
+  const footer = telegraphUrl ? `\n\n📁 <a href="${esc(telegraphUrl)}">Telegraph 存档</a>` : '';
+  return items.map((it, i) => {
+    const score = it.stars ? ` ⭐ ${fmtK(it.stars)}` : '';
+    const head = i === 0 ? `${header}\n\n` : `<b>${i + 1}/${items.length}</b> `;
+    const descLine = isChinese(it.descZh) ? `${esc(unesc(it.descZh!))}\n` : '';
+    let msg =
+      `${head}<b><a href="${esc(it.url)}">${esc(it.title)}</a></b>${score}\n\n` +
+      descLine +
+      `\n#product`;
+    if (msg.length > 4000) msg = msg.slice(0, 3999) + '…';
+    return i === items.length - 1 ? msg + footer : msg;
+  });
+}
+
 // GitHub 存档 markdown。ogPath 传入时用 og-images/ 相对路径(本地渲染), 否则回退远程 URL。
 export function renderMarkdown(dateStr: string, items: SourceItem[], telegraphUrl?: string, ogPaths?: Map<string, string>): string {
   const rows = items
