@@ -2,7 +2,7 @@ import type { Env, SourceItem } from './types';
 import { sources } from './sources';
 import { resolveDescriptions } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes } from './render';
-import { sendPerRepoMessages, sendTelegram, sendPhotoOrText, sendVideoOrText, registerCommands, safeEqual } from './notify';
+import { sendPerRepoMessages, sendTelegram, sendPhotoOrText, sendVideoOrText, registerCommands, safeEqual, sendTelegramKbd, answerCallbackQuery, editMessageKbd, type InlineKB } from './notify';
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage } from './archive';
 import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess } from './lookup';
 import { extractUrl } from './urlmd';
@@ -21,39 +21,32 @@ const HELP = `📊 daily-digest 使用:
 发任意网页链接 = 转 markdown 存档。
 每天 08:30(北京时间)自动推送一条。`;
 
-// /search: 查 KV 存档索引(archive:idx:<repo> → {date, path, desc})。GitHub code search 只索引
-// 默认分支, archive 分支搜不到——所以存档写入时同步维护这份索引。
+// /search: 单键压缩索引(search:index)内存过滤。旧实现逐条 KV get 6076 次——免费版单请求
+// 50 子请求上限直接打爆, /search 因此无响应。索引由 scripts/seed-search-index.ts 播种,
+// 存档写入时增量追加(indexArchivedItems 同步维护)。
 export async function searchArchive(env: Env, chatId: string, query: string): Promise<void> {
   const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
-  const q = query.toLowerCase();
   try {
-    // 库索引(lib:* 星标/书签)与存档索引(archive:idx:)合并搜索——导入的库数据也要能被搜到
-    const [arch, lib] = await Promise.all([
-      listAll(env, 'archive:idx:'),
-      listAll(env, 'lib:'),
-    ]);
-    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const hits: string[] = [];
-    for (const k of arch.keys) {
-      const raw = await env.CACHE.get(k.name);
-      if (!raw) continue;
-      const it = JSON.parse(raw) as { repo: string; date: string; desc?: string; descZh?: string };
-      // ponytail: 全量线性扫描+子串匹配——个人规模(几百条)毫秒级; 上千条再考虑倒排索引
-      if (it.repo.toLowerCase().includes(q) || (it.descZh ?? '').toLowerCase().includes(q)) {
-        const year = it.date.slice(0, 4);
-        const link = `https://github.com/${repo}/blob/archive/archive/${year}/${it.date}.md`;
-        // 描述优先中文, 无则截英文原文——结果必须可读(用户硬性要求)
-        const d = it.descZh ?? it.desc;
-        hits.push(`📄 <a href="${link}">${esc(it.repo)} · ${it.date}</a>${d ? `\n   ${d.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').slice(0, 120)}` : ''}`);
-      }
+    const raw = await env.CACHE.get('search:index');
+    if (!raw) {
+      await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ 搜索索引未初始化, 请联系管理员运行 seed 脚本。');
+      return;
     }
-    for (const k of lib.keys) {
-      const raw = await env.CACHE.get(k.name);
-      if (!raw) continue;
-      const e = JSON.parse(raw) as { src: string; name: string; url: string; desc?: string; folder?: string; tags: string[] };
-      const hay = `${e.name} ${e.desc ?? ''} ${(e.tags ?? []).join(' ')} ${e.folder ?? ''}`.toLowerCase();
-      if (hay.includes(q)) {
-        hits.push(`${e.src === 'star' ? '⭐' : '📑'} <a href="${e.url}">${esc(e.name)}</a>${e.tags?.length ? ` · ${esc(e.tags.join(','))}` : ''}${e.desc ? `\n   ${esc(e.desc).slice(0, 120)}` : ''}`);
+    const entries = JSON.parse(raw) as [string, string, string, string, string?][]; // [src,name,url,hay,desc]
+    const q = query.toLowerCase();
+    // ponytail: 线性扫描 6076 条毫秒级; 索引超 5 万条再考虑分片
+    type Hit = { line: string };
+    const hits: string[] = [];
+    for (const [src, name, url, hay, desc] of entries) {
+      if (!hay.includes(q)) continue;
+      const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      if (src === 'arch') {
+        // url 字段此时存 date; name=repo
+        const date = url;
+        const link = `https://github.com/${repo}/blob/archive/archive/${date.slice(0, 4)}/${date}.md`;
+        hits.push(`📄 <a href="${link}">${esc(name)} · ${date}</a>${desc ? `\n   ${esc(desc)}` : ''}`);
+      } else {
+        hits.push(`${src === 'star' ? '⭐' : '📑'} <a href="${url}">${esc(name)}</a>${desc ? `\n   ${esc(desc)}` : ''}`);
       }
     }
     return done(env, chatId, query, hits);
@@ -63,7 +56,7 @@ export async function searchArchive(env: Env, chatId: string, query: string): Pr
   }
 }
 
-/** KV list 分页遍历(list 默认单页 ~1000 条, lib: 有 6041 条必须翻完)。 */
+/** KV list 分页遍历(archive:idx: 增量维护仍需遍历; lib: 已并入 search:index 不再逐键)。 */
 async function listAll(env: Env, prefix: string): Promise<{ keys: { name: string }[] }> {
   const keys: { name: string }[] = [];
   let cursor: string | undefined;
@@ -182,7 +175,10 @@ export async function archiveTweet(
         { tag: 'p', children: [{ tag: 'a', attrs: { href: tUrl }, children: ['原帖'] }] },
       ];
       const pageUrl = await createTelegraphPage(env.TELEGRAPH_TOKEN, `X · @${handle} · ${stamp.slice(0, 10)}`, nodes);
-      if (pageUrl) tgLine = `\n📄 Telegraph: ${pageUrl}`;
+      if (pageUrl) {
+        tgLine = `\n📄 Telegraph: ${pageUrl}`;
+        try { await env.CACHE.put(`archive:tg:${stamp.slice(0, 10)}`, pageUrl); } catch { /* KV 额度忽略 */ }
+      }
     }
     // /search 描述: X 帖中文摘要(短帖直译; 长帖 CF Summarization 摘要后已是中文)——失败回退原文截断
     let tweetDescZh: string | undefined;
@@ -263,10 +259,15 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
     console.error('topics failed', String(e).slice(0, 80));
   }
 
-  // 3. Telegraph 备份页(可选,失败静默)
+  // 3. Telegraph 备份页(可选,失败静默)——索引 archive:tg:<date> 供 /archive 优先展示
   let telegraphUrl: string | null = null;
   if (env.TELEGRAPH_TOKEN) {
     telegraphUrl = await createTelegraphPage(env.TELEGRAPH_TOKEN, dateStr, renderTelegraphNodes(items));
+    try {
+      if (telegraphUrl) await env.CACHE.put(`archive:tg:${dateStr}`, telegraphUrl);
+    } catch {
+      /* KV 额度不影响主流程 */
+    }
   }
 
   // 4. 渲染并发送: 每项目一条消息(OG 图做照片 + 完整条目做 caption), 头条带日期头, 末条带存档链接
@@ -316,6 +317,58 @@ async function replyArchived(env: Env, chatId: string, repo: string): Promise<vo
     `📁 <a href="${link}">查看存档</a>`;
   const photo = `https://raw.githubusercontent.com/${archiveRepo}/archive/og-images/${it.repo.replace('/', '__')}.png`;
   await sendPhotoOrText(env.BOT_TOKEN, chatId, photo, html);
+}
+
+/** /archive [页码]: 最近存档列表, inline keyboard 翻页, Telegraph 链接优先。 */
+const ARCHIVE_PAGE = 10; // 每页条数
+
+// 渲染一页存档: 返回 {text, kb, total, notFound?}。纯函数便于复用(/archive N 与 callback_query 翻页共用)。
+async function renderArchivePage(env: Env, page: number): Promise<{ text: string; kb: InlineKB; total: number; err?: string }> {
+  const keys = await listAll(env, 'archive:idx:');
+  if (!keys.keys.length) return { text: '📂 暂无存档记录', kb: { inline_keyboard: [] }, total: 0 };
+  const sorted = keys.keys.sort((a, b) => b.name.localeCompare(a.name));
+  const total = sorted.length;
+  const maxPage = Math.ceil(total / ARCHIVE_PAGE);
+  const start = page * ARCHIVE_PAGE;
+  if (start >= total) {
+    return { text: '📂 已到最后一页', kb: { inline_keyboard: [] }, total };
+  }
+  const pageKeys = sorted.slice(start, start + ARCHIVE_PAGE);
+  const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const lines: string[] = [];
+  for (const k of pageKeys) {
+    const raw = await env.CACHE.get(k.name);
+    if (!raw) continue;
+    let it: { repo: string; date: string; desc?: string; descZh?: string };
+    try { it = JSON.parse(raw); } catch { continue; }
+    const date = it.date;
+    const link = `https://github.com/${repo}/blob/archive/archive/${date.slice(0, 4)}/${date}.md`;
+    const tgUrl = (await env.CACHE.get(`archive:tg:${date}`)) || '';
+    const d = it.descZh ?? it.desc;
+    const tgLink = tgUrl ? ` · <a href="${tgUrl}">📄 Telegraph</a>` : '';
+    lines.push(`<a href="${link}">${esc(it.repo)} · ${date}</a>${tgLink}${d ? `\n   ${esc(d).slice(0, 120)}` : ''}`);
+  }
+  const text = `📂 历史存档 (第 ${page + 1}/${maxPage} 页, 共 ${total} 条)\n\n${lines.join('\n')}`;
+  return { text, kb: buildArchiveKeyboard(page, maxPage), total };
+}
+
+async function archiveList(env: Env, chatId: string, page: number): Promise<void> {
+  try {
+    const r = await renderArchivePage(env, Math.max(0, page));
+    if (r.kb.inline_keyboard.length) await sendTelegramKbd(env.BOT_TOKEN, chatId, r.text, r.kb);
+    else await sendTelegram(env.BOT_TOKEN, chatId, r.text);
+  } catch (e) {
+    console.error('archiveList failed', String(e).slice(0, 80));
+    await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ 存档列表加载失败, 请稍后再试。');
+  }
+}
+
+function buildArchiveKeyboard(page: number, maxPage: number): InlineKB {
+  const kb: InlineKB = { inline_keyboard: [] };
+  if (page > 0) kb.inline_keyboard.push([{ text: '⬅ 上一页', callback_data: `arch:pg:${page - 1}` }]);
+  if (page < maxPage - 1) kb.inline_keyboard.push([{ text: '下一页 ➡', callback_data: `arch:pg:${page + 1}` }]);
+  return kb;
 }
 
 // Telegram webhook 入口:验签 → 秒回200 → waitUntil 后台处理
@@ -369,29 +422,55 @@ export default {
 
     const update = (await req.json().catch(() => ({}))) as {
       message?: { chat?: { id?: number }; text?: string };
+      callback_query?: {
+        id?: string;
+        data?: string;
+        message?: { chat?: { id?: number }; message_id?: number };
+      };
     };
-    const chatId = String(update.message?.chat?.id ?? '');
+    const chatId = String(update.message?.chat?.id ?? update.callback_query?.message?.chat?.id ?? '');
     const text = (update.message?.text ?? '').trim();
 
     // c) 白名单外:不响应任何动作
     if (!chatId || chatId !== env.CHAT_ID) return new Response('ok');
 
+    // c2) callback_query: inline keyboard 翻页(arch:pg:N) —— 同一条消息原地更新, 答回转圈
+    if (update.callback_query?.data?.startsWith('arch:pg:')) {
+      const page = Number(update.callback_query.data.slice('arch:pg:'.length)) || 0;
+      const messageId = update.callback_query.message?.message_id;
+      const cqId = update.callback_query.id ?? '';
+      ctx.waitUntil(
+        (async () => {
+          const r = await renderArchivePage(env, Math.max(0, page));
+          if (messageId) await editMessageKbd(env.BOT_TOKEN, chatId, messageId, r.text, r.kb);
+          else if (r.kb.inline_keyboard.length) await sendTelegramKbd(env.BOT_TOKEN, chatId, r.text, r.kb);
+          else await sendTelegram(env.BOT_TOKEN, chatId, r.text);
+          if (cqId) await answerCallbackQuery(env.BOT_TOKEN, cqId);
+        })(),
+      );
+      return new Response('ok');
+    }
+
     // 注册命令菜单(幂等)+ 分派命令
     if (text.startsWith('/trending')) {
-      // 强制全管线(useCache=false), 保证带 OG 图——缓存命中只会回纯文本(无 photo)
-      ctx.waitUntil(Promise.all([registerCommands(env.BOT_TOKEN), runDigest(env, false)]));
+      // 秒回确认 + 自调 /run 走独立请求(避开 waitUntil 30s 窗口: zread 75s×2 重试在窗口内跑不完被杀)。
+      // /run 校验同源 + WEBHOOK_SECRET, 独立调用周期 = cron 级时间预算(最长 15min)。
+      ctx.waitUntil(
+        Promise.all([
+          registerCommands(env.BOT_TOKEN),
+          sendTelegram(env.BOT_TOKEN, chatId, '⏳ 正在抓取今日 Trending, 完成后推送…'),
+          fetch(`${url.origin}/run?cache=0`, {
+            method: 'POST',
+            headers: { 'X-Runner-Token': env.WEBHOOK_SECRET },
+          }).catch((e) => console.error('self /run failed', String(e).slice(0, 80))),
+        ]),
+      );
     } else if (text.startsWith('/help') || text === '') {
       ctx.waitUntil(Promise.all([registerCommands(env.BOT_TOKEN), sendTelegram(env.BOT_TOKEN, chatId, HELP)]));
       return new Response('ok');
     } else if (text.startsWith('/archive')) {
-      const dateStr = shanghaiDate();
-      ctx.waitUntil(
-        sendTelegram(
-          env.BOT_TOKEN,
-          chatId,
-          `📁 历史存档: https://github.com/gandli/daily-digest/tree/archive/archive/${dateStr.slice(0, 4)}`,
-        ),
-      );
+      // /archive 或 /archive N: 最近存档列表(按 archive:idx 倒序), inline keyboard 翻页, Telegraph 优先展示
+      ctx.waitUntil(archiveList(env, chatId, Number(text.split(/\s+/)[1]) || 0));
       return new Response('ok');
     } else if (text.startsWith('/search')) {
       const query = text.slice('/search'.length).trim();

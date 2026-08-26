@@ -47,3 +47,13 @@ jobs:
             exit 0
           fi
           npx wrangler deploy
+      # 播种 search:index(单KV键, 文件系统库索引)——/search 依赖它, 失败不阻塞部署
+      - name: Seed search index
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then exit 0; fi
+          if [ ! -f data/library.jsonl ]; then echo "::notice::library.jsonl missing, skip seeding"; exit 0; fi
+          node scripts/seed-search-index.mjs
+          npx wrangler kv key put "search:index" --path=data/lib-index.json --namespace-id=51e73f8381d34b9c95eaebdf4f7d8101
