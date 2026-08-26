@@ -71,12 +71,25 @@ export async function fanoutRepoRefs(env: Env, chatId: string, text: string, ctx
   if (!ctx) return;
   const repos = extractRepoRefs(text);
   const fresh: string[] = [];
-  for (const r of repos) if (!(await seenToday(env, r))) fresh.push(r);
+  // ponytail 修复: 不用 seenToday()(即读即置位, 超时中断也被标记→重发全跳过, 下半批永久丢失)。
+  // 用只读 CACHE.get 过滤; 成功完成才 put 标记 → 中断的 repo 重发续跑。
+  for (const r of repos) {
+    const seen = await env.CACHE.get(`lookup:${today()}:${r.toLowerCase()}`).catch(() => null);
+    if (!seen) fresh.push(r);
+  }
   // ponytail: 每批 3 个并发, 批间串行——每个 lookupRepo ~6 子请求, 3 个/批 ≈18 子请求 < 50 上限;
   // 全部解析(不再 slice), 也不单 waitUntil 内同步串行致超时截断。
   for (let i = 0; i < fresh.length; i += 3) {
     const batch = fresh.slice(i, i + 3);
-    await Promise.all(batch.map((r) => lookupRepo(env, chatId, r).catch(() => {})));
+    await Promise.all(
+      batch.map(async (r) => {
+        try {
+          await lookupRepo(env, chatId, r);
+          // 成功完成 → 置 seenToday(防重复); 中断/抛错不置 → 重发续跑
+          await env.CACHE.put(`lookup:${today()}:${r.toLowerCase()}`, '1', { expirationTtl: 172800 }).catch(() => {});
+        } catch { /* 失败不置位, 重发可续 */ }
+      }),
+    );
   }
 }
 

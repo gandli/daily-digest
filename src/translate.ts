@@ -97,9 +97,44 @@ export async function translateBatch(
   });
 }
 
+/** 单条文本 → OpenRouter 免费模型中文翻译(短超时)。失败/无 key → null(调用方落四级链)。 */
+async function translateZhOpenRouter(env: Env, text: string): Promise<string | null> {
+  if (!env.OPENROUTER_API_KEY) return null;
+  for (const model of OPENROUTER_MODELS) {
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
+          'HTTP-Referer': 'https://github.com/gandli/daily-digest',
+          'X-Title': 'daily-digest',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: '你是专业翻译。把给定文本翻译成自然流畅的简体中文，直接输出译文，不要解释，不要 markdown。' },
+            { role: 'user', content: text.slice(0, 3000) },
+          ],
+          temperature: 0.2,
+        }),
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!res.ok) continue;
+      const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      const out = j.choices?.[0]?.message?.content?.trim() ?? '';
+      if (out && out.length > 3 && isChinese(out)) return out;
+    } catch { /* 下一模型 */ }
+  }
+  return null;
+}
+
 /** 单段文本 → 中文(X 帖正文用; 复用四级链, 全挂返回 null)。 */
 export async function translateTextZh(env: Env, text: string): Promise<string | null> {
   if (!text.trim() || isChinese(text)) return text || null;
+  // OpenRouter 免费模型中文翻译优先(有 key), 失败落四级链
+  const or = await translateZhOpenRouter(env, text).catch(() => null);
+  if (or) return or;
   const out = await translateBatch(env, [{ title: 'x', url: '', desc: text } as SourceItem]);
   return out[0]?.descZh ?? null;
 }
@@ -191,6 +226,9 @@ async function viaMyMemory(descs: string[]): Promise<string[]> {
  * CF Summarization 模型(bart-ledger)出英文要点 → m2m100 译中。失败返回 null(调用方回退原文截断)。
  */
 export async function summarizeZh(env: Env, text: string): Promise<string | null> {
+  // OpenRouter 免费模型深度中文摘要优先(zeli 级, 有 key 时), 失败/无 key 回落 CF bart
+  const deep = await summarizeZhDeep(env, text).catch(() => null);
+  if (deep?.summaryZh) return deep.summaryZh;
   try {
     const sum = (await env.AI.run('@cf/facebook/bart-large-cnn', { input_text: text.slice(0, 2000), max_length: 120 })) as {
       summary?: string;
