@@ -25,7 +25,10 @@ const HELP = `📊 daily-digest 使用:
 // 50 子请求上限直接打爆, /search 因此无响应。索引由 scripts/seed-search-index.ts 播种,
 // 存档写入时增量追加(indexArchivedItems 同步维护)。
 const SEARCH_PAGE = 10; // 每页条数
-const cbKey = (page: number, query: string) => `sch:${page}:${encodeURIComponent(query).slice(0, 56)}`; // TG callback_data ≤64B
+// 翻页 query 存 KV(short TTL)而非塞 callback_data——callback_data 仅限 64B, 长 query 会被截断解码残缺。
+// callback_data: sch:<page>:<token>, KV 键 search:q:<token> 存 query。token 只含安全字符。
+const S_TOKEN = () => Math.random().toString(36).slice(2, 8); // 6 位, ~7800^2 组合够个人用
+const schStoreKey = (token: string) => `search:q:${token}`;
 
 export async function searchArchive(env: Env, chatId: string, query: string, page = 0, messageId?: number): Promise<void> {
   try {
@@ -58,9 +61,13 @@ export async function searchArchive(env: Env, chatId: string, query: string, pag
     const start = p * SEARCH_PAGE;
     const slice = hits.slice(start, start + SEARCH_PAGE);
     const eq = query.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    // 翻页机制: token = query 哈希(确定, 幂等), 渲染时把 query 写 KV search:q:<token>(TTL 1h)。
+    // callback_data 只带 sch:page:q<token> —— 64B 内, query 再长也不截断。
+    const token = qToken(query);
+    try { await env.CACHE.put(`search:q:${token}`, query, { expirationTtl: 3600 }); } catch { /* KV 额度忽略 */ }
     const kb: InlineKB = { inline_keyboard: [] };
-    if (p > 0) kb.inline_keyboard.push([{ text: '⬅ 上一页', callback_data: cbKey(p - 1, query) }]);
-    if (p < maxPage - 1) kb.inline_keyboard.push([{ text: '下一页 ➡', callback_data: cbKey(p + 1, query) }]);
+    if (p > 0) kb.inline_keyboard.push([{ text: '⬅ 上一页', callback_data: `sch:${p - 1}:${token}` }]);
+    if (p < maxPage - 1) kb.inline_keyboard.push([{ text: '下一页 ➡', callback_data: `sch:${p + 1}:${token}` }]);
     const head = total ? `🔍 「${eq}」${total} 条命中 (第 ${p + 1}/${maxPage} 页)` : `🔍 没有找到「${eq}」`;
     const text = total ? `${head}:\n\n${slice.join('\n')}` : head;
     if (messageId) await editMessageKbd(env.BOT_TOKEN, chatId, messageId, text, kb);
@@ -70,6 +77,13 @@ export async function searchArchive(env: Env, chatId: string, query: string, pag
     console.error('searchArchive failed', String(e).slice(0, 80));
     await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ 搜索失败(网络异常), 请稍后再试。');
   }
+}
+
+// query → 稳定 token(确定性哈希, 短)。callback 只需带它, query 本体存 KV search:q:<token>。
+function qToken(query: string): string {
+  let h = 5381;
+  for (let i = 0; i < query.length; i++) h = ((h << 5) + h + query.charCodeAt(i)) >>> 0;
+  return h.toString(36);
 }
 
 /** KV list 分页遍历(archive:idx: 增量维护仍需遍历; lib: 已并入 search:index 不再逐键)。 */
@@ -439,19 +453,20 @@ export default {
       return new Response('ok');
     }
 
-    // c3) callback_query: /search 翻页(sch:page:query) —— 重算 hits 原地更新页
+    // c3) callback_query: /search 翻页(sch:page:<token>) —— 凭 token 从 KV 读回 query, 重算 hits 原地更新页
     if (update.callback_query?.data?.startsWith('sch:')) {
-      const rest = update.callback_query.data.slice(4); // 'page:query'
+      const rest = update.callback_query.data.slice(4); // 'page:<token>'
       const sep = rest.indexOf(':');
       const page = Number(rest.slice(0, sep < 0 ? 0 : sep)) || 0;
-      const q = sep < 0 ? '' : decodeURIComponent(rest.slice(sep + 1));
+      const token = sep < 0 ? '' : rest.slice(sep + 1);
       const messageId = update.callback_query.message?.message_id;
       const cqId = update.callback_query.id ?? '';
       ctx.waitUntil(
         (async () => {
           try {
+            const q = token ? await env.CACHE.get(`search:q:${token}`) : null;
             if (q) await searchArchive(env, chatId, q, page, messageId ?? undefined);
-            else if (messageId) await editMessageKbd(env.BOT_TOKEN, chatId, messageId, '⚠️ 查询串缺失', { inline_keyboard: [] });
+            else if (messageId) await editMessageKbd(env.BOT_TOKEN, chatId, messageId, '⚠️ 查询过期, 请重新 /search', { inline_keyboard: [] });
           } catch (e) {
             console.error('search callback failed', String(e).slice(0, 120));
           } finally {
