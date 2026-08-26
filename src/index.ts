@@ -481,19 +481,14 @@ export default {
 
     // 注册命令菜单(幂等)+ 分派命令
     if (text.startsWith('/trending')) {
-      // 直接跑 runDigest(完整描述链)——cron 同款链路已验证 10/10 全带中文描述。
-      // 之前误加 25s deadline 导致描述链被 race 掐断(descZh 全空→renderMessage 省略描述段)
-      // + 发送循环在子请求/墙钟预算内被终止(只发 8 条)。去掉 deadline, 与 cron 一致。
-      // 不再自调 /run——CF 会拦 Worker→自身 workers.dev 出口。
+      // 用缓存(useCache=true): 当天 GitHub trending 固定不变, 无需每次重抓。
+      // cron 早 08:30 已跑一次写 digest:<date> 缓存, /trending 当天后续读缓存秒回。
+      // 首屏无缓存(如当天未到 cron)才触发完整抓取+描述链。缓存命中仅回纯文本(无 OG 照片),
+      // 换取不等 10-30s 描述链。需带图可二次发 /archive 或等 cron。
       ctx.waitUntil(
         (async () => {
-          await sendTelegram(env.BOT_TOKEN, chatId, '⏳ 正在抓取今日 Trending, 完成后推送…');
-          try {
-            await runDigest(env, false);
-          } catch (e) {
-            console.error('/trending failed', String(e).slice(0, 120));
-            await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ Trending 抓取失败, 请稍后再试。');
-          }
+          const n = await runDigest(env, true);
+          if (n < 0) await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ Trending 抓取失败, 请稍后再试。');
         })(),
       );
     } else if (text.startsWith('/help') || text === '') {
