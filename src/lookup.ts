@@ -58,19 +58,24 @@ export async function markProcessed(env: Env, url: string, translated: boolean, 
   }
 }
 
-/** 提取文本中的 GitHub repo 引用(去重、滤文件路径、上限 3 个省子请求)。 */
+/** 提取文本中的 GitHub repo 引用(去重、滤文件路径、剥 .git)。全量提取, fanout 顺序执行防超子请求。 */
 export function extractRepoRefs(text: string): string[] {
   return [...new Set([...text.matchAll(/https?:\/\/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/g)].map((m) => m[1]))]
+    .map((r) => r.replace(/\.git$/i, ''))
     .filter((r) => !/\.md$|\.js$|\.ts$|\.rs$|\.py$/i.test(r))
-    .slice(0, 3);
+    .slice(0, 10);
 }
 
-/** 内容含 GitHub repo 链接 → 逐个走 repo lookup(去重防递归)。ctx 缺省(如 cron)不触发。 */
+/** 内容含 GitHub repo 链接 → 逐个走 repo lookup(去重防递归; 顺序 await 防子请求超上限)。ctx 缺省(如 cron)不触发。 */
 export async function fanoutRepoRefs(env: Env, chatId: string, text: string, ctx?: ExecutionContext): Promise<void> {
   if (!ctx) return;
   for (const r of extractRepoRefs(text)) {
-    if (await seenToday(env, r)) continue;
-    ctx.waitUntil(lookupRepo(env, chatId, r));
+    // ponytail: 串行 lookup——每个吃 deepwiki+翻译+OG+存档 ~5-8 子请求, 10 个并发超 CF 50 上限; 顺序执行牺牲速度保正确
+    try {
+      await lookupRepo(env, chatId, r);
+    } catch {
+      /* 单 repo 失败不影响其余 */
+    }
   }
 }
 

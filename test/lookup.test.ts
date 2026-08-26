@@ -55,12 +55,19 @@ describe('extractRepo: 文件名形态排除(P2-J)', () => {
 });
 
 describe('extractRepoRefs: 存档内容 repo 联动扫描', () => {
-  it('提取去重 + 上限 3', () => {
-    const refs = extractRepoRefs('see https://github.com/a/b and https://github.com/a/b again, https://github.com/c/d, https://github.com/e/f, https://github.com/g/h');
-    expect(refs).toEqual(['a/b', 'c/d', 'e/f']);
+  it('提取去重', () => {
+    const refs = extractRepoRefs('see https://github.com/a/b and https://github.com/a/b again, https://github.com/c/d');
+    expect(refs).toEqual(['a/b', 'c/d']);
   });
   it('滤掉文件路径后缀', () => {
     expect(extractRepoRefs('https://github.com/x/y/blob/main/index.js https://github.com/ok/fine')).toEqual(['x/y', 'ok/fine']);
+  });
+  it('全量提取 >3 个不截断(X 帖多 repo 场景)', () => {
+    const txt = 'https://github.com/a/1 https://github.com/b/2 https://github.com/c/3 https://github.com/d/4 https://github.com/e/5';
+    expect(extractRepoRefs(txt)).toEqual(['a/1', 'b/2', 'c/3', 'd/4', 'e/5']);
+  });
+  it('滤 .git 克隆后缀', () => {
+    expect(extractRepoRefs('https://github.com/a/b.git https://github.com/c/d')).toEqual(['a/b', 'c/d']);
   });
 });
 
