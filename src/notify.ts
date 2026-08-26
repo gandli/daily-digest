@@ -1,3 +1,4 @@
+import { extractOgImage } from './urlmd';
 const API = 'https://api.telegram.org';
 
 export async function sendTelegram(token: string, chatId: string, html: string): Promise<void> {
@@ -56,21 +57,47 @@ export async function registerCommands(token: string): Promise<void> {
 }
 
 // OG 图 + 文字合一: 每项目一条 sendPhoto(图=GitHub OG 卡, caption=完整条目)。
-// 图下载失败 → 降级纯文字。caption 上限 1024。
+// OG 图 + 文字合一: 每项目一条 sendPhoto。ogUrl 提供时按来源选图:
+// GitHub repo → GitHub OG 卡; 非 GitHub(网页) → 抓页面 og:image。图下载失败 → 降级纯文字。caption 上限 1024。
 export async function sendPerRepoMessages(
   token: string,
   chatId: string,
-  messages: { html: string; repo: string }[],
+  messages: { html: string; repo?: string; ogUrl?: string }[],
   archiveRepo?: string,
 ): Promise<void> {
   for (const m of messages) {
-    // 图源优先自家存档域(og-images/ 已入库, raw.githubusercontent 无 IP 配额), 未入库回退 GitHub 官方 OG
-    // (官方域对 TG 出口 IP 池限 100 req/IP, 易被耗尽→sendPhoto 失败降纯文字——"缺图"根因)
-    const selfHosted = archiveRepo
-      ? `https://raw.githubusercontent.com/${archiveRepo}/archive/og-images/${m.repo.replace('/', '__')}.png`
-      : null;
-    const photoUrl = selfHosted ?? `https://opengraph.githubassets.com/1/${m.repo}`;
-    // TG 服务端代抓(photo=URL)——省 Worker 子请求, 代抓失败自动降级纯文字
+    // 图源 URL 判定: GitHub repo → 官方 OG + 自托管优先后台; 非 GitHub → 抓页面 og:image
+    let photoUrl: string | null = null;
+    let selfRetry: string | null = null;
+    const isGh = /^https?:\/\/(github|www\.github)\.com\//i.test(m.ogUrl ?? '');
+    if (m.ogUrl && !isGh) {
+      // 网页: fetch 拿 HTML → 提取 og:image。失败 photoUrl=null → 降级纯文字。
+      try {
+        const r = await fetch(m.ogUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/126' }, signal: AbortSignal.timeout(12000) });
+        if (r.ok) {
+          const html = await r.text();
+          photoUrl = extractOgImage(html.slice(0, 100_000));
+        }
+      } catch { /* 网页 OG 抓取失败 → 降级 */ }
+    } else {
+      // GitHub repo(或缺 ogUrl): 自家存档域优先后台 → 官方 GitHub OG
+      const repo = m.repo ?? (m.ogUrl ? m.ogUrl.replace(/^https?:\/\/(www\.)?github\.com\//i, '') : '');
+      const selfHosted = archiveRepo
+        ? `https://raw.githubusercontent.com/${archiveRepo}/archive/og-images/${repo.replace('/', '__')}.png`
+        : null;
+      photoUrl = selfHosted ?? (repo ? `https://opengraph.githubassets.com/1/${repo}` : null);
+      // 自托管图 404(未入库) → 下方 sendPhoto 失败后回退官方 OG
+      selfRetry = selfHosted ? `https://opengraph.githubassets.com/1/${repo}` : null;
+    }
+    if (!photoUrl) {
+      // 无图 → 直接纯文字
+      await fetch(`${API}/bot${token}/sendMessage`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: m.html, parse_mode: 'HTML', disable_web_page_preview: true }),
+      });
+      continue;
+    }
+    // TG 服务端代抓(photo=URL)——省 Worker 子请求, 代抓失败自动降级
     const res = await fetch(`${API}/bot${token}/sendPhoto`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -81,17 +108,17 @@ export async function sendPerRepoMessages(
         parse_mode: 'HTML',
       }),
     });
-    // 自托管图 404(该 repo 尚未入库) → 回退官方 OG 再试一次
-    if (!res.ok && selfHosted) {
+    // 自托管 404(该 repo 未入库) → 回退官方 OG 再试
+    if (!res.ok && selfRetry) {
       const retry = await fetch(`${API}/bot${token}/sendPhoto`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, photo: `https://opengraph.githubassets.com/1/${m.repo}`, caption: m.html.slice(0, 1020), parse_mode: 'HTML' }),
+        body: JSON.stringify({ chat_id: chatId, photo: selfRetry, caption: m.html.slice(0, 1020), parse_mode: 'HTML' }),
       });
       if (retry.ok) continue;
     }
     if (!res.ok) {
-      console.error(`sendPhoto ${m.repo} ${res.status}, fallback to text`);
+      console.error(`sendPhoto ${photoUrl.slice(0, 60)} ${res.status}, fallback to text`);
       const fb = await fetch(`${API}/bot${token}/sendMessage`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },

@@ -421,7 +421,7 @@ export async function runProductDigest(env: Env, useCache = true): Promise<numbe
     }),
   );
   const chunks = renderProductMessage(dateStr, items, undefined, env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
-  await sendPerRepoMessages(env.BOT_TOKEN, env.CHAT_ID, chunks.map((html, i) => ({ html, repo: items[i].title })), env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
+  await sendPerRepoMessages(env.BOT_TOKEN, env.CHAT_ID, chunks.map((html, i) => ({ html, ogUrl: items[i].url })), env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
   try { await env.CACHE.put(cacheKey, JSON.stringify({ chunks, repos: items.map((i) => i.title) }), { expirationTtl: 86400 }); } catch { /* 忽略 */ }
   await archiveToGitHub(env, `product/${dateStr}`, renderMarkdown(dateStr, items));
   console.log('product sent', dateStr, `${items.length} items`);
