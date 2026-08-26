@@ -66,16 +66,17 @@ export function extractRepoRefs(text: string): string[] {
     .slice(0, 10);
 }
 
-/** 内容含 GitHub repo 链接 → 逐个走 repo lookup(去重防递归; 顺序 await 防子请求超上限)。ctx 缺省(如 cron)不触发。 */
+/** 内容含 GitHub repo 链接 → 逐个走 repo lookup。分批串行(每批3个并发, 批间串行)防单请求 50 子请求上限; 全部解析不截断。ctx 缺省(如 cron)不触发。 */
 export async function fanoutRepoRefs(env: Env, chatId: string, text: string, ctx?: ExecutionContext): Promise<void> {
   if (!ctx) return;
-  for (const r of extractRepoRefs(text)) {
-    // ponytail: 串行 lookup——每个吃 deepwiki+翻译+OG+存档 ~5-8 子请求, 10 个并发超 CF 50 上限; 顺序执行牺牲速度保正确
-    try {
-      await lookupRepo(env, chatId, r);
-    } catch {
-      /* 单 repo 失败不影响其余 */
-    }
+  const repos = extractRepoRefs(text);
+  const fresh: string[] = [];
+  for (const r of repos) if (!(await seenToday(env, r))) fresh.push(r);
+  // ponytail: 每批 3 个并发, 批间串行——每个 lookupRepo ~6 子请求, 3 个/批 ≈18 子请求 < 50 上限;
+  // 全部解析(不再 slice), 也不单 waitUntil 内同步串行致超时截断。
+  for (let i = 0; i < fresh.length; i += 3) {
+    const batch = fresh.slice(i, i + 3);
+    await Promise.all(batch.map((r) => lookupRepo(env, chatId, r).catch(() => {})));
   }
 }
 
