@@ -189,7 +189,7 @@ export async function archiveTweet(
 }
 
 // 共享管线:cron 与 /trending 都走这里。
-export async function runDigest(env: Env, useCache = true): Promise<number> {
+export async function runDigest(env: Env, useCache = true, descDeadlineMs?: number): Promise<number> {
   const dateStr = shanghaiDate();
   const cacheKey = `digest:${dateStr}`;
 
@@ -217,7 +217,13 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
   }
 
   // 2. 描述解析链: zread wiki 中文 → deepwiki Overview → 翻译成中文(顺序兜底)
-  await resolveDescriptions(env, items);
+  // 交互路径(/trending)有墙钟 deadline: zread 75s×2 重试在 webhook 30s 窗口跑不完,
+  // deadline 到则放弃待填充描述(renderMessage 无 descZh 自动省略该段)照常发送。
+  if (descDeadlineMs) {
+    await Promise.race([resolveDescriptions(env, items), new Promise((r) => setTimeout(r, descDeadlineMs))]);
+  } else {
+    await resolveDescriptions(env, items);
+  }
 
   // 2.6 GitHub topics(GH_TOKEN 已配)——做消息标签。
   // ponytail: Worker 单次调用子请求上限50, 全链路已近顶——只拉前4个 repo 的 topics
@@ -464,17 +470,19 @@ export default {
 
     // 注册命令菜单(幂等)+ 分派命令
     if (text.startsWith('/trending')) {
-      // 秒回确认 + 自调 /run 走独立请求(避开 waitUntil 30s 窗口: zread 75s×2 重试在窗口内跑不完被杀)。
-      // /run 校验同源 + WEBHOOK_SECRET, 独立调用周期 = cron 级时间预算(最长 15min)。
+      // 直接跑 runDigest, 描述链给 25s 墙钟 deadline(zread 75s×2 重试跑不完; deadline 到则省略描述照发,
+      // 剩余的 fetch 仍在后台跑, 不影响主路径)。不再自调 /run——CF 会拦 Worker→自身 workers.dev 出口。
+      const deadline = 25000;
       ctx.waitUntil(
-        Promise.all([
-          registerCommands(env.BOT_TOKEN),
-          sendTelegram(env.BOT_TOKEN, chatId, '⏳ 正在抓取今日 Trending, 完成后推送…'),
-          fetch(`${url.origin}/run?cache=0`, {
-            method: 'POST',
-            headers: { 'X-Runner-Token': env.WEBHOOK_SECRET },
-          }).catch((e) => console.error('self /run failed', String(e).slice(0, 80))),
-        ]),
+        (async () => {
+          await sendTelegram(env.BOT_TOKEN, chatId, '⏳ 正在抓取今日 Trending, 完成后推送…');
+          try {
+            await runDigest(env, false, deadline);
+          } catch (e) {
+            console.error('/trending failed', String(e).slice(0, 120));
+            await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ Trending 抓取失败, 请稍后再试。');
+          }
+        })(),
       );
     } else if (text.startsWith('/help') || text === '') {
       ctx.waitUntil(Promise.all([registerCommands(env.BOT_TOKEN), sendTelegram(env.BOT_TOKEN, chatId, HELP)]));
