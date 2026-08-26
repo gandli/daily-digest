@@ -47,7 +47,7 @@ export async function registerCommands(token: string): Promise<void> {
       commands: [
         { command: 'trending', description: '今日 GitHub Trending' },
         { command: 'product', description: '今日 HN 酷产品' },
-        { command: 'search', description: '搜索历史存档 (/search 关键词)' },
+        { command: 'search', description: '搜索历史存档' },
         { command: 'archive', description: '历史存档(分页+三链)' },
         { command: 'help', description: '使用说明' },
       ],
