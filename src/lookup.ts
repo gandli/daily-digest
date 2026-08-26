@@ -90,7 +90,7 @@ export async function indexArchivedItems(env: Env, items: SourceItem[], dateStr:
     try {
       await env.CACHE.put(
         `archive:idx:${it.title.toLowerCase()}`,
-        JSON.stringify({ repo: it.title, date: dateStr, desc: it.desc || undefined, descZh: isChinese(it.descZh) ? it.descZh : undefined }),
+        JSON.stringify({ repo: it.title, date: dateStr, desc: it.desc || undefined, descZh: isChinese(it.descZh) ? it.descZh : undefined, topics: it.topics?.slice(0, 4) }),
       );
     } catch {
       /* 索引失败不影响主流程 */
