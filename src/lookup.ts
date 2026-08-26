@@ -268,6 +268,45 @@ export async function refreshLookupDescriptions(env: Env): Promise<void> {
 }
 
 /**
+ * 每日低速增量: 补 search:index 里 star 仓的描述缺失/英文未译条目。
+ * 逐条 deepwiki → 译中 → 写 lookup:desc:<repo>(兼做已处理标记, /search 渲染与后续 lookup 复用)。
+ * 低速 = 每天限 limit 条 + 条间短延时, 避免打爆 Workers AI 额度与子请求上限。
+ * ponytail: 只写 lookup:desc 缓存, 不回写 search:index(25MB 全量重写过贵); /search 渲染查它覆盖。
+ */
+export async function backfillDescriptions(env: Env, limit = 40): Promise<void> {
+  const raw = await env.CACHE.get('search:index').catch(() => null);
+  if (!raw) return;
+  let entries: [string, string, string, string, string?][] = [];
+  try { entries = JSON.parse(raw) as [string, string, string, string, string?][]; } catch { return; }
+  let done = 0;
+  for (const [src, name, url, , desc] of entries) {
+    if (done >= limit) break;
+    if (src !== 'star') continue; // 书签无 repo 可 deepwiki; 只补星标仓
+    if (desc && isChinese(desc)) continue;
+    const repoKey = `lookup:desc:${name.toLowerCase()}`;
+    const cached = await env.CACHE.get(repoKey).catch(() => null);
+    if (cached) continue; // 已有(含已译) → 跳过, 避免日复遍历全量
+    try {
+      const dw = await fetchDeepwikiOverview(name).catch(() => null);
+      let zh = '';
+      if (dw) {
+        const t = await translateBatch(env, [{ title: name, url, desc: dw } as SourceItem]);
+        zh = t[0]?.descZh ?? '';
+      }
+      if (!isChinese(zh)) { await env.CACHE.put(repoKey, JSON.stringify({ zh: '', ts: Date.now() } satisfies DescCache)).catch(() => {}); continue; }
+      await env.CACHE.put(repoKey, JSON.stringify({ zh, ts: Date.now() } satisfies DescCache));
+      done++;
+      console.log(`backfill desc: ${name}`);
+      // 低速: 每条间隔, 省额度
+      if (done < limit) await new Promise((r) => setTimeout(r, 1500));
+    } catch {
+      /* 单仓失败记空缓存防重试, 下次跳过 */
+    }
+  }
+  if (done) console.log(`backfill desc done: ${done}/${limit}`);
+}
+
+/**
  * 任意 URL 存档: 三级降级链转 markdown(见 urlmd.ts) → 回复确认 → archive 分支存档。
  * 与 repo lookup 同一套存档/索引设施; 失败给用户明确回复, 不静默。
  */
