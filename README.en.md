@@ -5,7 +5,7 @@
 <h1 align="center">daily-digest</h1>
 
 <p align="center">
-  <a href="README.md">简体中文</a> · <a href="README.en.md">English</a>
+  <a href="README.en.md">English</a> · <a href="README.md">简体中文</a>
 </p>
 
 <p align="center">
@@ -22,13 +22,13 @@ Every day at **08:30 (UTC+8)** it pushes the top 10 repos — one message per re
 
 | Input | Behavior |
 |---|---|
-| `/trending` | Today's chart (full pipeline, with OG images; cron result cached in KV) |
-| `/search <keyword>` | Search past archives (KV index, by repo name or Chinese description, results include descriptions) |
-| `/archive` | Archive links (GitHub archive branch) |
-| `/start` `/help` any message without a link | Usage hints |
-| Message containing a GitHub repo link / `owner/repo` | Single-repo lookup: GitHub API + deepwiki/zread Chinese description → OG card reply, archived (deduped per day) |
-| Message containing an X/Twitter post link | FxEmbed API → card reply + **dual archive** (archive branch + Telegraph page), media shown via direct links |
-| Message containing any other web link | Three-tier free chain converts to markdown archive; reply includes **OG image + Chinese summary + archive link**; repo links found in content trigger auto lookups (≤3) |
+| `/trending` | Today's chart (already fetched by cron; served instantly from the `digest:<date>` cache; trending is fixed for the day, never re-fetched) |
+| `/search <keyword>` | Full-index search across 6000+ entries (stars/bookmarks/archives); on-page English descriptions translated in batch; paginated with inline-keyboard paging/jump |
+| `/archive [page]` | Paginated history list; each entry shows the **archive triple-link** (Telegraph → Internet Archive web.archive.org → GitHub md) |
+| `/start` `/help` anything else | Usage hints + command-menu registration |
+| Message containing a GitHub repo link | Single-repo lookup + Chinese description → OG card; already seen today → archive triple-link card; archived to archive branch |
+| Message containing an X/Twitter post link | FxEmbed fetch → **Chinese summary + triple archive** (Telegraph / Internet Archive / GitHub md) |
+| Message containing any other web link | Three-tier markdown chain → **Chinese summary (summarizeZh)** → triple archive; re-send of a done URL returns the archive link, not "already processed" |
 
 ## 🔗 Description chain
 
@@ -41,6 +41,13 @@ deepwiki overview (template boilerplate stripped)
 
 **100% Chinese guard**: any non-Chinese result is never rendered.
 
+## 📦 Archive triple-link
+
+Every archived link (web page / X post / repo) returns a **three-tier archive**, shown by priority:
+1. **Telegraph** — long-form backup page (one per daily digest and per X post)
+2. **Internet Archive** `web.archive.org` — fallback snapshot (`web/2/<url>` auto-locates the latest version)
+3. **GitHub md** — the original markdown on the archive branch
+
 ## 🏗️ Architecture
 
 - `src/sources/` source registry (an array is the registry; new source = new file + one line)
@@ -51,9 +58,9 @@ deepwiki overview (template boilerplate stripped)
 - `src/lookup.ts` single-repo pipeline (URL archiving / four-level image chain / repo fan-out / dedup)
 - `src/urlmd.ts` any URL→markdown via three-tier free chain (Markdown for Agents → AI.toMarkdown → Browser Rendering)
 - `src/fxtweet.ts` X/Twitter post archiving (FxEmbed public API)
-- KV caches today's cron result; webhook signature timingSafeEqual + chat allowlist; /search backed by a KV index
+- KV caches today's cron result; webhook signature timingSafeEqual + chat allowlist; /search backed by a single-key compressed index
 
-See [`docs/GOAL.md`](docs/GOAL.md) (acceptance criteria A1–A14, in Chinese).
+See [`docs/GOAL.md`](docs/GOAL.md) (acceptance criteria A1–A14), [`docs/INTERFACES.md`](docs/INTERFACES.md) (commands / HTTP endpoints / KV keys), [`docs/ROADMAP.md`](docs/ROADMAP.md) (progress), and [`docs/diagrams/`](docs/diagrams/) (architecture / sequence / data-flow diagrams).
 
 ## 💻 Development
 
@@ -62,7 +69,8 @@ npm install
 npm run dev        # wrangler dev --test-scheduled
 curl http://localhost:8787/__scheduled   # trigger cron pipeline manually
 npx tsc --noEmit   # type check
-npm test           # vitest, 82 tests
+npm test           # vitest, 139 tests (coverage ≥45%)
+npm test -- --coverage   # coverage report
 ```
 
 ## 🔑 Secrets (wrangler secret put)
@@ -71,14 +79,24 @@ BOT_TOKEN · CHAT_ID · WEBHOOK_SECRET · GH_TOKEN · TELEGRAPH_TOKEN (optional)
 
 ## 🚀 Deploy
 
-Merging a PR to main triggers GitHub Actions `wrangler deploy` (needs repo secrets CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID).
+Merging a PR to main triggers GitHub Actions `wrangler deploy` (needs repo secrets CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID). After deploy, the `search:index` is seeded automatically (generated from `library.jsonl`).
 
-## 🗺️ v2 roadmap
+Pushing to main also triggers a changelog workflow that auto-updates [CHANGELOG.md](CHANGELOG.md) (conventional-changelog groups by squash PR title).
 
-Web-page and X-post sources — each is just a fetch function plugged into `src/sources/index.ts`, zero pipeline changes.
+## 📚 Docs
+
+- [`docs/GOAL.md`](docs/GOAL.md) — acceptance contract (A1–A14, FR/AC/Milestones)
+- [`docs/INTERFACES.md`](docs/INTERFACES.md) — commands / HTTP endpoints / KV key table
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — development plan and progress
+- [`docs/diagrams/`](docs/diagrams/) — architecture / sequence / data-flow diagrams (mmd+png+svg)
+
+## 🗺️ Roadmap
+
+- Short term: description-cache refresh tuning, caching /search translation results back into the index, adding a `url` field to `archive:idx` (more precise web.archive link for repo re-sends)
+- Longer term: web-page / X-post sources — each just a fetch function plugged into `src/sources/index.ts`, zero pipeline changes
 
 ---
 
 <p align="center">
-  <sub>Cloudflare Workers free tier · no DB · KV only · 95/95 tests · CI auto-deploy</sub>
+  <sub>Cloudflare Workers free tier · no DB · KV only · 139 tests · CI auto-deploy · auto changelog</sub>
 </p>
