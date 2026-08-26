@@ -3,6 +3,14 @@
 
 ### Features
 
+* **/archive 排版:** 每条多行结构化(标题/📝摘要/🏷标签/📎三链); archive:idx 存 topics 供标签; replyArchived 同款加标签 ([#83](https://github.com/gandli/daily-digest/issues/83)) ([e89a46a](https://github.com/gandli/daily-digest/commit/e89a46a86a154a02188bd7a852309e258d1c7c48))
+* /product 命令 — HN 新产品/开源项目源, 仿 trending 独立推送/缓存/存档, 不与 digest 合并; CF Summarization 中文摘要; cron 每日推送 ([#82](https://github.com/gandli/daily-digest/issues/82)) ([93414b5](https://github.com/gandli/daily-digest/commit/93414b5371d092e660b811e1381a4e67eda6dcd7))
+* 每日低速增量补星标仓缺/未译描述 — backfillDescriptions(cron, 每天40条, deepwiki→译中→lookup:desc); /search 渲染优先取 lookup:desc 覆盖 ([#80](https://github.com/gandli/daily-digest/issues/80)) ([1f22f77](https://github.com/gandli/daily-digest/commit/1f22f778f9c8ad99d2b8cacd8cbbb93ffec7d9d5))
+# [](https://github.com/gandli/daily-digest/compare/v0.0.1...v) (2026-08-26)
+
+
+### Features
+
 * /product 命令 — HN 新产品/开源项目源, 仿 trending 独立推送/缓存/存档, 不与 digest 合并; CF Summarization 中文摘要; cron 每日推送 ([#82](https://github.com/gandli/daily-digest/issues/82)) ([93414b5](https://github.com/gandli/daily-digest/commit/93414b5371d092e660b811e1381a4e67eda6dcd7))
 * 每日低速增量补星标仓缺/未译描述 — backfillDescriptions(cron, 每天40条, deepwiki→译中→lookup:desc); /search 渲染优先取 lookup:desc 覆盖 ([#80](https://github.com/gandli/daily-digest/issues/80)) ([1f22f77](https://github.com/gandli/daily-digest/commit/1f22f778f9c8ad99d2b8cacd8cbbb93ffec7d9d5))
 # [](https://github.com/gandli/daily-digest/compare/v0.0.1...v) (2026-08-26)
