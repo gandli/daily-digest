@@ -385,7 +385,7 @@ export async function runProductDigest(env: Env, useCache = true): Promise<numbe
       } else if (it.desc) { it.descZh = it.desc; }
     }),
   );
-  const chunks = renderProductMessage(dateStr, items);
+  const chunks = renderProductMessage(dateStr, items, undefined, env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
   await sendPerRepoMessages(env.BOT_TOKEN, env.CHAT_ID, chunks.map((html, i) => ({ html, repo: items[i].title })), env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
   try { await env.CACHE.put(cacheKey, JSON.stringify({ chunks, repos: items.map((i) => i.title) }), { expirationTtl: 86400 }); } catch { /* 忽略 */ }
   await archiveToGitHub(env, `product/${dateStr}`, renderMarkdown(dateStr, items));
@@ -464,7 +464,7 @@ async function renderArchivePage(env: Env, page: number): Promise<{ text: string
         block.push(`　${links}`);
         lines.push(block.join('\n'));
   }
-  const text = `📂 历史存档 (第 ${page + 1}/${maxPage} 页, 共 ${total} 条)\n\n${lines.join('\n')}`;
+  const text = `📂 历史存档 (第 ${page + 1}/${maxPage} 页, 共 ${total} 条)\n\n${lines.join('\n\n')}`;
   return { text, kb: buildArchiveKeyboard(page, maxPage), total };
 }
 

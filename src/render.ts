@@ -15,7 +15,7 @@ export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl
     if (telegraphUrl) l.push(`<a href="${esc(telegraphUrl)}">Telegraph</a>`);
     const wb = `https://web.archive.org/web/2/${encodeURIComponent(it.url).replace(/%3A/g, ':').replace(/%2F/g, '/')}`;
     l.push(`<a href="${wb}">Wayback</a>`);
-    l.push(`<a href="${esc(mdPath)}">GitHub md</a>`);
+    l.push(`<a href="${esc(mdPath)}">Archive</a>`);
     return `\n\n📁 ${l.join(' · ')}`;
   };
   return items.map((it, i) => {
@@ -38,20 +38,25 @@ export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl
   });
 }
 
-// HN 新产品/开源项目消息(仿 trending 但独立)。无 deepwiki/repo — 标题直链 + 中文描述 + #product 标签。
-export function renderProductMessage(dateStr: string, items: SourceItem[], telegraphUrl?: string): string[] {
+// HN 酷产品消息(仿 trending 但独立)。无 deepwiki/repo — 标题直链 + 中文描述 + #product 标签 + 存档三链。
+export function renderProductMessage(dateStr: string, items: SourceItem[], telegraphUrl?: string, archiveRepo = 'gandli/daily-digest'): string[] {
   const header = `🚀 <b>HN 酷产品</b> · ${dateStr}\n#product #d${dateStr.replace(/-/g, '')}`;
-  const footer = telegraphUrl ? `\n\n📁 <a href="${esc(telegraphUrl)}">Telegraph 存档</a>` : '';
+  const mdPath = `https://github.com/${archiveRepo}/blob/archive/archive/${dateStr.slice(0, 4)}/${dateStr}.md`;
   return items.map((it, i) => {
     const score = it.stars ? ` ⭐ ${fmtK(it.stars)}` : '';
     const head = i === 0 ? `${header}\n\n` : `<b>${i + 1}/${items.length}</b> `;
     const descLine = isChinese(it.descZh) ? `${esc(unesc(it.descZh!))}\n` : '';
+    // 存档三链: Telegraph(当日页有则) → Wayback → Archive
+    const links: string[] = [];
+    if (telegraphUrl) links.push(`<a href="${esc(telegraphUrl)}">Telegraph</a>`);
+    links.push(`<a href="https://web.archive.org/web/2/${encodeURIComponent(it.url).replace(/%3A/g, ':').replace(/%2F/g, '/')}">Wayback</a>`);
+    links.push(`<a href="${esc(mdPath)}">Archive</a>`);
     let msg =
       `${head}<b><a href="${esc(it.url)}">${esc(it.title)}</a></b>${score}\n\n` +
       descLine +
-      `\n#product`;
+      `\n#product\n\n📁 ${links.join(' · ')}`;
     if (msg.length > 4000) msg = msg.slice(0, 3999) + '…';
-    return i === items.length - 1 ? msg + footer : msg;
+    return msg;
   });
 }
 
