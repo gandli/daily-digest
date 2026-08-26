@@ -204,13 +204,21 @@ export async function summarizeZh(env: Env, text: string): Promise<string | null
 }
 
 // 单条长文 → OpenRouter 免费模型深度中文摘要(zeli 风格: 背景/功能/亮点/场景) + 一句原文引文。
-// model: openrouter/free(万能免费路由, 自动选可用免费模型)。必须带 HTTP-Referer + X-Title 头(否则 402)。
+// 中文稳定免费模型候选按序尝试(minimax-m3→ox-alpha→dots-3)。必须带 HTTP-Referer + X-Title 头(否则 402)。
 // 输出约定: 第一段中文摘要, 末尾 QUOTE: 后跟一句原文英文核心句(zeli 引文风格)。
 // 失败/无 key/额度满 → 返回 null(调用方回退 CF bart summarizeZh)。
-const OPENROUTER_MODEL = 'openrouter/free';
+// 模型候选(按序尝试, 首个成功): 中文稳定免费模型。单点可能 429 限流 → 多模型兜底。全失败回退调用方 CF bart。
+const OPENROUTER_MODELS = ['minimax/minimax-m3:free', 'stealth/ox-alpha', 'dots-studio/dots-3-note-preview:free'];
 export type DeepSummary = { summaryZh: string; quote?: string };
 export async function summarizeZhDeep(env: Env, article: string): Promise<DeepSummary | null> {
   if (!env.OPENROUTER_API_KEY) return null;
+  for (const model of OPENROUTER_MODELS) {
+    const out = await oneShot(env, model, article);
+    if (out) return out;
+  }
+  return null;
+}
+async function oneShot(env: Env, model: string, article: string): Promise<DeepSummary | null> {
   try {
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -221,7 +229,7 @@ export async function summarizeZhDeep(env: Env, article: string): Promise<DeepSu
         'X-Title': 'daily-digest',
       },
       body: JSON.stringify({
-        model: OPENROUTER_MODEL,
+        model,
         messages: [
           { role: 'system', content: '你是科技产品分析员。用中文输出 4-6 句深度摘要：背景、核心功能、亮点(含具体性能数字)、适用场景。然后另起一行以"QUOTE: "开头给出原文中最有代表性的一句英文原句(不加引号)。不要开场白，不要 markdown。' },
           { role: 'user', content: `请用中文总结这篇产品文章：\n\n${article.slice(0, 6000)}` },
@@ -229,10 +237,9 @@ export async function summarizeZhDeep(env: Env, article: string): Promise<DeepSu
         temperature: 0.4,
       }),
     });
-    if (!res.ok) return null; // 402(缺头)/429(限流)/余额 全回退
+    if (!res.ok) return null;
     const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
     const out = j.choices?.[0]?.message?.content?.trim() ?? '';
-    // 拆分 QUOTE 行与摘要
     const qm = out.match(/QUOTE:\s*(.{10,160})/i);
     const summaryZh = qm ? out.slice(0, qm.index).trim() : out;
     if (!summaryZh || summaryZh.length < 10 || !isChinese(summaryZh)) return null;
