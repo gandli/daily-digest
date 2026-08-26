@@ -7,15 +7,16 @@ describe('archiveLinks 三链优先级', () => {
 
   it('有 Telegraph → Telegraph 在前, 含 web.archive 与 GitHub md', () => {
     const s = archiveLinks('https://example.com/a', 'https://telegra.ph/zz', md);
-    expect(s.indexOf('Telegraph')).toBeLessThan(s.indexOf('互联网档案馆'));
-    expect(s.indexOf('互联网档案馆')).toBeLessThan(s.indexOf('GitHub md'));
+    expect(s.indexOf('Telegraph')).toBeLessThan(s.indexOf('Wayback'));
+    expect(s.indexOf('Wayback')).toBeLessThan(s.indexOf('GitHub md'));
     expect(s).toContain('web.archive.org/web/2/https://example.com/a');
     expect(s).toContain(md);
+    expect(s).not.toContain('📎');
   });
 
   it('无 Telegraph → web.archive 在前, GitHub md 兜底', () => {
     const s = archiveLinks('https://example.com/b', undefined, md);
-    expect(s.indexOf('互联网档案馆')).toBeLessThan(s.indexOf('GitHub md'));
+    expect(s.indexOf('Wayback')).toBeLessThan(s.indexOf('GitHub md'));
     expect(s).toContain('web.archive.org/web/2/https://example.com/b');
   });
 
