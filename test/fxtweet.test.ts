@@ -1,6 +1,6 @@
-// fxtweet: 链接提取 + HTML 渲染转义测试(纯函数; fetchTweet 走线上探针已验证)
-import { describe, it, expect } from 'vitest';
-import { extractTweet, renderTweetHtml } from '../src/fxtweet';
+// fxtweet: 链接提取 + HTML 渲染转义 + fetchTweet 拉取测试
+import { describe, it, expect, afterEach } from 'vitest';
+import { extractTweet, renderTweetHtml, fetchTweet } from '../src/fxtweet';
 
 describe('extractTweet: X/Twitter 帖子链接', () => {
   it('x.com 标准链接', () => {
@@ -18,7 +18,7 @@ describe('extractTweet: X/Twitter 帖子链接', () => {
   it('非 status 路径不命中', () => {
     expect(extractTweet('https://x.com/jack/followers')).toBeNull();
   });
-  it('极短数字路径不误伤(纯 /123 非帖子形态由 status 字面量排除)', () => {
+  it('极短数字路径不误伤', () => {
     expect(extractTweet('x.com/jack/123')).toBeNull();
   });
 });
@@ -42,5 +42,50 @@ describe('renderTweetHtml: 转义与拼装', () => {
   it('日期格式化为 YYYY-MM-DD HH:mm(北京时间)', () => {
     const html = renderTweetHtml({ text: 'd', created_at: 'Mon Jul 13 01:16:37 +0000 2026' });
     expect(html).toContain('2026-07-13 09:16');
+  });
+  it('无作者/stats/media → 不崩, 无 undefined', () => {
+    const html = renderTweetHtml({ text: 'just text' } as never);
+    expect(html).toContain('just text');
+    expect(html).not.toContain('undefined');
+  });
+  it('有 stats → 渲染', () => {
+    const html = renderTweetHtml({ text: 'x', likes: 100, retweets: 5, replies: 2 } as never);
+    expect(html).toContain('❤️ 100');
+    expect(html).toContain('🔁 5');
+    expect(html).toContain('💬 2');
+  });
+  it('日期解析失败 → 原样保留不崩', () => {
+    const html = renderTweetHtml({ text: 'd', created_at: 'bad date format' } as never);
+    expect(html).toContain('bad date format');
+  });
+});
+
+describe('fetchTweet: FxEmbed 拉取', () => {
+  const origF = globalThis.fetch;
+  afterEach(() => { globalThis.fetch = origF; });
+  const mock = (body: unknown, status = 200) => {
+    globalThis.fetch = (async () => new Response(JSON.stringify(body), { status })) as typeof fetch;
+  };
+  it('200 + text + translation → 返回含 translation', async () => {
+    mock({ code: 200, tweet: { text: 'hello', translation: { text: '你好' } } });
+    const t = await fetchTweet('j', '1');
+    expect(t?.text).toBe('hello');
+    expect(t?.translation?.text).toBe('你好');
+  });
+  it('HTTP 非200 → null', async () => {
+    mock({}, 500);
+    expect(await fetchTweet('j', '1')).toBeNull();
+  });
+  it('body code≠200 → null', async () => {
+    mock({ code: 404, tweet: null });
+    expect(await fetchTweet('j', '1')).toBeNull();
+  });
+  it('无 text → null(僵尸数据)', async () => {
+    mock({ code: 200, tweet: { translation: { text: 'partial' } } });
+    expect(await fetchTweet('j', '1')).toBeNull();
+  });
+  it('网络异常 → null(不抛)', async () => {
+    globalThis.fetch = (async () => { throw new Error('net'); }) as typeof fetch;
+    expect(await fetchTweet('j', '1')).toBeNull();
   });
 });
