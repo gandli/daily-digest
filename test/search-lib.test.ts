@@ -89,10 +89,16 @@ describe('/search 合并搜索(单键索引)', () => {
     const { searchArchive } = await import('../src/index');
     const env2 = { BOT_TOKEN: 't', CACHE: memKv as any };
     await searchArchive(env2 as any, 1, 'aiml');
-    // 首屏应带翻页按钮, callback_data 里含 token(sch:1:<token>), token 为短哈希(确定, 不塞长 query)
+    // 首屏应带翻页按钮, 导航行: [页码指示][下一页...]; 找到下一页按钮取其 callback(token)
     const kbArgs = sendMock.mock.calls[0] as unknown[];
     let data = '';
-    for (const a of kbArgs) { if (a && typeof a === 'object' && 'inline_keyboard' in a) { data = (a as any).inline_keyboard[0][0].callback_data as string; } }
+    for (const a of kbArgs) {
+      if (a && typeof a === 'object' && 'inline_keyboard' in a) {
+        const all = (a as any).inline_keyboard.flat() as { text: string; callback_data: string }[];
+        const next = all.find((b: any) => b.text.includes('下一页'));
+        if (next) data = next.callback_data;
+      }
+    }
     expect(data).toMatch(/^sch:1:/); // 下一页指向 page 1
     const token = data.slice('sch:1:'.length);
     expect(token.length).toBeLessThan(20); // 短 token(64B 内), 长 query 不落 callback

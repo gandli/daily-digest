@@ -65,9 +65,22 @@ export async function searchArchive(env: Env, chatId: string, query: string, pag
     // callback_data 只带 sch:page:q<token> —— 64B 内, query 再长也不截断。
     const token = qToken(query);
     try { await env.CACHE.put(`search:q:${token}`, query, { expirationTtl: 3600 }); } catch { /* KV 额度忽略 */ }
+    // 分页导航: 上一页 / 页码指示 / 下一页 + 快捷跳转(首/中/末, >4 页才显示)
+    const cb = (pg: number) => `sch:${pg}:${token}`;
     const kb: InlineKB = { inline_keyboard: [] };
-    if (p > 0) kb.inline_keyboard.push([{ text: '⬅ 上一页', callback_data: `sch:${p - 1}:${token}` }]);
-    if (p < maxPage - 1) kb.inline_keyboard.push([{ text: '下一页 ➡', callback_data: `sch:${p + 1}:${token}` }]);
+    const nav: { text: string; callback_data: string }[] = [];
+    if (p > 0) nav.push({ text: '⬅ 上一页', callback_data: cb(p - 1) });
+    nav.push({ text: `📄 ${p + 1}/${maxPage}`, callback_data: cb(p) });
+    if (p < maxPage - 1) nav.push({ text: '下一页 ➡', callback_data: cb(p + 1) });
+    kb.inline_keyboard.push(nav);
+    if (maxPage > 4) {
+      const jump: { text: string; callback_data: string }[] = [];
+      if (p > 1) jump.push({ text: `⏮ 1`, callback_data: cb(0) });
+      const mid = Math.floor(maxPage / 2);
+      if (Math.abs(p - mid) > 1) jump.push({ text: `⏭ ${mid + 1}`, callback_data: cb(mid) });
+      if (p < maxPage - 2) jump.push({ text: `⏭ ${maxPage}`, callback_data: cb(maxPage - 1) });
+      if (jump.length) kb.inline_keyboard.push(jump);
+    }
     const head = total ? `🔍 「${eq}」${total} 条命中 (第 ${p + 1}/${maxPage} 页)` : `🔍 没有找到「${eq}」`;
     const text = total ? `${head}:\n\n${slice.join('\n')}` : head;
     if (messageId) await editMessageKbd(env.BOT_TOKEN, chatId, messageId, text, kb);
@@ -386,8 +399,21 @@ async function archiveList(env: Env, chatId: string, page: number): Promise<void
 
 function buildArchiveKeyboard(page: number, maxPage: number): InlineKB {
   const kb: InlineKB = { inline_keyboard: [] };
-  if (page > 0) kb.inline_keyboard.push([{ text: '⬅ 上一页', callback_data: `arch:pg:${page - 1}` }]);
-  if (page < maxPage - 1) kb.inline_keyboard.push([{ text: '下一页 ➡', callback_data: `arch:pg:${page + 1}` }]);
+  const nav: { text: string; callback_data: string }[] = [];
+  if (page > 0) nav.push({ text: '⬅ 上一页', callback_data: `arch:pg:${page - 1}` });
+  // 页码指示(不可点, 但占位保证对齐)
+  nav.push({ text: `📄 ${page + 1}/${maxPage}`, callback_data: `arch:pg:${page}` });
+  if (page < maxPage - 1) nav.push({ text: '下一页 ➡', callback_data: `arch:pg:${page + 1}` });
+  kb.inline_keyboard.push(nav);
+  // 快捷跳转行: 首/中间/末(非当前页才显示, ≤4 页跳过——已有上一页/下一页够用)
+  if (maxPage > 4) {
+    const jump: { text: string; callback_data: string }[] = [];
+    if (page > 1) jump.push({ text: `⏮ 1`, callback_data: `arch:pg:0` });
+    const mid = Math.floor(maxPage / 2);
+    if (Math.abs(page - mid) > 1) jump.push({ text: `⏭ ${mid + 1}`, callback_data: `arch:pg:${mid}` });
+    if (page < maxPage - 2) jump.push({ text: `⏭ ${maxPage}`, callback_data: `arch:pg:${maxPage - 1}` });
+    if (jump.length) kb.inline_keyboard.push(jump);
+  }
   return kb;
 }
 
