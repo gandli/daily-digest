@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="daily-digest — daily GitHub Trending Chinese digest bot, pipeline on the left, Telegram message card on the right">
-</p>
-
 <h1 align="center">daily-digest</h1>
 
 <p align="center">
@@ -12,6 +8,10 @@
   <a href="#-commands"><img src="https://img.shields.io/badge/commands-5-2b5278" alt="commands"></a>
   <a href="#-description-chain"><img src="https://img.shields.io/badge/Chinese%20guard-100%25-2b5278" alt="Chinese guard"></a>
   <a href="https://github.com/gandli/daily-digest/actions/workflows/deploy.yml"><img src="https://github.com/gandli/daily-digest/actions/workflows/deploy.yml/badge.svg" alt="CI"></a>
+</p>
+
+<p align="center">
+  <img src="./assets/readme/hero.svg" width="100%" alt="daily-digest — daily GitHub Trending Chinese digest bot, pipeline on the left, Telegram message card on the right">
 </p>
 
 GitHub Trending → **Telegram daily Chinese digest bot**. Single project on the Cloudflare Workers free tier.
