@@ -80,7 +80,7 @@ export function archiveLinks(url: string | undefined, tgUrl: string | undefined,
   if (tgUrl) links.push(`<a href="${tgUrl}">Telegraph</a>`);
   // web.archive 兜底快照——用最近时间戳(web/2/ 重定向到最新快照)。简称 Wayback 省长度。
   if (url) links.push(`<a href="https://web.archive.org/web/2/${encodeURIComponent(url).replace(/%3A/g, ':').replace(/%2F/g, '/')}">Wayback</a>`);
-  links.push(`<a href="${mdLink}">GitHub md</a>`);
+  links.push(`<a href="${mdLink}">Archive</a>`);
   return links.join(' · ');
 }
 

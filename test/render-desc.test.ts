@@ -36,14 +36,14 @@ describe('渲染: 描述层诚实降级', () => {
     for (const m of msgs) {
       expect(m).toContain('Telegraph');
       expect(m).toContain('Wayback');
-      expect(m).toContain('GitHub md');
+      expect(m).toContain('Archive');
       expect(m).toContain('web.archive.org/web/2/');
     }
   });
   it('无 telegraphUrl → 三链含 Wayback + GitHub md, 无 Telegraph 项', () => {
     const [m] = renderMessage('2026-08-24', [mk('a/aa', ZH)]);
     expect(m).toContain('Wayback');
-    expect(m).toContain('GitHub md');
+    expect(m).toContain('Archive');
     expect(m).not.toContain('Telegraph');
   });
 });
