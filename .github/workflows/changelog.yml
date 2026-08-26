@@ -1,0 +1,30 @@
+name: changelog
+
+on:
+  push:
+    branches:
+      - main
+
+# changelog 自动更新 + 提交回 main。防循环: git-auto-commit 仅当 CHANGELOG 实际变化才 commit,
+# 且 deploy workflow 幂等(失败无害)。
+permissions:
+  contents: write
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # conventional-changelog 需要完整 git 历史
+
+      - name: Generate CHANGELOG
+        run: |
+          npx -y conventional-changelog-cli@5.0.0 -p angular -i CHANGELOG.md -s
+
+      - name: Commit CHANGELOG
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update CHANGELOG"
+          file_pattern: CHANGELOG.md
+          skip_dirty_check: true
