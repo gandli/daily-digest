@@ -4,7 +4,7 @@ import { resolveDescriptions } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes } from './render';
 import { sendPerRepoMessages, sendTelegram, sendPhotoOrText, sendVideoOrText, registerCommands, safeEqual, sendTelegramKbd, answerCallbackQuery, editMessageKbd, type InlineKB } from './notify';
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage } from './archive';
-import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess } from './lookup';
+import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, archiveLinks } from './lookup';
 import { extractUrl } from './urlmd';
 import { extractTweet, fetchTweet, renderTweetHtml, type FxTweet } from './fxtweet';
 import { summarizeZh, translateTextZh, isChinese } from './translate';
@@ -194,8 +194,7 @@ export async function archiveTweet(
     const confirm = [
       `🐦 <b>X 存档</b> · @${escT(handle)}`,
       tweetDescZh ? `\n📝 <b>摘要</b> ${escT(tweetDescZh).slice(0, 300)}` : '',
-      `\n📁 <a href="https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md">查看存档</a>` +
-        (tgLine ? ` · <a href="${tgLine.split(' ').pop()}">Telegraph</a>` : ''),
+      `\n📁 ${archiveLinks(tUrl, tgLine ? tgLine.split(' ').pop() : undefined, `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`)}`,
     ].join('');
     await sendTelegram(env.BOT_TOKEN, chatId, confirm);
   } catch (e) {
