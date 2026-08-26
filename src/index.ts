@@ -13,6 +13,25 @@ import { summarizeZh, translateTextZh, translateBatch, isChinese } from './trans
 // 北京时间日期串 YYYY-MM-DD(UTC+8 无 DST,直接偏移即可)
 export const shanghaiDate = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
 
+// 从 HN 标题抽领域关键词做标签(小写带 #)。匹配常见领域词, 同标题去重, ≤4 个。
+const TOPIC_DICT: [RegExp, string][] = [
+  [/ai|llm|gpt|model|agent|ml|genai|neural/i, 'ai'],
+  [/os|linux|macos|windows|app|tool|software|desktop/i, 'software'],
+  [/web|browser|saas|api|app|app|internet/i, 'web'],
+  [/github|open.?source|repo|code/i, 'open-source'],
+  [/phone|mobile|ios|android|app/i, 'mobile'],
+  [/game|gaming|play/i, 'game'],
+  [/security|privacy|encrypt/i, 'security'],
+  [/dev|developer|cli|terminal|program/i, 'dev'],
+  [/data|database|sql|db/i, 'data'],
+  [/music|audio|video|photo|image/i, 'media'],
+];
+function topicsFromTitle(title: string): string[] {
+  const hits = new Set<string>();
+  for (const [re, tag] of TOPIC_DICT) if (re.test(title)) hits.add(tag);
+  return [...hits].slice(0, 4);
+}
+
 const HELP = `📊 daily-digest 使用
 
 <b>命令</b>
@@ -377,12 +396,16 @@ export async function runProductDigest(env: Env, useCache = true): Promise<numbe
     return -1;
   }
   if (!items.length) { console.log('hn: no new products today'); return 0; }
-  // HN 是文章标题(非 repo) — 用 CF Summarization 出中文摘要, 不走 repo 定制描述链(deepwiki/zread miss 浪费子请求)
+  // HN Show HN 多为空正文 — 标题翻译成中文给描述; 从标题抽领域关键词打标签。
   await Promise.all(
     items.map(async (it) => {
-      if (it.desc && !isChinese(it.desc)) {
-        it.descZh = (await summarizeZh(env, it.desc.slice(0, 2000)).catch(() => null)) ?? undefined;
-      } else if (it.desc) { it.descZh = it.desc; }
+      if (!it.desc) { // Algolia story_text 常空 → 用标题翻译作描述(may 需补前缀)
+        it.desc = it.title;
+      }
+      if (!isChinese(it.desc)) {
+        it.descZh = (await translateTextZh(env, it.desc.slice(0, 500)).catch(() => null)) ?? undefined;
+      } else { it.descZh = it.desc; }
+      it.topics = topicsFromTitle(it.title);
     }),
   );
   const chunks = renderProductMessage(dateStr, items, undefined, env.GH_ARCHIVE_REPO || 'gandli/daily-digest');

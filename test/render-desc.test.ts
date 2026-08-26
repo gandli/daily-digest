@@ -1,6 +1,6 @@
 // 渲染层测试: 双缺条目(descZh 空)不显示描述行; 有描述时显示中文。
 import { describe, it, expect } from 'vitest';
-import { renderMessage, renderMarkdown, renderTelegraphNodes } from '../src/render';
+import { renderMessage, renderMarkdown, renderTelegraphNodes, renderProductMessage } from '../src/render';
 
 const ZH = '这是一个来自 zread wiki 的中文描述，用于说明该仓库的核心功能模块。';
 
@@ -45,6 +45,21 @@ describe('渲染: 描述层诚实降级', () => {
     expect(m).toContain('Wayback');
     expect(m).toContain('Archive');
     expect(m).not.toContain('Telegraph');
+  });
+});
+describe('renderProductMessage(HN 酷产品)', () => {
+  it('显示中文描述(📝) + 领域标签 + 存档三链', () => {
+    const [msg] = renderProductMessage('2026-08-26', [{ title: 'Show HN: A cool AI tool', url: 'https://x.dev', descZh: '一个很酷的 AI 工具。', topics: ['ai', 'web'] } as never]);
+    expect(msg).toContain('📝 一个很酷的 AI 工具。'); // 中文描述
+    expect(msg).toContain('#ai #web'); // 领域标签
+    expect(msg).toContain('#product');
+    expect(msg).toContain('Wayback');
+    expect(msg).toContain('Archive');
+  });
+  it('无中文描述 → 不显示描述行(仍有标题/标签/三链)', () => {
+    const [msg] = renderProductMessage('2026-08-26', [{ title: 'Show HN: X', url: 'https://x.dev', descZh: undefined } as never]);
+    expect(msg).not.toContain('📝');
+    expect(msg).toContain('Show HN: X');
   });
 });
 describe('Telegraph 渲染: 中文守卫(P1-A)', () => {
