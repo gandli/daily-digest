@@ -434,18 +434,23 @@ export default {
     // c) 白名单外:不响应任何动作
     if (!chatId || chatId !== env.CHAT_ID) return new Response('ok');
 
-    // c2) callback_query: inline keyboard 翻页(arch:pg:N) —— 同一条消息原地更新, 答回转圈
+    // c2) callback_query: inline keyboard 翻页(arch:pg:N) —— 同一条消息原地更新; 答回收必须放 finally(编辑抛错也消转圈)
     if (update.callback_query?.data?.startsWith('arch:pg:')) {
       const page = Number(update.callback_query.data.slice('arch:pg:'.length)) || 0;
       const messageId = update.callback_query.message?.message_id;
       const cqId = update.callback_query.id ?? '';
       ctx.waitUntil(
         (async () => {
-          const r = await renderArchivePage(env, Math.max(0, page));
-          if (messageId) await editMessageKbd(env.BOT_TOKEN, chatId, messageId, r.text, r.kb);
-          else if (r.kb.inline_keyboard.length) await sendTelegramKbd(env.BOT_TOKEN, chatId, r.text, r.kb);
-          else await sendTelegram(env.BOT_TOKEN, chatId, r.text);
-          if (cqId) await answerCallbackQuery(env.BOT_TOKEN, cqId);
+          try {
+            const r = await renderArchivePage(env, Math.max(0, page));
+            if (messageId) await editMessageKbd(env.BOT_TOKEN, chatId, messageId, r.text, r.kb);
+            else if (r.kb.inline_keyboard.length) await sendTelegramKbd(env.BOT_TOKEN, chatId, r.text, r.kb);
+            else await sendTelegram(env.BOT_TOKEN, chatId, r.text);
+          } catch (e) {
+            console.error('archive callback failed', String(e).slice(0, 120));
+          } finally {
+            if (cqId) await answerCallbackQuery(env.BOT_TOKEN, cqId);
+          }
         })(),
       );
       return new Response('ok');
