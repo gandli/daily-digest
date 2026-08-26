@@ -174,7 +174,9 @@ export async function archiveTweet(
       const pageUrl = await createTelegraphPage(env.TELEGRAPH_TOKEN, `X · @${handle} · ${stamp.slice(0, 10)}`, nodes);
       if (pageUrl) {
         tgLine = `\n📄 Telegraph: ${pageUrl}`;
-        try { await env.CACHE.put(`archive:tg:${stamp.slice(0, 10)}`, pageUrl); } catch { /* KV 额度忽略 */ }
+        // 键用完整 stamp(含 ms, 唯一)——同日多条 X 帖互不覆盖, 也不覆盖 digest 的 archive:tg:<date>。
+        // digest 用日期键(每天一条), X 帖用时间戳键(每帖一条)。
+        try { await env.CACHE.put(`archive:tg:${stamp}`, pageUrl); } catch { /* KV 额度忽略 */ }
       }
     }
     // /search 描述: X 帖中文摘要(短帖直译; 长帖 CF Summarization 摘要后已是中文)——失败回退原文截断
