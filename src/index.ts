@@ -24,8 +24,10 @@ const HELP = `📊 daily-digest 使用:
 // /search: 单键压缩索引(search:index)内存过滤。旧实现逐条 KV get 6076 次——免费版单请求
 // 50 子请求上限直接打爆, /search 因此无响应。索引由 scripts/seed-search-index.ts 播种,
 // 存档写入时增量追加(indexArchivedItems 同步维护)。
-export async function searchArchive(env: Env, chatId: string, query: string): Promise<void> {
-  const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
+const SEARCH_PAGE = 10; // 每页条数
+const cbKey = (page: number, query: string) => `sch:${page}:${encodeURIComponent(query).slice(0, 56)}`; // TG callback_data ≤64B
+
+export async function searchArchive(env: Env, chatId: string, query: string, page = 0, messageId?: number): Promise<void> {
   try {
     const raw = await env.CACHE.get('search:index');
     if (!raw) {
@@ -35,8 +37,8 @@ export async function searchArchive(env: Env, chatId: string, query: string): Pr
     const entries = JSON.parse(raw) as [string, string, string, string, string?][]; // [src,name,url,hay,desc]
     const q = query.toLowerCase();
     // ponytail: 线性扫描 6076 条毫秒级; 索引超 5 万条再考虑分片
-    type Hit = { line: string };
     const hits: string[] = [];
+    const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
     for (const [src, name, url, hay, desc] of entries) {
       if (!hay.includes(q)) continue;
       const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -49,7 +51,21 @@ export async function searchArchive(env: Env, chatId: string, query: string): Pr
         hits.push(`${src === 'star' ? '⭐' : '📑'} <a href="${url}">${esc(name)}</a>${desc ? `\n   ${esc(desc)}` : ''}`);
       }
     }
-    return done(env, chatId, query, hits);
+    // 分页渲染 + inline keyboard 翻页(复用 archive 同款模式: answerCallbackQuery 放 finally)
+    const total = hits.length;
+    const maxPage = Math.max(1, Math.ceil(total / SEARCH_PAGE));
+    const p = Math.min(Math.max(0, page), maxPage - 1);
+    const start = p * SEARCH_PAGE;
+    const slice = hits.slice(start, start + SEARCH_PAGE);
+    const eq = query.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const kb: InlineKB = { inline_keyboard: [] };
+    if (p > 0) kb.inline_keyboard.push([{ text: '⬅ 上一页', callback_data: cbKey(p - 1, query) }]);
+    if (p < maxPage - 1) kb.inline_keyboard.push([{ text: '下一页 ➡', callback_data: cbKey(p + 1, query) }]);
+    const head = total ? `🔍 「${eq}」${total} 条命中 (第 ${p + 1}/${maxPage} 页)` : `🔍 没有找到「${eq}」`;
+    const text = total ? `${head}:\n\n${slice.join('\n')}` : head;
+    if (messageId) await editMessageKbd(env.BOT_TOKEN, chatId, messageId, text, kb);
+    else if (kb.inline_keyboard.length) await sendTelegramKbd(env.BOT_TOKEN, chatId, text, kb);
+    else await sendTelegram(env.BOT_TOKEN, chatId, text);
   } catch (e) {
     console.error('searchArchive failed', String(e).slice(0, 80));
     await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ 搜索失败(网络异常), 请稍后再试。');
@@ -66,39 +82,6 @@ async function listAll(env: Env, prefix: string): Promise<{ keys: { name: string
     cursor = page.list_complete ? undefined : (page as { cursor?: string }).cursor;
   } while (cursor);
   return { keys };
-}
-
-function done(env: Env, chatId: string, query: string, hits: string[]): Promise<void> {
-  const eq = query.replace(/&/g, '&amp;').replace(/</g, '&lt;');
-  if (!hits.length) return sendTelegram(env.BOT_TOKEN, chatId, `🔍 没有找到「${eq}」`);
-  // Telegram sendMessage 上限 4096 字符——archive 与 lib 交替取样截断, 不让单一来源占满(Greptile P1)
-  const archHits = hits.filter((h) => h.startsWith('📄'));
-  const libHits = hits.filter((h) => !h.startsWith('📄'));
-  let text = '';
-  const total = hits.length;
-  const push = (arr: string[]) => {
-    for (const h of arr) {
-      if (text.length + h.length + 1 > 3800) return false;
-      text += (text ? '\n' : '') + h;
-    }
-    return true;
-  };
-  // 两来源交替取样: 各先取一条, 轮流填充——宽泛词下 archive 塞满预算时 lib 结果仍可见
-  let ai = 0, li = 0;
-  while ((ai < archHits.length || li < libHits.length) && text.length <= 3800) {
-    if (ai < archHits.length && text.length + archHits[ai].length + 1 <= 3800) { push([archHits[ai]]); ai++; }
-    if (li < libHits.length && text.length + libHits[li].length + 1 <= 3800) { push([libHits[li]]); li++; }
-    if (ai >= archHits.length && li >= libHits.length) break;
-    if (text.length + Math.min(archHits[ai]?.length ?? Infinity, libHits[li]?.length ?? Infinity) + 1 > 3800) break;
-  }
-  const omitted = total - ai - li; // 真实未展示数, 警告条件与截断事实绑定(Greptile P1)
-  const note = omitted > 0 ? `\n\n⚠️ 结果过多已截断(${total} 条命中, 显示 ${total - omitted} 条), 请用更具体的关键词` : '';
-  if (!text && total) {
-    // 单条就超限的极端情况: 保底第一条的前 500 字符
-    text = hits[0].slice(0, 500);
-    return sendTelegram(env.BOT_TOKEN, chatId, `🔍 「${eq}」${total} 条命中:\n${text}\n\n⚠️ 已截断(${total} 条命中), 请用更具体的关键词`);
-  }
-  return sendTelegram(env.BOT_TOKEN, chatId, `🔍 「${eq}」${omitted > 0 ? `显示 ${total - omitted}/${total}` : total + ' 条命中'}:\n${text}${note}`);
 }
 
 /** 存档成功后写搜索索引(lookup 单仓与 digest 批量共用)。实现见 lookup.ts(indexArchivedItems)。 */
@@ -448,6 +431,29 @@ export default {
             else await sendTelegram(env.BOT_TOKEN, chatId, r.text);
           } catch (e) {
             console.error('archive callback failed', String(e).slice(0, 120));
+          } finally {
+            if (cqId) await answerCallbackQuery(env.BOT_TOKEN, cqId);
+          }
+        })(),
+      );
+      return new Response('ok');
+    }
+
+    // c3) callback_query: /search 翻页(sch:page:query) —— 重算 hits 原地更新页
+    if (update.callback_query?.data?.startsWith('sch:')) {
+      const rest = update.callback_query.data.slice(4); // 'page:query'
+      const sep = rest.indexOf(':');
+      const page = Number(rest.slice(0, sep < 0 ? 0 : sep)) || 0;
+      const q = sep < 0 ? '' : decodeURIComponent(rest.slice(sep + 1));
+      const messageId = update.callback_query.message?.message_id;
+      const cqId = update.callback_query.id ?? '';
+      ctx.waitUntil(
+        (async () => {
+          try {
+            if (q) await searchArchive(env, chatId, q, page, messageId ?? undefined);
+            else if (messageId) await editMessageKbd(env.BOT_TOKEN, chatId, messageId, '⚠️ 查询串缺失', { inline_keyboard: [] });
+          } catch (e) {
+            console.error('search callback failed', String(e).slice(0, 120));
           } finally {
             if (cqId) await answerCallbackQuery(env.BOT_TOKEN, cqId);
           }
