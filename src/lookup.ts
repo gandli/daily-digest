@@ -184,13 +184,18 @@ export async function lookupRepo(env: Env, chatId: string, repo: string): Promis
   // 一条消息: OG 图做照片, 条目做 caption(优先自家 og-images 存档域, 规避官方域对 TG 出口的 IP 配额)
   const chunks = renderMessage(today(), [item]);
   await sendPerRepoMessages(env.BOT_TOKEN, chatId, chunks.map((html) => ({ html, repo: item.title })), env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
+  // 索引独立写入, 不依赖 archive 成功(archive 抛错 → 索引仍落, 避免 seenToday 死循环)
+  const stamp = `${today()}-${Date.now() % 86400000}`; // 单次计算: 索引 date 必须等于实际文件名
+  try {
+    await indexArchivedItems(env, [item], stamp); // /search 索引
+  } catch {
+    /* 索引失败不影响主流程 */
+  }
   // 存档: OG 图入库 og-images/, markdown 引用相对路径(失败回退远程 URL)
   try {
     const ogPath = await archiveOgImage(env, item.title);
     const md = renderMarkdown(today(), [item], undefined, ogPath ? new Map([[item.title, ogPath]]) : undefined);
-    const stamp = `${today()}-${Date.now() % 86400000}`; // 单次计算: 索引 date 必须等于实际文件名
     await archiveToGitHub(env, stamp, md);
-    await indexArchivedItems(env, [item], stamp); // /search 索引
   } catch {
     /* 存档失败静默 */
   }
