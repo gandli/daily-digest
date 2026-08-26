@@ -391,7 +391,7 @@ export async function runProductDigest(env: Env, useCache = true): Promise<numbe
 /** 当日已查过的 repo: 回存档数据(索引里的描述+存档链接), 不再提示"已查询过"。 */
 async function replyArchived(env: Env, chatId: string, repo: string): Promise<void> {
   const raw = await env.CACHE.get(`archive:idx:${repo.toLowerCase()}`);
-  let it: { repo: string; date: string; desc?: string; descZh?: string } | null = null;
+  let it: { repo: string; date: string; desc?: string; descZh?: string; topics?: string[] } | null = null;
   if (raw) {
     try {
       it = JSON.parse(raw);
@@ -408,13 +408,14 @@ async function replyArchived(env: Env, chatId: string, repo: string): Promise<vo
   const archiveRepo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
   const link = `https://github.com/${archiveRepo}/blob/archive/archive/${it.date.slice(0, 4)}/${it.date}.md`;
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const d = it.descZh ?? it.desc;
+    const d = (it.descZh ?? it.desc ?? '').trim();
     // 三链: Telegraph(当日有页) → web.archive(repo 源 URL) → GitHub md
     const tgUrl = (await env.CACHE.get(`archive:tg:${it.date}`).catch(() => null)) || '';
     const repoUrl = `https://github.com/${it.repo}`;
     const html =
       `♻️ <b>${esc(it.repo)}</b> · 今日已存档\n\n` +
-      (d ? `${esc(d).slice(0, 300)}\n\n` : '') +
+      (d ? `📝 ${esc(d).slice(0, 300)}\n\n` : '') +
+      (it.topics?.length ? `🏷 ${it.topics.map((t) => `#${t}`).join(' ')}\n\n` : '') +
       `📁 ${archiveLinks(repoUrl, tgUrl || undefined, link)}`;
   const photo = `https://raw.githubusercontent.com/${archiveRepo}/archive/og-images/${it.repo.replace('/', '__')}.png`;
   await sendPhotoOrText(env.BOT_TOKEN, chatId, photo, html);
@@ -441,15 +442,22 @@ async function renderArchivePage(env: Env, page: number): Promise<{ text: string
   for (const k of pageKeys) {
     const raw = await env.CACHE.get(k.name);
     if (!raw) continue;
-    let it: { repo: string; date: string; desc?: string; descZh?: string };
+    let it: { repo: string; date: string; desc?: string; descZh?: string; topics?: string[] };
     try { it = JSON.parse(raw); } catch { continue; }
     const date = it.date;
         const link = `https://github.com/${repo}/blob/archive/archive/${date.slice(0, 4)}/${date}.md`;
         const tgUrl = (await env.CACHE.get(`archive:tg:${date}`)) || '';
-        const d = it.descZh ?? it.desc;
+        const d = (it.descZh ?? it.desc ?? '').trim();
         // 三链各给: repo 源 URL → web.archive, 当日 telegraph, github md
         const links = archiveLinks(`https://github.com/${it.repo}`, tgUrl || undefined, link);
-        lines.push(`<a href="${link}">${esc(it.repo)} · ${date}</a>\n   ${links}${d ? `\n   ${esc(d).slice(0, 120)}` : ''}`);
+        // 排版: 标题行 / 📝摘要(有) / #标签(有) / 📎三链 —— 多行结构化, 摘要与标签分段
+        const block = [
+          `<b>${esc(it.repo)}</b> · ${date}`,
+        ];
+        if (d) block.push(`　📝 ${esc(d).slice(0, 120)}`);
+        if (it.topics?.length) block.push(`　🏷 ${it.topics.map((t) => `#${t}`).join(' ')}`);
+        block.push(`　${links}`);
+        lines.push(block.join('\n'));
   }
   const text = `📂 历史存档 (第 ${page + 1}/${maxPage} 页, 共 ${total} 条)\n\n${lines.join('\n')}`;
   return { text, kb: buildArchiveKeyboard(page, maxPage), total };
