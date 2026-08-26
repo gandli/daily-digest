@@ -93,7 +93,7 @@ export async function sendPerRepoMessages(
       // 无图 → 直接纯文字
       await fetch(`${API}/bot${token}/sendMessage`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: m.html, parse_mode: 'HTML', disable_web_page_preview: true }),
+        body: JSON.stringify({ chat_id: chatId, text: m.html, parse_mode: 'HTML', link_preview_options: m.ogUrl ? { url: m.ogUrl, prefer_large_media: true } : undefined }),
       });
       continue;
     }
@@ -122,7 +122,7 @@ export async function sendPerRepoMessages(
       const fb = await fetch(`${API}/bot${token}/sendMessage`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: m.html, parse_mode: 'HTML', disable_web_page_preview: true }),
+        body: JSON.stringify({ chat_id: chatId, text: m.html, parse_mode: 'HTML', link_preview_options: m.ogUrl ? { url: m.ogUrl, prefer_large_media: true } : undefined }),
       });
       if (!fb.ok) console.error(`sendMessage fallback also failed ${fb.status}: ${(await fb.text()).slice(0, 120)}`);
     }
