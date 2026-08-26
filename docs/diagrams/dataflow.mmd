@@ -3,53 +3,57 @@ sequenceDiagram
     actor U as 用户 gandli
     participant TA as Telegram Bot API
     participant W as CF Worker<br/>(webhook handler)
-    participant P as 共享管线
-    participant G as github.com/trending
-    participant AI as Workers AI
     participant KV as KV CACHE
+    participant CHAIN as 描述链<br/>deepwiki/zread/AI
+    participant AI as Workers AI<br/>(Summarization)
+    participant G as github.com/trending
+    participant TG as telegra.ph
+    participant WA as web.archive.org
     participant GH as GitHub 存档 repo
 
-    rect rgb(235, 245, 255)
+    rect rgb(235,245,255)
     Note over U,GH: 每日定时推送 (cron 08:30 北京时间)
-    W->>+P: scheduled 触发
-    P->>KV: 读当日缓存
-    KV-->>P: 未命中
-    P->>+G: GET /trending
-    G-->>-P: HTML → HTMLRewriter 解析 top10
-    P->>+AI: 批量翻译 10 条描述
-    AI-->>-P: 中文描述 (失败→MyMemory→英文)
-    P->>P: renderMessage()<br/>#trending #d日期 #语言 + deepwiki链接
-    P->>TA: sendMessage (HTML, 每日一条)
-    TA-->>U: 📊 Trending 推送
-    P->>KV: 写当日结果缓存
-    P->>+GH: PUT /contents archive/trending/日期.md
-    GH-->>-P: commit 成功
-    deactivate P
+    W->>W: runDigest()<br/>cache=miss 走全管线
+    W->>+G: GET /trending
+    G-->>-W: HTML → HTMLRewriter 解析 top10
+    W->>+CHAIN: resolveDescriptions (10 仓)
+    CHAIN-->>-W: 中文描述 (deepwiki/zread→AI 摘要→TranSmart)
+    W->>W: renderMessage() → chunks
+    W->>TA: sendPerRepoMessages()<br/>每仓一条 sendPhoto(OG 图 caption)
+    TA-->>U: 📊 10 条, 各带 OG 卡+中文描述
+    W->>KV: put digest:<date> (chunks+repos)
+    W->>TG: createPage (Telegraph 备份)
+    TG-->>W: page_url → put archive:tg:<date>
+    W->>+GH: PUT archive/<YYYY>/<YYYY-MM-DD>.md
+    GH-->>-W: commit
     end
 
-    rect rgb(240, 255, 240)
-    Note over U,GH: 手动查询 (/trending 命令)
-    U->>TA: /trending
-    TA->>+W: POST /telegram webhook
-    W->>W: 验签 timingSafeEqual → 立即 return 200
-    W->>+P: ctx.waitUntil(处理)
-    P->>P: chat id 白名单校验
-    alt 白名单外
-        P-->>TA: 拒绝, 无响应
-    end
-    P->>KV: 读缓存
-    alt 缓存命中
-        KV-->>P: 当日渲染文本
-    else 未命中
-        KV-->>P: miss → 走完整管线(同上 5-8 步)
-    end
-    P->>TA: sendMessage
-    TA-->>U: 当日榜单
-    deactivate W
+    rect rgb(240,255,240)
+    Note over U,GH: 手动命令 (webhook)
+    U->>TA: /search rust
+    TA->>+W: POST /telegram
+    W->>W: 验签 → return 200 → ctx.waitUntil
+    W->>KV: get search:index (6076 条)
+    KV-->>W: 单键索引 (内存过滤命中 209)
+    W->>W: 当页英文描述批量译中
+    W->>TA: sendMessage + inline keyboard<br/>(上一页/页码/下一页 + 跳转)
+    TA-->>U: 🔍 第1/21页 + 翻页按钮
+    U-->>TA: 点下一页 callback arch:pg:1
+    TA->>+W: callback_query
+    W->>TA: editMessageText 同消息更新 + answerCallbackQuery
+    TA-->>U: 第2/21页
     end
 
-    rect rgb(255, 250, 235)
-    Note over U,W: v2 预留插槽 (不实现)
-    U--)W: 发送任意 URL → 收藏进书签源
-    U--)W: X 帖子命令 → xSource
+    rect rgb(255,250,235)
+    Note over U,GH: 链接处理 + 三链存档
+    U->>TA: github.com/basecamp/omarchy
+    TA->>+W: POST /telegram
+    W->>W: extractRepo → seenToday?
+    W->>+CHAIN: lookupRepo (描述已缓存走 lookup:desc)
+    CHAIN-->>-W: 描述 → renderMessage → sendPerRepoMessages(OG 图)
+    W->>KV: put archive:idx:<repo>
+    W->>+GH: PUT archive/<YYYY>/<date>.md
+    GH-->>-W: commit
+    W->>TA: 📁 三链: Telegraph · 互联网档案馆 · GitHub md
+    TA-->>U: 存档卡 (OG 图 + 三链)
     end

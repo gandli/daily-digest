@@ -12,7 +12,7 @@ flowchart TB
     subgraph DEV["日常开发循环"]
         D1["feature 分支提交"]
         D2["push → 开 PR"]
-        D3{"CI: tsc --noEmit<br/>dry-run 校验"}
+        D3{"CI: tsc + 139 tests<br/>GitGuardian + dry-run<br/>全绿才合并"}
         D4["review → squash merge"]
         D5["main 落地触发 Actions<br/>wrangler-action deploy"]
         D6["线上验证<br/>发 /trending 实测"]

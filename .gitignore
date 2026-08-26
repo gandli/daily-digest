@@ -4,5 +4,8 @@ node_modules/
 .cf-prod.env
 .webhook_secret
 data/kv-bulk.json
+data/lib-index.json
+data/gen-snapshot.py
+data/retry-bulk-put.ts
 # library.jsonl 需入库供 CI deploy 播种 search:index, 不再 ignore
 coverage/
