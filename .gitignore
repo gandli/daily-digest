@@ -5,3 +5,4 @@ node_modules/
 .webhook_secret
 data/kv-bulk.json
 # library.jsonl 需入库供 CI deploy 播种 search:index, 不再 ignore
+coverage/
