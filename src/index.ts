@@ -528,7 +528,17 @@ export default {
           ctx.waitUntil(archiveUrl(env, chatId, url, ctx));
           await sendTelegram(env.BOT_TOKEN, chatId, '🔁 检测到上次处理不完整(未翻译或缺描述), 重新归档中…');
         } else if (verdict === 'done') {
-          await sendTelegram(env.BOT_TOKEN, chatId, '♻️ 该链接已完整处理过(已翻译已归档), 无需重复。');
+          // 已完整处理过: 回存档链接(读 reproc 键里的 md stamp 拼 .md 存档), 而非"无需重复"梗概
+          const rec = await env.CACHE.get(`reproc:${url.slice(0, 400)}`).catch(() => null);
+          let stamp = '';
+          try { stamp = rec ? (JSON.parse(rec)?.md ?? '') : ''; } catch { /* 忽略 */ }
+          if (stamp) {
+            const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
+            await sendTelegram(env.BOT_TOKEN, chatId,
+              `♻️ <b>该链接此前已处理归档</b>\n\n📁 <a href="https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md">查看存档</a>`);
+          } else {
+            await sendTelegram(env.BOT_TOKEN, chatId, '♻️ 该链接已完整处理过(已翻译已归档), 无需重复。');
+          }
         } else {
           ctx.waitUntil(archiveUrl(env, chatId, url, ctx));
         }
