@@ -110,3 +110,34 @@ export async function safeEqual(a: string, b: string): Promise<boolean> {
   for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i];
   return diff === 0;
 }
+
+export type InlineKB = { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+
+/** 带 inline keyboard 的 sendMessage。 */
+export async function sendTelegramKbd(token: string, chatId: string, html: string, kb: InlineKB): Promise<void> {
+  const res = await fetch(`${API}/bot${token}/sendMessage`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, text: html, parse_mode: 'HTML', reply_markup: kb }),
+  });
+  if (!res.ok) console.error(`sendMessageKbd ${res.status}: ${await res.text()}`);
+}
+
+/** callback_query 已应答(转圈消失)。 */
+export async function answerCallbackQuery(token: string, callbackQueryId: string): Promise<void> {
+  await fetch(`${API}/bot${token}/answerCallbackQuery`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ callback_query_id: callbackQueryId, show_alert: false }),
+  }).catch(() => undefined);
+}
+
+/** editMessageText inline keyboard 翻页。 */
+export async function editMessageKbd(token: string, chatId: string, messageId: number, html: string, kb: InlineKB): Promise<void> {
+  const res = await fetch(`${API}/bot${token}/editMessageText`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, message_id: messageId, text: html, parse_mode: 'HTML', reply_markup: kb }),
+  });
+  if (!res.ok) console.error(`editMessageText ${res.status}: ${await res.text()}`);
+}
