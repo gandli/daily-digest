@@ -2,7 +2,7 @@ import type { SourceItem } from '../types';
 
 // Hacker News 新产品/开源项目源。仿 trending: 抓 HN topstories → 过滤"新产品/开源项目" → 取前 N。
 // 过滤规则: 标题含 "Show HN"(新产品) 或 链接指向 github.com(开源项目), 其余跳过。
-// ponytail: HN API 无鉴权免费, topstories 一次取 100 id, 逐条 get item(子请求多, 只取前 ~30 判定省量)。
+// ponytail: HN API 无鉴权免费, topstories 一次取 100 id; 逐条 get item 子请求有限, 但为凑满 limit 需扫足量(Show HN/GitHub 在 top 中占比不高, 30 常不足 10)。
 export async function fetchHackerNewsProducts(limit = 10): Promise<SourceItem[]> {
   // 1. top stories ids
   const idsRes = await fetch('https://hacker-news.firebaseio.com/v0/topstories.json', {
@@ -12,9 +12,9 @@ export async function fetchHackerNewsProducts(limit = 10): Promise<SourceItem[]>
   const ids = (await idsRes.json()) as number[];
   if (!Array.isArray(ids) || !ids.length) return [];
 
-  // 2. 逐条拉详情, 过滤新产品/开源项目 (只扫前 30 个 top 够定位当天新品)
+  // 2. 逐条拉详情, 过滤新产品/开源项目 (扫前 ~60 个 top 凑满 limit; 60 保 50 子请求上限内, 一般 30-40 已够)
   const out: SourceItem[] = [];
-  for (const id of ids.slice(0, 30)) {
+  for (const id of ids.slice(0, 60)) {
     if (out.length >= limit) break;
     try {
       const r = await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`, {
