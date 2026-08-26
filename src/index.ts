@@ -4,7 +4,7 @@ import { resolveDescriptions } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes } from './render';
 import { sendPerRepoMessages, sendTelegram, sendPhotoOrText, sendVideoOrText, registerCommands, safeEqual, sendTelegramKbd, answerCallbackQuery, editMessageKbd, type InlineKB } from './notify';
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage } from './archive';
-import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, archiveLinks } from './lookup';
+import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, archiveLinks, backfillDescriptions } from './lookup';
 import { extractUrl } from './urlmd';
 import { extractTweet, fetchTweet, renderTweetHtml, type FxTweet } from './fxtweet';
 import { summarizeZh, translateTextZh, translateBatch, isChinese } from './translate';
@@ -52,9 +52,21 @@ export async function searchArchive(env: Env, chatId: string, query: string, pag
     const p = Math.min(Math.max(0, page), maxPage - 1);
     const start = p * SEARCH_PAGE;
     const slice = hits.slice(start, start + SEARCH_PAGE);
-    // 当页英文描述 → 批量译中(用户要求所有项目带中文描述)。失败保原文明示。
+    // 当页描述: 优先取 lookup:desc:<repo>(cron backfill 每日低速补的中文), 缺则当页英文批量译中。失败保原文明示。
     const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
-    const needTs = slice.filter((h): h is Hit & { desc: string } => !!h.desc && !isChinese(h.desc)).map((h) => ({ title: h.name, url: h.url, desc: h.desc } as SourceItem));
+    const lookupDescMap = new Map<string, string>();
+    await Promise.all(
+      slice.map(async (h) => {
+        if (h.src === 'arch') return; // 存档条目 desc 已在索引含中文
+        const ld = await env.CACHE.get(`lookup:desc:${h.name.toLowerCase()}`).catch(() => null);
+        if (ld) {
+          try { const c = JSON.parse(ld) as { zh?: string }; if (c.zh && isChinese(c.zh)) lookupDescMap.set(h.name, c.zh); } catch { /* 忽略 */ }
+        }
+      }),
+    );
+    const needTs = slice
+      .filter((h): h is Hit & { desc: string } => !!h.desc && !isChinese(h.desc) && !lookupDescMap.has(h.name))
+      .map((h) => ({ title: h.name, url: h.url, desc: h.desc } as SourceItem));
     const zhMap = new Map<string, string>();
     if (needTs.length) {
       try {
@@ -64,7 +76,9 @@ export async function searchArchive(env: Env, chatId: string, query: string, pag
     }
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const lines = slice.map((h) => {
-      const d = h.desc ? (zhMap.get(h.desc) || h.desc) : '';
+      // lookup:desc 优先(backfill 补的中文), 否则 search:index desc 原文/当页翻译
+      const ld = lookupDescMap.get(h.name) || '';
+      const d = ld || (h.desc ? (zhMap.get(h.desc) || h.desc) : '');
       if (h.src === 'arch') {
         const date = h.url; // url 槽存 date
         const link = `https://github.com/${repo}/blob/archive/archive/${date.slice(0, 4)}/${date}.md`;
@@ -617,5 +631,6 @@ export default {
   async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
     await runDigest(env, false); // cron 不读缓存,保证每日新鲜抓取
     await refreshLookupDescriptions(env); // 已查过的 repo 定期重跑 deepwiki/zread, 同步上游描述
+    await backfillDescriptions(env, 40); // 星标仓缺/未译描述 → 每天低速补 40 条
   },
 };
