@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:  # 逃生门: GH 对未完成 PR CI 的 squash merge 会去重跳过 main push CI → 手动补部署
 
 jobs:
   check:
@@ -26,7 +27,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: dry-run-only
 
   deploy:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: check
     runs-on: ubuntu-latest
     steps:
