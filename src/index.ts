@@ -420,7 +420,12 @@ export async function runProductDigest(env: Env, useCache = true): Promise<numbe
       it.topics = topicsFromTitle(it.title);
     }),
   );
-  const chunks = renderProductMessage(dateStr, items, undefined, env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
+  const telegraphUrl = env.TELEGRAPH_TOKEN ? await createTelegraphPage(env.TELEGRAPH_TOKEN, `product-${dateStr}`, renderTelegraphNodes(items)) : null;
+  if (telegraphUrl) {
+    // product 独立 Telegraph 页: 键 product:<date>(不与 digest 的 archive:tg:<date> 冲突)
+    try { await env.CACHE.put(`archive:tg:product:${dateStr}`, telegraphUrl); } catch { /* KV 忽略 */ }
+  }
+  const chunks = renderProductMessage(dateStr, items, telegraphUrl ?? undefined, env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
   await sendPerRepoMessages(env.BOT_TOKEN, env.CHAT_ID, chunks.map((html, i) => ({ html, ogUrl: items[i].url })), env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
   try { await env.CACHE.put(cacheKey, JSON.stringify({ chunks, repos: items.map((i) => i.title) }), { expirationTtl: 86400 }); } catch { /* 忽略 */ }
   await archiveToGitHub(env, `product/${dateStr}`, renderMarkdown(dateStr, items));
