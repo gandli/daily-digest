@@ -13,15 +13,20 @@ import { summarizeZh, translateTextZh, translateBatch, isChinese } from './trans
 // 北京时间日期串 YYYY-MM-DD(UTC+8 无 DST,直接偏移即可)
 export const shanghaiDate = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
 
-const HELP = `📊 daily-digest 使用:
-/trending — 获取今日 GitHub Trending
-/product — 获取今日 HN 新品/开源项目
+const HELP = `📊 daily-digest 使用
+
+<b>命令</b>
+/trending — 今日 GitHub Trending
+/product — 今日 HN 新品/开源
 /search 关键词 — 搜索历史存档
-/archive — 查看历史存档链接
-发 GitHub 仓库链接 = 单仓查询(自动去重)。
-发 X/Twitter 帖子链接 = 帖子存档。
-发任意网页链接 = 转 markdown 存档。
-每天 08:30(北京时间)自动推送一条。`;
+/archive — 历史存档(分页+三链)
+
+<b>链接</b>
+GitHub 仓库链接 → 单仓查询存档
+X/Twitter 链接 → 帖子存档
+任意网页链接 → markdown 存档
+
+每天 08:30(北京时间)自动推送。`;
 
 // /search: 单键压缩索引(search:index)内存过滤。旧实现逐条 KV get 6076 次——免费版单请求
 // 50 子请求上限直接打爆, /search 因此无响应。索引由 scripts/seed-search-index.ts 播种,
