@@ -232,8 +232,8 @@ export async function archiveTweet(
       tweetDescZh = (s && isChinese(s) ? s : await translateTextZh(env, tweet.text.slice(0, 120)).catch(() => null)) ?? undefined;
     }
     await indexArchivedItems(env, [{ title: `x/@${handle}`, url: tweet.url ?? '', desc: tweetDescZh, descZh: tweetDescZh } as SourceItem], stamp);
-    // 帖子正文含 GitHub repo 链接 → 联动查询(与 URL 存档同款扫描)
-    await fanoutRepoRefs(env, chatId, md, ctx);
+    // 帖子正文含 GitHub repo 链接 → 联动查询(后台独立 waitUntil, 不阻塞主卡; repo 多时分批防子请求上限)
+    if (ctx) ctx.waitUntil(fanoutRepoRefs(env, chatId, md, ctx));
     const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
     // 统一格式化回复(与网页存档同款三行式): 标题行 / 中文摘要 / 双存档链接
     const escT = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
