@@ -6,7 +6,7 @@ import { fetchHackerNewsProducts } from './sources/hn';
 import { sendPerRepoMessages, sendTelegram, sendPhotoOrText, sendVideoOrText, registerCommands, safeEqual, sendTelegramKbd, answerCallbackQuery, editMessageKbd, type InlineKB } from './notify';
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage } from './archive';
 import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, archiveLinks, backfillDescriptions } from './lookup';
-import { extractUrl } from './urlmd';
+import { extractUrl, urlToMarkdown } from './urlmd';
 import { extractTweet, fetchTweet, renderTweetHtml, type FxTweet } from './fxtweet';
 import { summarizeZh, translateTextZh, translateBatch, isChinese } from './translate';
 
@@ -396,15 +396,27 @@ export async function runProductDigest(env: Env, useCache = true): Promise<numbe
     return -1;
   }
   if (!items.length) { console.log('hn: no new products today'); return 0; }
-  // HN Show HN 多为空正文 — 标题翻译成中文给描述; 从标题抽领域关键词打标签。
+  // HN Show HN 多为空正文: ① 有 url → 拉正文 → CF Summarization 中文摘要(分批 2 防子请求爆);
+  // ② 无 url/正文拉取失败 → 标题翻译兜底。③ 从标题抽领域标签。
+  const needBody = items.filter((it) => !it.desc && it.url && /^https?:\/\//.test(it.url));
+  // ponytail: urlToMarkdown 三级链每条 ~2-3 子请求, 2 个/批 ≈ 6 < 50; 10 条全拉会超上限
+  for (let i = 0; i < needBody.length; i += 2) {
+    await Promise.all(
+      needBody.slice(i, i + 2).map(async (it) => {
+        try {
+          const md = await urlToMarkdown(env, it.url, { accountId: env.CF_ACCOUNT_ID, apiToken: env.CF_API_TOKEN });
+          const body = md.replace(/[#*>`|!\-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 2000);
+          if (body.length > 40) { it.desc = body; it.descZh = (await summarizeZh(env, body).catch(() => null)) ?? undefined; }
+        } catch { /* 拉正文失败 → 落标题翻译兜底 */ }
+      }),
+    );
+  }
   await Promise.all(
     items.map(async (it) => {
-      if (!it.desc) { // Algolia story_text 常空 → 用标题翻译作描述(may 需补前缀)
-        it.desc = it.title;
-      }
+      if (!it.desc) it.desc = it.title; // 仍无正文 → 标题作描述
       if (!isChinese(it.desc)) {
         it.descZh = (await translateTextZh(env, it.desc.slice(0, 500)).catch(() => null)) ?? undefined;
-      } else { it.descZh = it.desc; }
+      } else if (!it.descZh) { it.descZh = it.desc; }
       it.topics = topicsFromTitle(it.title);
     }),
   );
