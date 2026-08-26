@@ -23,7 +23,7 @@ export function extractDeepwikiOverview(payload: string, maxLen = 400): string |
   // 去掉 deepwiki 模板开场白: "This page/document provides a high-level/comprehensive introduction to X, <真实描述>"
   // 目标: 取描述(X 之后 / 逗号之后的实义内容), 不要"本页面提供了...介绍"这类无信息开头
   let stripped = clean;
-  const tpl = /^this\s+(?:page|document|guide|wiki)\s+(?:provides\s+)?(?:a\s+)?(?:comprehensive\s+|high-level\s+)?(?:introduction|overview|description)\s+(?:of|to)\s+/i;
+  const tpl = /^this\s+(?:page|document|guide|wiki)\s+(?:provides\s+)?(?:a|an)\s+(?:comprehensive\s+|high-level\s+)?(?:introduction|overview|description)\s+(?:of|to)\s+/i;
   const tplm = stripped.match(tpl);
   if (tplm) {
     const rest = stripped.slice(tplm[0].length);
