@@ -1,6 +1,6 @@
 // fxtweet: 链接提取 + HTML 渲染转义 + fetchTweet 拉取测试
 import { describe, it, expect, afterEach } from 'vitest';
-import { extractTweet, renderTweetHtml, fetchTweet } from '../src/fxtweet';
+import { extractTweet, renderTweetHtml, fetchTweet, articleToText } from '../src/fxtweet';
 
 describe('extractTweet: X/Twitter 帖子链接', () => {
   it('x.com 标准链接', () => {
@@ -87,5 +87,22 @@ describe('fetchTweet: FxEmbed 拉取', () => {
   it('网络异常 → null(不抛)', async () => {
     globalThis.fetch = (async () => { throw new Error('net'); }) as typeof fetch;
     expect(await fetchTweet('j', '1')).toBeNull();
+  });
+});
+
+describe('articleToText: 嵌套文章 blocks → 纯文本', () => {
+  it('无文章 → null', () => {
+    expect(articleToText({ text: 'x' } as never)).toBeNull();
+  });
+  it('有文章 → 拼接非空段', () => {
+    const t = { article: { content: { blocks: [
+      { type: 'unstyled', text: '第一段正文' },
+      { type: 'unstyled', text: '' },
+      { type: 'header-one', text: '章节标题' },
+    ] } } } as never;
+    const out = articleToText(t) ?? '';
+    expect(out).toContain('第一段正文');
+    expect(out).toContain('章节标题');
+    expect(out).not.toContain('\n\n\n'); // 空段被滤
   });
 });
