@@ -7,7 +7,7 @@ import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage } from './ar
 import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, archiveLinks } from './lookup';
 import { extractUrl } from './urlmd';
 import { extractTweet, fetchTweet, renderTweetHtml, type FxTweet } from './fxtweet';
-import { summarizeZh, translateTextZh, isChinese } from './translate';
+import { summarizeZh, translateTextZh, translateBatch, isChinese } from './translate';
 
 // 北京时间日期串 YYYY-MM-DD(UTC+8 无 DST,直接偏移即可)
 export const shanghaiDate = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
@@ -40,19 +40,11 @@ export async function searchArchive(env: Env, chatId: string, query: string, pag
     const entries = JSON.parse(raw) as [string, string, string, string, string?][]; // [src,name,url,hay,desc]
     const q = query.toLowerCase();
     // ponytail: 线性扫描 6076 条毫秒级; 索引超 5 万条再考虑分片
-    const hits: string[] = [];
-    const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
+    type Hit = { src: string; name: string; url: string; desc?: string };
+    const hits: Hit[] = [];
     for (const [src, name, url, hay, desc] of entries) {
       if (!hay.includes(q)) continue;
-      const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      if (src === 'arch') {
-        // url 字段此时存 date; name=repo
-        const date = url;
-        const link = `https://github.com/${repo}/blob/archive/archive/${date.slice(0, 4)}/${date}.md`;
-        hits.push(`📄 <a href="${link}">${esc(name)} · ${date}</a>${desc ? `\n   ${esc(desc)}` : ''}`);
-      } else {
-        hits.push(`${src === 'star' ? '⭐' : '📑'} <a href="${url}">${esc(name)}</a>${desc ? `\n   ${esc(desc)}` : ''}`);
-      }
+      hits.push({ src, name, url, desc });
     }
     // 分页渲染 + inline keyboard 翻页(复用 archive 同款模式: answerCallbackQuery 放 finally)
     const total = hits.length;
@@ -60,6 +52,26 @@ export async function searchArchive(env: Env, chatId: string, query: string, pag
     const p = Math.min(Math.max(0, page), maxPage - 1);
     const start = p * SEARCH_PAGE;
     const slice = hits.slice(start, start + SEARCH_PAGE);
+    // 当页英文描述 → 批量译中(用户要求所有项目带中文描述)。失败保原文明示。
+    const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
+    const needTs = slice.filter((h): h is Hit & { desc: string } => !!h.desc && !isChinese(h.desc)).map((h) => ({ title: h.name, url: h.url, desc: h.desc } as SourceItem));
+    const zhMap = new Map<string, string>();
+    if (needTs.length) {
+      try {
+        const t = await translateBatch(env, needTs);
+        needTs.forEach((it, i) => { if (t[i]?.descZh) zhMap.set(it.desc, t[i].descZh); });
+      } catch { /* 翻译失败保原文明示 */ }
+    }
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const lines = slice.map((h) => {
+      const d = h.desc ? (zhMap.get(h.desc) || h.desc) : '';
+      if (h.src === 'arch') {
+        const date = h.url; // url 槽存 date
+        const link = `https://github.com/${repo}/blob/archive/archive/${date.slice(0, 4)}/${date}.md`;
+        return `📄 <a href="${link}">${esc(h.name)} · ${date}</a>${d ? `\n   ${esc(d)}` : ''}`;
+      }
+      return `${h.src === 'star' ? '⭐' : '📑'} <a href="${h.url}">${esc(h.name)}</a>${d ? `\n   ${esc(d)}` : ''}`;
+    });
     const eq = query.replace(/&/g, '&amp;').replace(/</g, '&lt;');
     // 翻页机制: token = query 哈希(确定, 幂等), 渲染时把 query 写 KV search:q:<token>(TTL 1h)。
     // callback_data 只带 sch:page:q<token> —— 64B 内, query 再长也不截断。
@@ -82,7 +94,7 @@ export async function searchArchive(env: Env, chatId: string, query: string, pag
       if (jump.length) kb.inline_keyboard.push(jump);
     }
     const head = total ? `🔍 「${eq}」${total} 条命中 (第 ${p + 1}/${maxPage} 页)` : `🔍 没有找到「${eq}」`;
-    const text = total ? `${head}:\n\n${slice.join('\n')}` : head;
+    const text = total ? `${head}:\n\n${lines.join('\n')}` : head;
     if (messageId) await editMessageKbd(env.BOT_TOKEN, chatId, messageId, text, kb);
     else if (kb.inline_keyboard.length) await sendTelegramKbd(env.BOT_TOKEN, chatId, text, kb);
     else await sendTelegram(env.BOT_TOKEN, chatId, text);
