@@ -399,8 +399,9 @@ export async function runProductDigest(env: Env, useCache = true): Promise<numbe
   // HN Show HN 多为空正文: ① 有 url → 拉正文 → CF Summarization 中文摘要(分批 2 防子请求爆);
   // ② 无 url/正文拉取失败 → 标题翻译兜底。③ 从标题抽领域标签。
   const needBody = items.filter((it) => !it.desc && it.url && /^https?:\/\//.test(it.url));
-  // ponytail: urlToMarkdown 三级链每条 ~2-3 子请求, 2 个/批 ≈ 6 < 50; 10 条全拉会超上限
-  for (let i = 0; i < needBody.length; i += 2) {
+  // ponytail: OpenRouter 深度摘要(2-4s/篇) + urlToMarkdown(2-3子请求) —— 全量 10 篇超 30s waitUntil 限, 缓存永不落。
+  // 只前 4 篇做深度摘要(≈20s < 30s), 其余落标题翻译兜底。要全量深度摘要需拆独立 waitUntil/队列, 暂不。
+  for (let i = 0; i < Math.min(needBody.length, 4); i += 2) {
     await Promise.all(
       needBody.slice(i, i + 2).map(async (it) => {
         try {
