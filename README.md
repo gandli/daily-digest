@@ -22,13 +22,13 @@ GitHub Trending → **Telegram 每日中文摘要 bot**。Cloudflare Workers 免
 
 | 输入 | 行为 |
 |---|---|
-| `/trending` | 当日榜单(强制全管线,带 OG 图;cron 结果 KV 缓存供内部幂等) |
-| `/search <关键词>` | 搜索历史存档(KV 索引,repo 名或中文描述,结果含描述) |
-| `/archive` | 历史存档链接(GitHub archive 分支) |
-| `/start` `/help` 其他无链接消息 | 使用提示 |
-| 含 GitHub 仓库链接 / `owner/repo` 的消息 | 单仓库查询:GitHub API + deepwiki/zread 中文描述 → OG 图卡片回复,并存档(同日去重) |
-| 含 X/Twitter 帖子链接的消息 | FxEmbed API 取帖子 → 卡片回复 + **双存档**(archive 分支 + Telegraph 页),媒体直链可显示 |
-| 含其他网页链接的消息 | 三级免费链转 markdown 存档,回复带 **OG 图 + 中文摘要 + 存档链接**;内容含 repo 链接时自动联动查询(≤3 个) |
+| `/trending` | 当日榜单(cron 已抓取,读 `digest:<date>` 缓存秒回;当天 trending 固定不重抓) |
+| `/search <关键词>` | 全索引搜索(星标/书签/存档 6000+ 条),结果当页英文描述批量译中,分页 + inline keyboard 翻页/跳转 |
+| `/archive [页码]` | 历史存档分页列表,每条约**存档三链**(Telegraph → 互联网档案馆 web.archive.org → GitHub md) |
+| `/start` `/help` 其他 | 使用提示 + 命令菜单注册 |
+| 含 GitHub 仓库链接 | 单仓库查询 + 中文描述 → OG 卡;当日已查回存档三链卡;存档 archive 分支 |
+| 含 X/Twitter 链接 | FxEmbed 取帖 → **中文摘要 + 三级存档**(Telegraph/互联网档案馆/GitHub md) |
+| 含其他网页链接 | markdown 三级链 → **中文摘要(summarizeZh)** → 三级存档;重发 done 回存档链接而非"已处理过" |
 
 ## 🔗 描述获取链
 
@@ -40,6 +40,13 @@ deepwiki 概述(剥模板开场白)
 ```
 
 **100% 中文守卫**:非中文结果一律不渲染。
+
+## 📦 存档三链
+
+所有链接(网页 / X 帖 / repo)归档后回**三级存档链接**,按优先级展示:
+1. **Telegraph** — 长文备份页(每日 digest 与 X 帖各自建页)
+2. **互联网档案馆** `web.archive.org` — 兜底快照(`web/2/<url>` 自动定位最近版本)
+3. **GitHub md** — archive 分支 markdown 原文
 
 ## 🏗️ 架构
 
@@ -62,7 +69,8 @@ npm install
 npm run dev        # wrangler dev --test-scheduled
 curl http://localhost:8787/__scheduled   # 手动触发 cron 管线
 npx tsc --noEmit   # 类型检查
-npm test           # vitest 82 用例
+npm test           # vitest 139 用例(coverage ≥45%)
+npm test -- --coverage  # 覆盖率报告
 ```
 
 ## 🔑 Secrets(wrangler secret put)
@@ -71,14 +79,24 @@ BOT_TOKEN · CHAT_ID · WEBHOOK_SECRET · GH_TOKEN · TELEGRAPH_TOKEN(可选)
 
 ## 🚀 部署
 
-PR 合并 main → GitHub Actions 自动 `wrangler deploy`(需 repo secrets CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID)。
+PR 合并 main → GitHub Actions 自动 `wrangler deploy`(需 repo secrets CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID)。部署后自动播种 search:index(脚本从 library.jsonl 生成)。
 
-## 🗺️ v2 路线
+main push 另触发 changelog workflow 自动更新 [CHANGELOG.md](CHANGELOG.md)(conventional-changelog 按 squash PR title 分组)。
 
-网页收藏源、X 帖子源 —— 各写一个 fetch 函数接入 `src/sources/index.ts` 即可,管线零改动。
+## 📚 文档
+
+- [`docs/GOAL.md`](docs/GOAL.md) — 验收契约(A1–A14,FR/AC/Milestones)
+- [`docs/INTERFACES.md`](docs/INTERFACES.md) — 命令 / HTTP 端点 / KV 键全表
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — 开发计划与进度
+- [`docs/diagrams/`](docs/diagrams/) — 架构 / 时序 / 数据流图(mmd+png+svg)
+
+## 🗺️ 路线
+
+- 短期:描述缓存 refresh 调优、search 翻译结果缓存回索引、archive:idx 补 url 字段(repo 重发三链更精确)
+- 长线:网页收藏源 / X 帖子源 —— 各一个 fetch 函数接入 `src/sources/index.ts` 即可,管线零改动
 
 ---
 
 <p align="center">
-  <sub>Cloudflare Workers 免费层 · 无 DB · KV only · 测试 95/95 · CI 自动部署</sub>
+  <sub>Cloudflare Workers 免费层 · 无 DB · KV only · 139 tests · CI 自动部署 · changelog 自动生成</sub>
 </p>
