@@ -325,17 +325,15 @@ async function replyArchived(env: Env, chatId: string, repo: string): Promise<vo
   }
   const archiveRepo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
   const link = `https://github.com/${archiveRepo}/blob/archive/archive/${it.date.slice(0, 4)}/${it.date}.md`;
-  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const d = it.descZh ?? it.desc;
-  // Telegraph 优先: 若有当日 Telegraph 页, 主链放 Telegraph, GitHub md 作备选
-  const tgUrl = (await env.CACHE.get(`archive:tg:${it.date}`).catch(() => null)) || '';
-  const archiveLinks = tgUrl
-    ? `<a href="${tgUrl}">📄 查看 Telegraph 存档</a> · <a href="${link}">GitHub md</a>`
-    : `<a href="${link}">查看存档</a>`;
-  const html =
-    `♻️ <b>${esc(it.repo)}</b> · 今日已存档\n\n` +
-    (d ? `${esc(d).slice(0, 300)}\n\n` : '') +
-    `📁 ${archiveLinks}`;
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const d = it.descZh ?? it.desc;
+    // 三链: Telegraph(当日有页) → web.archive(repo 源 URL) → GitHub md
+    const tgUrl = (await env.CACHE.get(`archive:tg:${it.date}`).catch(() => null)) || '';
+    const repoUrl = `https://github.com/${it.repo}`;
+    const html =
+      `♻️ <b>${esc(it.repo)}</b> · 今日已存档\n\n` +
+      (d ? `${esc(d).slice(0, 300)}\n\n` : '') +
+      `📁 ${archiveLinks(repoUrl, tgUrl || undefined, link)}`;
   const photo = `https://raw.githubusercontent.com/${archiveRepo}/archive/og-images/${it.repo.replace('/', '__')}.png`;
   await sendPhotoOrText(env.BOT_TOKEN, chatId, photo, html);
 }
@@ -364,11 +362,12 @@ async function renderArchivePage(env: Env, page: number): Promise<{ text: string
     let it: { repo: string; date: string; desc?: string; descZh?: string };
     try { it = JSON.parse(raw); } catch { continue; }
     const date = it.date;
-    const link = `https://github.com/${repo}/blob/archive/archive/${date.slice(0, 4)}/${date}.md`;
-    const tgUrl = (await env.CACHE.get(`archive:tg:${date}`)) || '';
-    const d = it.descZh ?? it.desc;
-    const tgLink = tgUrl ? ` · <a href="${tgUrl}">📄 Telegraph</a>` : '';
-    lines.push(`<a href="${link}">${esc(it.repo)} · ${date}</a>${tgLink}${d ? `\n   ${esc(d).slice(0, 120)}` : ''}`);
+        const link = `https://github.com/${repo}/blob/archive/archive/${date.slice(0, 4)}/${date}.md`;
+        const tgUrl = (await env.CACHE.get(`archive:tg:${date}`)) || '';
+        const d = it.descZh ?? it.desc;
+        // 三链各给: repo 源 URL → web.archive, 当日 telegraph, github md
+        const links = archiveLinks(`https://github.com/${it.repo}`, tgUrl || undefined, link);
+        lines.push(`<a href="${link}">${esc(it.repo)} · ${date}</a>\n   📦 ${links}${d ? `\n   ${esc(d).slice(0, 120)}` : ''}`);
   }
   const text = `📂 历史存档 (第 ${page + 1}/${maxPage} 页, 共 ${total} 条)\n\n${lines.join('\n')}`;
   return { text, kb: buildArchiveKeyboard(page, maxPage), total };
@@ -554,12 +553,13 @@ export default {
           let stamp = '';
           try { stamp = rec ? (JSON.parse(rec)?.md ?? '') : ''; } catch { /* 忽略 */ }
           if (stamp) {
-            const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
-            const link = `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`;
-            const tgUrl = (await env.CACHE.get(`archive:tg:${stamp.slice(0, 10)}`).catch(() => null)) || '';
-            const archiveLinks = tgUrl ? `<a href="${tgUrl}">📄 查看 Telegraph 存档</a> · <a href="${link}">GitHub md</a>` : `<a href="${link}">查看存档</a>`;
-            await sendTelegram(env.BOT_TOKEN, chatId, `♻️ <b>该链接此前已处理归档</b>\n\n📁 ${archiveLinks}`);
-          } else {
+                      const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
+                      const link = `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`;
+                      const tgUrl = (await env.CACHE.get(`archive:tg:${stamp.slice(0, 10)}`).catch(() => null)) || '';
+                      // 三链: Telegraph → web.archive(源 URL) → GitHub md
+                      const links = archiveLinks(url, tgUrl || undefined, link);
+                      await sendTelegram(env.BOT_TOKEN, chatId, `♻️ <b>该链接此前已处理归档</b>\n\n📁 ${links}`);
+                    } else {
             // 老记录无 md——重挂一次归档补上存档信息, 回给用户(而非"无需重复")
             await sendTelegram(env.BOT_TOKEN, chatId, '♻️ 已识别此前处理过, 重新归档取回存档链接…');
             await archiveUrl(env, chatId, url, ctx);
