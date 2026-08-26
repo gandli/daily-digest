@@ -380,7 +380,7 @@ async function renderArchivePage(env: Env, page: number): Promise<{ text: string
         const d = it.descZh ?? it.desc;
         // 三链各给: repo 源 URL → web.archive, 当日 telegraph, github md
         const links = archiveLinks(`https://github.com/${it.repo}`, tgUrl || undefined, link);
-        lines.push(`<a href="${link}">${esc(it.repo)} · ${date}</a>\n   📦 ${links}${d ? `\n   ${esc(d).slice(0, 120)}` : ''}`);
+        lines.push(`<a href="${link}">${esc(it.repo)} · ${date}</a>\n   ${links}${d ? `\n   ${esc(d).slice(0, 120)}` : ''}`);
   }
   const text = `📂 历史存档 (第 ${page + 1}/${maxPage} 页, 共 ${total} 条)\n\n${lines.join('\n')}`;
   return { text, kb: buildArchiveKeyboard(page, maxPage), total };

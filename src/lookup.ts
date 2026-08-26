@@ -77,11 +77,11 @@ export async function fanoutRepoRefs(env: Env, chatId: string, text: string, ctx
 /** 三链存档链接: Telegraph(有则主) → web.archive.org(有源 URL) → GitHub md(兜底)。HTML 转义。 */
 export function archiveLinks(url: string | undefined, tgUrl: string | undefined, mdLink: string): string {
   const links: string[] = [];
-  if (tgUrl) links.push(`<a href="${tgUrl}">📄 Telegraph</a>`);
+  if (tgUrl) links.push(`<a href="${tgUrl}">Telegraph</a>`);
   // web.archive 兜底快照——用最近时间戳(web/2/ 重定向到最新快照)。任一 URL 形状都可归档。
-  if (url) links.push(`<a href="https://web.archive.org/web/2/${encodeURIComponent(url).replace(/%3A/g, ':').replace(/%2F/g, '/')}">🕸 互联网档案馆</a>`);
-  links.push(`<a href="${mdLink}">📁 GitHub md</a>`);
-  return links.join(' · ');
+  if (url) links.push(`<a href="https://web.archive.org/web/2/${encodeURIComponent(url).replace(/%3A/g, ':').replace(/%2F/g, '/')}">互联网档案馆</a>`);
+  links.push(`<a href="${mdLink}">GitHub md</a>`);
+  return `📎 ${links.join(' · ')}`;
 }
 
 /** 存档成功后写 /search 索引(archive:idx:<repo> → {repo, date, descZh})。 */
