@@ -56,4 +56,4 @@ jobs:
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then exit 0; fi
           if [ ! -f data/library.jsonl ]; then echo "::notice::library.jsonl missing, skip seeding"; exit 0; fi
           node scripts/seed-search-index.mjs
-          npx wrangler kv key put "search:index" --path=data/lib-index.json --namespace-id=51e73f8381d34b9c95eaebdf4f7d8101
+          npx wrangler kv key put "search:index" --path=data/lib-index.json --namespace-id=51e73f8381d34b9c95eaebdf4f7d8101 --remote
