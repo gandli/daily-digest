@@ -80,6 +80,24 @@ async function viaGenedai(env: Env, url: string): Promise<string | null> {
   }
 }
 
+/** 方法 0.6(免 key): markdown.new POST → 干净 markdown(三档自折叠, 覆盖 JS 动态页)。公平 500req/day。 */
+async function viaMarkdownNew(url: string): Promise<string | null> {
+  try {
+    const res = await fetch('https://markdown.new/', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'User-Agent': UA_DESKTOP },
+      body: JSON.stringify({ url }),
+      signal: AbortSignal.timeout(45000),
+    });
+    if (!res.ok) return null;
+    const j = (await res.json()) as { success?: boolean; content?: string };
+    const body = j.content?.replace(/[#*>\s]*$/, '').trim() ?? '';
+    return body.length > 40 ? body : null;
+  } catch {
+    return null;
+  }
+}
+
 /** 方法1: Markdown for Agents(仅 CF 托管+已开启站点有效)。 */
 async function viaMarkdownForAgents(url: string): Promise<string | null> {
   try {
@@ -167,6 +185,9 @@ export async function urlToMarkdown(
   // 方法0.5: genedai(有 key) Jina 失败兜底
   const m05 = await viaGenedai(env, url);
   if (m05) return m05;
+  // 方法0.6: markdown.new 免 key, 覆盖 JS 动态页
+  const m06 = await viaMarkdownNew(url);
+  if (m06) return m06;
 
   const m1 = await viaMarkdownForAgents(url);
   if (m1) return m1;
