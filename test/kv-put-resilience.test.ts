@@ -6,7 +6,6 @@ vi.mock('../src/notify', () => ({
   sendTelegram: (...a: unknown[]) => { sendMock(...a); return Promise.resolve(); },
   sendPerRepoMessages: () => Promise.resolve(),
   sendPhotoOrText: () => Promise.resolve(),
-  sendVideoOrText: () => Promise.resolve(),
   registerCommands: () => Promise.resolve(),
 }));
 

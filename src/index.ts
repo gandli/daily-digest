@@ -1,8 +1,8 @@
 import type { Env, SourceItem } from './types';
-import { sources } from './sources';
+import { fetchTrending } from './sources/trending';
 import { resolveDescriptions } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes, renderProductMessage, esc } from './render';
-import { sendPerRepoMessages, sendTelegram, sendChatAction, sendPhotoOrText, sendVideoOrText, registerCommands, safeEqual, sendTelegramKbd, answerCallbackQuery, editMessageKbd, type InlineKB } from './notify';
+import { sendPerRepoMessages, sendTelegram, sendChatAction, sendPhotoOrText, registerCommands, safeEqual, sendTelegramKbd, answerCallbackQuery, editMessageKbd, type InlineKB } from './notify';
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage } from './archive';
 import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, archiveLinks, backfillDescriptions } from './lookup';
 import { extractUrl } from './urlmd';
@@ -162,8 +162,6 @@ async function listAll(env: Env, prefix: string): Promise<{ keys: { name: string
   return { keys };
 }
 
-/** 存档成功后写搜索索引(lookup 单仓与 digest 批量共用)。实现见 lookup.ts(indexArchivedItems)。 */
-
 /**
  * X 帖子存档: FxEmbed API 拉元数据 → 回复卡片 → archive 分支存档。
  * API 失败落回通用 URL→markdown 链(x.com 反爬, 多半也失败, 但给用户一致行为)。
@@ -305,7 +303,7 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
   // 1. 抓取全部源(v1 仅 trending)
   let items: SourceItem[] = [];
   try {
-    for (const s of sources) items = items.concat(await s.fetch(env));
+    items = await fetchTrending();
   } catch (e) {
     console.error('fetch failed', e);
     await sendTelegram(
@@ -531,8 +529,7 @@ export default {
       // /preview: 数据管线自检(抓取→翻译→渲染, 不发消息)。仅未配凭证时开放。
       if (url.pathname === '/preview' && !env.BOT_TOKEN) {
         const dateStr = shanghaiDate();
-        let items: SourceItem[] = [];
-        for (const s of sources) items = items.concat(await s.fetch(env));
+        const items: SourceItem[] = await fetchTrending();
         await resolveDescriptions(env, items);
         const nodes = renderTelegraphNodes(items);
         let telegraphUrl: string | null = null;
