@@ -404,7 +404,7 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
     const host = new URL(url).hostname;
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const confirm = [
-      `📄 <b>网页存档</b> · ${esc(host)}`,
+      `📄 <b><a href="${esc(url)}">网页存档 · ${esc(host)}</a></b>`,
       summaryZh ? `\n📝 <b>摘要</b> ${esc(summaryZh).slice(0, 300)}` : '',
       `\n📁 ${archiveLinks(url, undefined, `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`)}`,
     ].join('');
