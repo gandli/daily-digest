@@ -20,15 +20,28 @@ export async function sendTelegram(token: string, chatId: string, html: string):
   if (!res.ok) console.error(`sendMessage ${res.status}: ${await res.text()}`);
 }
 
-/** 图卡合一: photo=直链图 → sendPhoto(caption=html); 失败 → 纯文字 sendMessage。每条消息必带图的总入口。 */
-export async function sendPhotoOrText(token: string, chatId: string, photo: string | undefined, html: string): Promise<void> {
+/** 图卡合一: photo=直链图 → sendPhoto(caption=html); 失败 → 纯文字 sendMessage。每条消息必带图的总入口。
+ * cache 可选(telegram 图床): 首次 sendPhoto 用 URL 上传, TG 返回 file_id 存 KV; 同图复用 file_id 免重复抓取/免存 GitHub。
+ * key 用 photo URL 本身(normalize), 稳定复用。ponytail: 不校验 file_id 有效性, TG 失败即回退重传。 */
+export async function sendPhotoOrText(token: string, chatId: string, photo: string | undefined, html: string, cache?: { get: (k: string) => Promise<string | null>; put: (k: string, v: string) => Promise<void> }): Promise<void> {
   if (photo) {
+    // 图床 key = photo URL(短 hash)。重复图直接复用已存 file_id。
+    const key = photo.startsWith('https://') ? `og:${photo}` : undefined;
+    let fileId: string | null = null;
+    if (cache && key) fileId = await cache.get(key).catch(() => null);
+    const payload: Record<string, unknown> = { chat_id: chatId, photo: fileId ?? photo, caption: html.slice(0, 1020), parse_mode: 'HTML' };
     const res = await fetch(`${API}/bot${token}/sendPhoto`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, photo, caption: html.slice(0, 1020), parse_mode: 'HTML' }),
+      body: JSON.stringify(payload),
     }).catch(() => null);
-    if (res?.ok) return;
+    if (res?.ok) {
+      // 存图床 file_id 供复用(TG 会先下载 URL 再返回 id; 下次直接传 id 免 TG 再抓外部图)
+      if (cache && key && !fileId) {
+        try { const j = await res.clone().json() as { result?: { photo?: { file_id?: string }[] } }; if (j.result?.photo?.[0]?.file_id) await cache.put(key, j.result.photo[0].file_id); } catch { /* 图床缓存失败不影响本次 */ }
+      }
+      return;
+    }
     console.error(`sendPhoto ${res?.status ?? 'net'}, fallback text`);
   }
   await sendTelegram(token, chatId, html);
