@@ -40,8 +40,13 @@ export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl
     const topicTags = (it.topics ?? []).map((t) => `#${t}`).join(' ');
     const tags = [`#trending`, topicTags].filter(Boolean).join(' ');
     const descLine = isChinese(it.descZh) ? `${esc(unesc(it.descZh!))}` : ''; // ponytail: 非中文/空 → 整行跳过, 不泄露 repo 英文一句话
+    // 作者 = repo owner(title 前段), 有 createdAt 时显示创建日期(YYYY-MM-DD)
+    const owner = it.author ?? (it.title.includes('/') ? it.title.split('/')[0] : undefined);
+    const created = it.createdAt ? it.createdAt.slice(0, 10) : '';
+    const metaLine = [owner ? `👤 ${esc(owner)}` : '', created ? `📅 ${created}` : ''].filter(Boolean).join(' · ');
     const body =
       `<b><a href="${esc(it.url)}">${esc(it.titleZh ?? it.title)}</a></b>${stars}${langTag}\n\n` + // 标题层(中文优先)
+      (metaLine ? `${metaLine}\n\n` : '') + // 作者/创建日期层
       descLine + // 描述层(仅来自 zread/deepwiki 的中文)
       (tags ? `\n\n${tags}` : '');
     // ponytail: wikiDesc 极端超长时仍可能超4096——截断到安全长度
