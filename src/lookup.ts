@@ -1,7 +1,7 @@
 import type { Env, SourceItem } from './types';
 import { resolveDescriptions, translateBatch, translateTextZh, isChinese, summarizeZh, generateTagsZh } from './translate';
 import { fetchDeepwikiOverview } from './deepwiki';
-import { renderMessage, renderMarkdown } from './render';
+import { renderMessage, renderMarkdown, esc } from './render';
 import { sendPerRepoMessages, sendTelegram } from './notify';
 import { archiveToGitHub, archiveOgImage } from './archive';
 import { urlToMarkdown, extractOgImage } from './urlmd';
@@ -79,7 +79,6 @@ export async function fanoutRepoRefs(env: Env, chatId: string, text: string, ctx
   if (!fresh.length) return;
   // ponytail 方案A: 多 repo 用精简卡(GitHub 描述原文, 不 deepwiki/翻译/三链) —— 每 repo ~2 子请求, 全并发 9 ≈18 < 50
   // → 单请求能全出(完整 lookupRepo 5-6 子请求/个 ×9 >50 铁超)。单 repo 查询仍走完整 lookupRepo(其他调用)。
-  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const stamp = `${today()}-${Date.now() % 86400000}`;
   await Promise.all(
     fresh.map(async (r) => {
@@ -447,7 +446,6 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
     if (!isChinese(titleZh) && env.OPENROUTER_API_KEY) {
       titleZh = (await translateTextZh(env, title).catch(() => null)) ?? title;
     }
-    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     // 统一印刷: 标题直链(中文优先) / 中文摘要 / 标签 / 存档三链——对齐 repo 卡的 renderMessage 三段结构
     // 标签: 无现成 topics 时用 LLM 生成领域标签
     let tagsZh: string[] | null = null;
