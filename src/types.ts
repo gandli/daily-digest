@@ -28,6 +28,8 @@ export type SourceItem = {
   lang?: string;
   stars?: number; // 总星数
   starsToday?: number; // 今日新增
+  author?: string; // HN 用户名(zeli 风格展示)
+  createdAt?: string; // ISO 时间(zeli 风格: about X hours ago)
 };
 
 export type Source = {
