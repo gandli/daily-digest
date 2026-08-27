@@ -105,10 +105,11 @@ export async function sendPerRepoMessages(
       }
       if (!photoUrl) {
         // 无图 → 直接纯文字
-        await fetch(`${API}/bot${token}/sendMessage`, {
+        const r = await fetch(`${API}/bot${token}/sendMessage`, {
           method: 'POST', headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ chat_id: chatId, text: m.html, parse_mode: 'HTML', link_preview_options: m.ogUrl ? { url: m.ogUrl, prefer_large_media: true } : undefined }),
         });
+        await r.text(); // 消费 body 防 stalled HTTP response
         return;
       }
       // TG 服务端代抓(photo=URL)——省 Worker 子请求, 代抓失败自动降级
@@ -122,6 +123,7 @@ export async function sendPerRepoMessages(
           parse_mode: 'HTML',
         }),
       });
+      await res.text(); // 消费 body 防 stalled HTTP response
       // 自托管 404(该 repo 未入库) → 回退官方 OG 再试
       if (!res.ok && selfRetry) {
         const retry = await fetch(`${API}/bot${token}/sendPhoto`, {
@@ -129,6 +131,7 @@ export async function sendPerRepoMessages(
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ chat_id: chatId, photo: selfRetry, caption: m.html.slice(0, 1020), parse_mode: 'HTML' }),
         });
+        await retry.text(); // 消费 body
         if (retry.ok) return;
       }
       if (!res.ok) {
@@ -138,7 +141,8 @@ export async function sendPerRepoMessages(
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ chat_id: chatId, text: m.html, parse_mode: 'HTML', link_preview_options: m.ogUrl ? { url: m.ogUrl, prefer_large_media: true } : undefined }),
         });
-        if (!fb.ok) console.error(`sendMessage fallback also failed ${fb.status}: ${(await fb.text()).slice(0, 120)}`);
+        const fbBody = await fb.text(); // 消费 body 防 stalled HTTP response
+        if (!fb.ok) console.error(`sendMessage fallback also failed ${fb.status}: ${fbBody.slice(0, 120)}`);
       }
     }),
   );
