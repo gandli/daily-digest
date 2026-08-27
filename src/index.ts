@@ -231,6 +231,8 @@ export async function archiveTweet(
   try {
     await archiveDatedToGitHub(env, stamp, md);
     // Telegraph 存档(单帖一页; 失败静默——增强非必需)
+    // 页标题 = LLM 帖子标题(易读), 失败回退 "X · @handle · 日期"
+    const titleZh = await generateTitleZh(env, (tweet.text ?? '').slice(0, 600)).catch(() => null);
     let tgLine = '';
     let tgPageUrl = '';
     if (env.TELEGRAPH_TOKEN) {
@@ -242,7 +244,7 @@ export async function archiveTweet(
         ...(tweet.media?.all ?? []).map((m) => ({ tag: 'figure' as const, children: [{ tag: 'img' as const, attrs: { src: m.thumbnail_url ?? m.url ?? '' } }] })),
         { tag: 'p', children: [{ tag: 'a', attrs: { href: tUrl }, children: ['原帖'] }] },
       ];
-      const pageUrl = await createTelegraphPage(env.TELEGRAPH_TOKEN, `X · @${handle} · ${stamp.slice(0, 10)}`, nodes);
+      const pageUrl = await createTelegraphPage(env.TELEGRAPH_TOKEN, titleZh || `X · @${handle} · ${stamp.slice(0, 10)}`, nodes);
       if (pageUrl) {
         tgLine = `\n📄 Telegraph: ${pageUrl}`;
         tgPageUrl = pageUrl;
@@ -265,8 +267,7 @@ export async function archiveTweet(
     const tags = await generateTagsZh(env, (tweet.text ?? '').slice(0, 300)).catch(() => null);
     const tagLine = `#archive${tags?.length ? ` ${tags.map((t) => `#${t}`).join(' ')}` : ''}`;
     const links = `${tagLine}\n\n📁 ${archiveLinks(tUrl, tgLine ? tgLine.split(' ').pop() : undefined, `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`)}`;
-    const titleZh = generateTitleZh(env, (tweet.text ?? '').slice(0, 600)).catch(() => null);
-    const card = renderTweetHtml(tweet, (await titleZh) ?? '', hasZh ? textZh! : (tweet.text ?? ''), '', links);
+    const card = renderTweetHtml(tweet, titleZh ?? '', hasZh ? textZh! : (tweet.text ?? ''), '', links);
     // Tweet 卡链接预览 = Telegraph 页(og:image 由 Telegraph 渲染), 无 Telegraph 回退原推 URL。
     // 不用 sendPhotoOrText(发媒体图) —— 用户指定 Telegraph 作链接预览。
     await sendPerRepoMessages(env.BOT_TOKEN, chatId, [{ html: card, ogUrl: tgPageUrl || tUrl }], repo);
