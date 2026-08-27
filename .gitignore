@@ -9,3 +9,4 @@ data/gen-snapshot.py
 data/retry-bulk-put.ts
 # library.jsonl 需入库供 CI deploy 播种 search:index, 不再 ignore
 coverage/
+.20260827_001518_3044be

@@ -400,13 +400,14 @@ export async function runProductDigest(env: Env, useCache = true): Promise<numbe
   if (!items.length) { console.log('hn: no new products today'); return 0; }
   // HN Show HN 多为空正文: ① 有 url → 拉正文 → OpenRouter 深度中文摘要(存 KV 防重复生成);
   // ② 无 url/正文拉取失败 → 标题翻译兜底。③ 从标题抽领域标签。
-    const needBody = items.filter((it) => !it.desc && it.url && /^https?:\/\//.test(it.url));
-    // ponytail 分块续跑: 深摘要全量遍历, KV 命中直接读(0开销); 未命中每请求最多生成 MAX 篇, 其余留下次 /product 续。
-    // 累积补全全部 10 篇 zeli 级摘要(每次 <30s), 不出单请求墙钟限。单篇整体 10s 封顶。
-    const MAX_DEEP_PER_RUN = 2;
-    let generated = 0;
-    for (const it of needBody) {
-      await Promise.race([
+  // ponytail: 串行 for+Promise.race(10×10s=100s)→ 超 30s waitUntil 墙, KV 永不写。改 Promise.all
+  // 并发 + 12s total 硬封顶, 10 篇 9s 内跑完。单篇 urlToMarkdown 由其内部 AbortSignal.timeout(20000) 兜。
+  const needBody = items.filter((it) => !it.desc && it.url && /^https?:\/\//.test(it.url));
+  const MAX_DEEP_PER_RUN = 2;
+  let generated = 0;
+  await Promise.all(
+    needBody.map((it) =>
+      Promise.race([
         (async () => {
           try {
             const cacheKey = `product:deep:${btoa(it.url).replace(/=+$/, '').slice(0, 40)}`;
@@ -425,9 +426,10 @@ export async function runProductDigest(env: Env, useCache = true): Promise<numbe
             }
           } catch { /* 拉正文失败 → 标题翻译兜底 */ }
         })(),
-        new Promise((r) => setTimeout(r, 10000)), // 单篇深摘要硬 10s 超时
-      ]);
-    }
+        new Promise((r) => setTimeout(r, 12000)), // 全部 urlToMarkdown 并发 12s 硬封顶
+      ]),
+    ),
+  );
   await Promise.all(
     items.map(async (it) => {
       if (!it.desc) it.desc = it.title; // 仍无正文 → 标题作描述
