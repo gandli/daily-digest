@@ -20,7 +20,6 @@ const relTime = (iso?: string): string => {
 // Telegram HTML 消息。一个项目一条消息(首条带头部), 标题/描述/wiki 分层, 带 topics 标签 + 存档三链。
 // archiveRepo: GitHub 存档仓库(用于拼 md 链接); 三链 = Telegraph(当日页,有则) → web.archive → GitHub md。
 export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl?: string, archiveRepo = 'gandli/daily-digest'): string[] {
-  const header = `📊 <b>${dateStr}</b>`;
   const mdPath = `https://github.com/${archiveRepo}/blob/archive/archive/${dateStr.slice(0, 4)}/${dateStr}.md`;
   const links = (it: SourceItem): string => {
     const l: string[] = [];
@@ -36,7 +35,7 @@ export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl
     const langTag = it.lang ? ` · #${it.lang}` : '';
     const today = it.starsToday ? ` (+${fmtK(it.starsToday)} 今日)` : '';
     const stars = it.stars !== undefined ? ` ⭐ ${fmtK(it.stars)}${today}` : '';
-    const head = i === 0 ? `${header}\n\n` : `<b>${i + 1}/${items.length}</b> `;
+    const head = i === 0 ? '' : `<b>${i + 1}/${items.length}</b> `;
     const topicTags = (it.topics ?? []).map((t) => `#${t}`).join(' ');
     const tags = [`#trending`, topicTags].filter(Boolean).join(' ');
     const descLine = isChinese(it.descZh) ? `${esc(unesc(it.descZh!))}` : ''; // ponytail: 非中文/空 → 整行跳过, 不泄露 repo 英文一句话

@@ -238,7 +238,7 @@ export async function archiveTweet(
         ...(tweet.media?.all ?? []).map((m) => ({ tag: 'figure' as const, children: [{ tag: 'img' as const, attrs: { src: m.thumbnail_url ?? m.url ?? '' } }] })),
         { tag: 'p', children: [{ tag: 'a', attrs: { href: tUrl }, children: ['原帖'] }] },
       ];
-      const pageUrl = await createTelegraphPage(env.TELEGRAPH_TOKEN, titleZh || `X · @${handle} · ${stamp.slice(0, 10)}`, nodes);
+      const pageUrl = await createTelegraphPage(env.TELEGRAPH_TOKEN, titleZh || `X · @${handle} · ${stamp}`, nodes);
       if (pageUrl) {
         tgLine = `\n📄 Telegraph: ${pageUrl}`;
         tgPageUrl = pageUrl;
@@ -347,7 +347,7 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
   if (env.TELEGRAPH_TOKEN) {
     const titleText = items.slice(0, 5).map((it) => it.title).join(', ');
     const tgTitle = await generateTitleZh(env, titleText).catch(() => null);
-    telegraphUrl = await createTelegraphPage(env.TELEGRAPH_TOKEN, tgTitle || dateStr, renderTelegraphNodes(items));
+    telegraphUrl = await createTelegraphPage(env.TELEGRAPH_TOKEN, tgTitle || `digest-${dateStr}`, renderTelegraphNodes(items));
     try {
       if (telegraphUrl) await env.CACHE.put(`archive:tg:${dateStr}`, telegraphUrl);
     } catch {
@@ -534,7 +534,7 @@ export default {
         const nodes = renderTelegraphNodes(items);
         let telegraphUrl: string | null = null;
         if (env.TELEGRAPH_TOKEN) {
-          telegraphUrl = await createTelegraphPage(env.TELEGRAPH_TOKEN, dateStr, nodes);
+          telegraphUrl = await createTelegraphPage(env.TELEGRAPH_TOKEN, `preview-${dateStr}`, nodes);
         }
         return Response.json({
           date: dateStr,
