@@ -9,6 +9,19 @@
 ### Features
 
 * **product:** Actions 重管线 — product-digest.yml + scripts/product-digest.ts ([#123](https://github.com/gandli/daily-digest/issues/123)) ([fdcdf4c](https://github.com/gandli/daily-digest/commit/fdcdf4c4256dd95ae2e7c4bb6bec2afe04f4238e))
+* **product:** Worker /product 瘦身 — fetch JSON 秒回 + dispatch 兜底 ([#124](https://github.com/gandli/daily-digest/issues/124)) ([f930c10](https://github.com/gandli/daily-digest/commit/f930c1096a0692f80b0a97cfdf959cecb4d8f5a6))
+* **product:** zeli 风格卡片 — 标题下显示作者 by + 相对时间 ([#122](https://github.com/gandli/daily-digest/issues/122)) ([ef39b60](https://github.com/gandli/daily-digest/commit/ef39b60b3216e2cb1512fedfd8c66b3599893e38))
+# [](https://github.com/gandli/daily-digest/compare/v0.0.2...v) (2026-08-27)
+
+
+### Bug Fixes
+
+* **product:** 并发化 urlToMarkdown + sendPerRepoMessages 绕 waitUntil 30s 墙 ([#121](https://github.com/gandli/daily-digest/issues/121)) ([330cb91](https://github.com/gandli/daily-digest/commit/330cb919c5922f64371297d99e1e389964c51a26))
+
+
+### Features
+
+* **product:** Actions 重管线 — product-digest.yml + scripts/product-digest.ts ([#123](https://github.com/gandli/daily-digest/issues/123)) ([fdcdf4c](https://github.com/gandli/daily-digest/commit/fdcdf4c4256dd95ae2e7c4bb6bec2afe04f4238e))
 * **product:** zeli 风格卡片 — 标题下显示作者 by + 相对时间 ([#122](https://github.com/gandli/daily-digest/issues/122)) ([ef39b60](https://github.com/gandli/daily-digest/commit/ef39b60b3216e2cb1512fedfd8c66b3599893e38))
 # [](https://github.com/gandli/daily-digest/compare/v0.0.2...v) (2026-08-27)
 
