@@ -2,11 +2,10 @@ import type { Env, SourceItem } from './types';
 import { sources } from './sources';
 import { resolveDescriptions } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes, renderProductMessage } from './render';
-import { fetchHackerNewsProducts } from './sources/hn';
 import { sendPerRepoMessages, sendTelegram, sendChatAction, sendPhotoOrText, sendVideoOrText, registerCommands, safeEqual, sendTelegramKbd, answerCallbackQuery, editMessageKbd, type InlineKB } from './notify';
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage } from './archive';
 import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, archiveLinks, backfillDescriptions } from './lookup';
-import { extractUrl, urlToMarkdown } from './urlmd';
+import { extractUrl } from './urlmd';
 import { extractTweet, fetchTweet, renderTweetHtml, articleToText, type FxTweet } from './fxtweet';
 import { summarizeZh, summarizeZhDeep, translateTextZh, translateBatch, isChinese } from './translate';
 
@@ -376,83 +375,38 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
   return chunks.length;
 }
 
-// HN 新产品/开源项目管线(仿 trending 但独立): 独立抓取/描述/渲染/缓存/存档, 不与 trending 合并。
-export async function runProductDigest(env: Env, useCache = true): Promise<number> {
+// /product 薄路径: 读 Actions 生成的 archive 分支 JSON → 渲染 → 发 TG(秒回, 1 子请求)。
+// miss(当日 JSON 不存在) → repository_dispatch 触发 Actions 生成 + 占位提示。
+// 重活(抓取/urlToMarkdown/深摘要/存档/直发)全在 scripts/product-digest.ts(Actions), Worker 零重活。
+export async function runProductThin(env: Env, chatId: string): Promise<number> {
   const dateStr = shanghaiDate();
-  const cacheKey = `digest:product:${dateStr}`;
-  if (useCache) {
-    const cached = await env.CACHE.get(cacheKey);
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed.chunks) && Array.isArray(parsed.repos)) {
-          await sendPerRepoMessages(env.BOT_TOKEN, env.CHAT_ID, parsed.chunks.map((html: string, i: number) => ({ html, repo: parsed.repos[i] })), env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
-          return 0;
-        }
-      } catch { /* 坏缓存落重抓 */ }
-    }
+  const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
+  const jsonUrl = `https://raw.githubusercontent.com/${repo}/archive/product/${dateStr}.json`;
+  const res = await fetch(jsonUrl, { signal: AbortSignal.timeout(8000) }).catch(() => null);
+  if (res?.ok) {
+    try {
+      const data = (await res.json()) as { items?: SourceItem[]; telegraphUrl?: string };
+      const items = data.items ?? [];
+      if (items.length) {
+        const chunks = renderProductMessage(dateStr, items, data.telegraphUrl, repo);
+        await sendPerRepoMessages(env.BOT_TOKEN, chatId, chunks.map((html, i) => ({ html, ogUrl: items[i].url })), repo);
+        console.log('product thin sent', dateStr, `${items.length} items`);
+        return chunks.length;
+      }
+    } catch { /* 坏 JSON → 走 dispatch 兜底 */ }
   }
-  let items: SourceItem[] = [];
-  try {
-    items = await fetchHackerNewsProducts(10);
-  } catch (e) {
-    console.error('hn fetch failed', String(e).slice(0, 100));
-    await sendTelegram(env.BOT_TOKEN, env.CHAT_ID, `⚠️ HN 新品抓取失败: ${String(e).slice(0, 80)}\n明日自动重试。`);
-    return -1;
-  }
-  if (!items.length) { console.log('hn: no new products today'); return 0; }
-  // HN Show HN 多为空正文: ① 有 url → 拉正文 → OpenRouter 深度中文摘要(存 KV 防重复生成);
-  // ② 无 url/正文拉取失败 → 标题翻译兜底。③ 从标题抽领域标签。
-  // ponytail: 串行 for+Promise.race(10×10s=100s)→ 超 30s waitUntil 墙, KV 永不写。改 Promise.all
-  // 并发 + 12s total 硬封顶, 10 篇 9s 内跑完。单篇 urlToMarkdown 由其内部 AbortSignal.timeout(20000) 兜。
-  const needBody = items.filter((it) => !it.desc && it.url && /^https?:\/\//.test(it.url));
-  const MAX_DEEP_PER_RUN = 2;
-  let generated = 0;
-  await Promise.all(
-    needBody.map((it) =>
-      Promise.race([
-        (async () => {
-          try {
-            const cacheKey = `product:deep:${btoa(it.url).replace(/=+$/, '').slice(0, 40)}`;
-            const cached = await env.CACHE.get(cacheKey).catch(() => null);
-            if (cached) { const c = JSON.parse(cached); it.desc = c.desc; it.descZh = c.descZh; it.quote = c.quote; return; }
-            if (generated >= MAX_DEEP_PER_RUN) return; // 未命中但预算尽 → 留下次续
-            generated++;
-            const md = await urlToMarkdown(env, it.url, { accountId: env.CF_ACCOUNT_ID, apiToken: env.CF_API_TOKEN }).catch(() => '');
-            const body = md.replace(/[#*>`|\!-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 6000);
-            if (body.length > 40) {
-              it.desc = body;
-              const deep = await summarizeZhDeep(env, body).catch(() => null);
-              if (deep) { it.descZh = deep.summaryZh; it.quote = deep.quote; }
-              else it.descZh = (await summarizeZh(env, body).catch(() => null)) ?? undefined;
-              try { await env.CACHE.put(cacheKey, JSON.stringify({ desc: it.desc, descZh: it.descZh, quote: it.quote }), { expirationTtl: 604800 }); } catch { /* KV 额度忽略 */ }
-            }
-          } catch { /* 拉正文失败 → 标题翻译兜底 */ }
-        })(),
-        new Promise((r) => setTimeout(r, 12000)), // 全部 urlToMarkdown 并发 12s 硬封顶
-      ]),
-    ),
-  );
-  await Promise.all(
-    items.map(async (it) => {
-      if (!it.desc) it.desc = it.title; // 仍无正文 → 标题作描述
-      if (!isChinese(it.desc)) {
-        it.descZh = (await translateTextZh(env, it.desc.slice(0, 500)).catch(() => null)) ?? undefined;
-      } else if (!it.descZh) { it.descZh = it.desc; }
-      it.topics = topicsFromTitle(it.title);
-    }),
-  );
-  const telegraphUrl = env.TELEGRAPH_TOKEN ? await createTelegraphPage(env.TELEGRAPH_TOKEN, `product-${dateStr}`, renderTelegraphNodes(items)) : null;
-  if (telegraphUrl) {
-    // product 独立 Telegraph 页: 键 product:<date>(不与 digest 的 archive:tg:<date> 冲突)
-    try { await env.CACHE.put(`archive:tg:product:${dateStr}`, telegraphUrl); } catch { /* KV 忽略 */ }
-  }
-  const chunks = renderProductMessage(dateStr, items, telegraphUrl ?? undefined, env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
-  await sendPerRepoMessages(env.BOT_TOKEN, env.CHAT_ID, chunks.map((html, i) => ({ html, ogUrl: items[i].url })), env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
-  try { await env.CACHE.put(cacheKey, JSON.stringify({ chunks, repos: items.map((i) => i.title) }), { expirationTtl: 86400 }); } catch { /* 忽略 */ }
-  await archiveToGitHub(env, `product/${dateStr}`, renderMarkdown(dateStr, items));
-  console.log('product sent', dateStr, `${items.length} items`);
-  return chunks.length;
+  // miss: 触发 Actions 生成(repository_dispatch), 占位提示
+  const dispatched = await fetch(`https://api.github.com/repos/${repo}/dispatches`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${env.GH_TOKEN}`, Accept: 'application/vnd.github+json', 'User-Agent': 'daily-digest', 'content-type': 'application/json' },
+    body: JSON.stringify({ event_type: 'product-digest' }),
+    signal: AbortSignal.timeout(8000),
+  }).then((r) => r.ok).catch(() => false);
+  await sendTelegram(env.BOT_TOKEN, chatId, dispatched
+    ? '⏳ 今日酷产品生成中(约 2-5 分钟), 完成后自动推送。'
+    : '⚠️ 今日酷产品尚未生成且触发失败, 请稍后再试。');
+  console.log('product thin miss', dateStr, `dispatched=${dispatched}`);
+  return 0;
 }
 
 /** 当日已查过的 repo: 回存档数据(索引里的描述+存档链接), 不再提示"已查询过"。 */
@@ -687,13 +641,8 @@ export default {
         })(),
       );
     } else if (text.startsWith('/product')) {
-      // HN 新产品/开源项目(独立于 trending): 读 product 缓存; miss 触发独立管线抓取推送。
-      ctx.waitUntil(
-        (async () => {
-          const n = await runProductDigest(env, true);
-          if (n < 0) await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ HN 新品抓取失败, 请稍后再试。');
-        })(),
-      );
+      // 薄路径: 读 Actions 生成的 archive 分支 JSON 秒回; miss → repository_dispatch 触发 Actions 生成。
+      ctx.waitUntil(runProductThin(env, chatId));
     } else if (text.startsWith('/help') || text === '') {
       ctx.waitUntil(Promise.all([registerCommands(env.BOT_TOKEN), sendTelegram(env.BOT_TOKEN, chatId, HELP)]));
       return new Response('ok');
@@ -761,7 +710,7 @@ export default {
 
   async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
     await runDigest(env, false); // cron 不读缓存,保证每日新鲜抓取
-    await runProductDigest(env, false); // HN 新产品/开源项目(独立慢推送, 不与 digest 合并)
+    // /product 已迁 Actions(product-digest.yml cron 30 0 * * * 直发 TG), Worker 不再重跑
     await refreshLookupDescriptions(env); // 已查过的 repo 定期重跑 deepwiki/zread, 同步上游描述
     await backfillDescriptions(env, 40); // 星标仓缺/未译描述 → 每天低速补 40 条
   },
