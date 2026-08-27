@@ -188,10 +188,14 @@ export async function archiveTweet(
   // 首选 FxEmbed 内嵌翻译(/zh-cn URL 后缀触发, Grok 引擎质量高); 空/失败落四级链
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const fxZh = tweet.translation?.text;
-  const textZh = tweet.text
-    ? (fxZh && isChinese(fxZh) && fxZh !== tweet.text ? fxZh : await translateTextZh(env, tweet.text).catch(() => null))
+  // 正文翻译(非中文时)。ponytail: 超长正文(>450字)只译前段——免费模型12s超时对长文必失败, 且用户不看超长列表; 截断+省略防翻译失败回退英文。
+  // fxZh 是 Grok 翻译(可信): 只要含 CJK 就算成功, 避免 isChinese 的30%占比阈值被大量 URL/代码稀释误判。
+  const raw = tweet.text ?? '';
+  const trunc = raw.length > 450 ? raw.slice(0, 450) + '  …' : raw;
+  const textZh = raw
+    ? (fxZh && fxZh !== raw && /[\u4e00-\u9fff]/.test(fxZh) ? fxZh : await translateTextZh(env, trunc).catch(() => null))
     : null;
-  const hasZh = !!textZh && isChinese(textZh) && textZh !== tweet.text;
+  const hasZh = !!textZh && /[\u4e00-\u9fff]/.test(textZh) && textZh !== raw;
   const zhLine = hasZh ? `\n\n<b>🌐 中文翻译</b>\n${esc(textZh!).slice(0, 3500)}` : '';
   // 卡片媒体: video→sendVideo 内嵌播放; photo→直链图; 无媒体→帖内 repo og 图/s2 保底。
   // 提前算好 photo/video, 但不在 publisher 前发——统一到存档后一张对齐卡(renderTweetHtml 一次发送)。
