@@ -14,7 +14,8 @@ import { summarizeZh, summarizeZhDeep, translateTextZh, translateBatch, isChines
 export const shanghaiDate = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
 
 // 从 HN 标题抽领域关键词做标签(小写带 #)。匹配常见领域词, 同标题去重, ≤4 个。
-const TOPIC_DICT: [RegExp, string][] = [
+// 导出给 scripts/product-digest.ts(Actions 重管线)复用。
+export const TOPIC_DICT: [RegExp, string][] = [
   [/ai|llm|gpt|model|agent|ml|genai|neural/i, 'ai'],
   [/os|linux|macos|windows|app|tool|software|desktop/i, 'software'],
   [/web|browser|saas|api|app|app|internet/i, 'web'],
@@ -31,6 +32,8 @@ function topicsFromTitle(title: string): string[] {
   for (const [re, tag] of TOPIC_DICT) if (re.test(title)) hits.add(tag);
   return [...hits].slice(0, 4);
 }
+// 导出给 scripts/product-digest.ts 复用(Actions 重管线)。
+export { topicsFromTitle };
 
 const HELP = `📊 daily-digest 使用
 
