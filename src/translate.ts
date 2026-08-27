@@ -91,12 +91,12 @@ export async function resolveDescriptions(env: Env, items: SourceItem[]): Promis
   }
 
   // 3. 只翻译 deepwiki 英文条目(zread 与 deepwiki 都缺的 → descZh 留空, 不硬凑 repo 一句话)
+  // 句式统一: deepwiki 是文档视角("This document introduces..."), 统一改写为 zread 风格"某某项目是一个/由…构建的…"句式
+  const STYLE =
+    '改写为项目介绍(仿百科条目, 2-3句, 信息量足): 第1句以"<项目名>是一个…"或"<项目名>是由<作者>构建的…"开头, 点明项目定位与用途; 后续句补充技术底座/关键特性/差异化亮点(从原文提取, 不编造)。删除: "This document/本文档/该文档"等文档视角措辞、URL/链接、(README.md:11-19)等文件行号引用、括号内来源标注。仍只输出中文译文, 不解释。';
   const toTranslate = items.filter((i) => !i.descZh && dwHit.has(i.title));
-  if (toTranslate.length) {
-    const done = await translateBatch(env, toTranslate as SourceItem[]);
-    for (let i = 0; i < toTranslate.length; i++) {
-      toTranslate[i].descZh = done[i].descZh;
-    }
+  for (const it of toTranslate) {
+    it.descZh = (await translateTextZh(env, it.desc!, STYLE).catch(() => null)) ?? undefined;
   }
 }
 
@@ -154,8 +154,9 @@ export async function translateBatch(
   });
 }
 
-/** 单条文本 → OpenRouter 免费模型中文翻译(短超时)。失败/无 key → null(调用方落四级链)。 */
-async function translateZhOpenRouter(env: Env, text: string): Promise<string | null> {
+/** 单条文本 → OpenRouter 免费模型中文翻译(短超时)。失败/无 key → null(调用方落四级链)。
+ *  styleExtra: 追加句式要求(如 deepwiki 描述统一"某某项目是…"视角)。 */
+async function translateZhOpenRouter(env: Env, text: string, styleExtra?: string): Promise<string | null> {
   if (!env.OPENROUTER_API_KEY) return null;
   for (const model of OPENROUTER_MODELS) {
     try {
@@ -170,7 +171,7 @@ async function translateZhOpenRouter(env: Env, text: string): Promise<string | n
         body: JSON.stringify({
           model,
           messages: [
-            { role: 'system', content: '你是专业翻译，面向软件/开发/科技文档的中文翻译。把给定文本翻译成自然流畅的简体中文，直接输出译文，不要解释，不要 markdown。注意：这是技术语境，术语要按软件开发含义理解——常见技术缩写保留英文(如 AI、API、LLM(大语言模型)、SDK、CLI、repo、GitHub、CPU、GPU)；企业/机构名不译。避免把专业缩写误译为人类学位的同形词(如 LLM=大语言模型，不是法学硕士)。' },
+            { role: 'system', content: '你是专业翻译，面向软件/开发/科技文档的中文翻译。把给定文本翻译成自然流畅的简体中文，直接输出译文，不要解释，不要 markdown。注意：这是技术语境，术语要按软件开发含义理解——常见技术缩写保留英文(如 AI、API、LLM(大语言模型)、SDK、CLI、repo、GitHub、CPU、GPU)；企业/机构名不译。避免把专业缩写误译为人类学位的同形词(如 LLM=大语言模型，不是法学硕士)。' + (styleExtra ? `\n${styleExtra}` : '') },
             { role: 'user', content: text.slice(0, 3000) },
           ],
           temperature: 0.2,
@@ -186,11 +187,11 @@ async function translateZhOpenRouter(env: Env, text: string): Promise<string | n
   return null;
 }
 
-/** 单段文本 → 中文(X 帖正文用; 复用四级链, 全挂返回 null)。 */
-export async function translateTextZh(env: Env, text: string): Promise<string | null> {
+/** 单段文本 → 中文(X 帖正文用; 复用四级链, 全挂返回 null)。styleExtra: 追加句式要求。 */
+export async function translateTextZh(env: Env, text: string, styleExtra?: string): Promise<string | null> {
   if (!text.trim() || isChinese(text)) return text || null;
   // OpenRouter 免费模型中文翻译优先(有 key), 失败落四级链
-  const or = await translateZhOpenRouter(env, text).catch(() => null);
+  const or = await translateZhOpenRouter(env, text, styleExtra).catch(() => null);
   if (or) return or;
   const out = await translateBatch(env, [{ title: 'x', url: '', desc: text } as SourceItem]);
   return out[0]?.descZh ?? null;
