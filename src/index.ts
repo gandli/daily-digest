@@ -337,8 +337,10 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
           signal: AbortSignal.timeout(10000),
         });
         if (!r.ok) return;
-        const j = (await r.json()) as { topics?: string[] };
+        const j = (await r.json()) as { topics?: string[]; created_at?: string; owner?: { login?: string } };
         if (j.topics?.length) it.topics = j.topics.slice(0, 4);
+        if (j.created_at) it.createdAt = j.created_at;
+        if (j.owner?.login) it.author = j.owner.login;
       }),
     );
     console.log('topics fetched');
@@ -349,7 +351,9 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
   // 3. Telegraph 备份页(可选,失败静默)——索引 archive:tg:<date> 供 /archive 优先展示
   let telegraphUrl: string | null = null;
   if (env.TELEGRAPH_TOKEN) {
-    telegraphUrl = await createTelegraphPage(env.TELEGRAPH_TOKEN, dateStr, renderTelegraphNodes(items));
+    const titleText = items.slice(0, 5).map((it) => it.title).join(', ');
+    const tgTitle = await generateTitleZh(env, titleText).catch(() => null);
+    telegraphUrl = await createTelegraphPage(env.TELEGRAPH_TOKEN, tgTitle || dateStr, renderTelegraphNodes(items));
     try {
       if (telegraphUrl) await env.CACHE.put(`archive:tg:${dateStr}`, telegraphUrl);
     } catch {
@@ -384,7 +388,7 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
 // /product 薄路径: 读 Actions 生成的 archive 分支 JSON → 渲染 → 发 TG(秒回, 1 子请求)。
 // miss(当日 JSON 不存在) → repository_dispatch 触发 Actions 生成 + 占位提示。
 // 重活(抓取/urlToMarkdown/深摘要/存档/直发)全在 scripts/product-digest.ts(Actions), Worker 零重活。
-export async function runProductThin(env: Env, chatId: string): Promise<number> {
+export async function runProductThin(env: Env, chatId: string, ctx?: ExecutionContext): Promise<number> {
   const dateStr = shanghaiDate();
   const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
   const jsonUrl = `https://raw.githubusercontent.com/${repo}/archive/product/${dateStr}.json`;
@@ -396,6 +400,10 @@ export async function runProductThin(env: Env, chatId: string): Promise<number> 
       if (items.length) {
         const chunks = renderProductMessage(dateStr, items, data.telegraphUrl, repo);
         await sendPerRepoMessages(env.BOT_TOKEN, chatId, chunks.map((html, i) => ({ html, ogUrl: items[i].url })), repo);
+        // product 含 GitHub repo → 后台 fanout 精简 repo 卡(与 X 帖一致)
+        if (ctx && items.some((it) => /github\.com\//i.test(`${it.url} ${it.desc} ${it.title}`))) {
+          ctx.waitUntil(fanoutRepoRefs(env, chatId, items.map((it) => `github.com/${it.title} ${it.url} ${it.desc}`).join(' '), ctx));
+        }
         console.log('product thin sent', dateStr, `${items.length} items`);
         return chunks.length;
       }
@@ -409,7 +417,7 @@ export async function runProductThin(env: Env, chatId: string): Promise<number> 
     signal: AbortSignal.timeout(8000),
   }).then((r) => r.ok).catch(() => false);
   await sendTelegram(env.BOT_TOKEN, chatId, dispatched
-    ? '⏳ 今日酷产品生成中(约 2-5 分钟), 完成后自动推送。'
+    ? '⏳ 今日 HN 酷产品生成中(约 2-5 分钟), 完成后自动推送。'
     : '⚠️ 今日酷产品尚未生成且触发失败, 请稍后再试。');
   console.log('product thin miss', dateStr, `dispatched=${dispatched}`);
   return 0;
@@ -642,13 +650,16 @@ export default {
       // 换取不等 10-30s 描述链。需带图可二次发 /archive 或等 cron。
       ctx.waitUntil(
         (async () => {
+          // 缓存 miss 才发占位提示(命中会被卡片秒回覆盖, 避免"提示+卡片"两条)
+          const cached = await env.CACHE.get(`digest:${shanghaiDate()}`).catch(() => null);
+          if (!cached) await sendTelegram(env.BOT_TOKEN, chatId, '⏳ Trending 生成中(10-30 秒), 完成后自动推送。');
           const n = await runDigest(env, true);
           if (n < 0) await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ Trending 抓取失败, 请稍后再试。');
         })(),
       );
     } else if (text.startsWith('/product')) {
       // 薄路径: 读 Actions 生成的 archive 分支 JSON 秒回; miss → repository_dispatch 触发 Actions 生成。
-      ctx.waitUntil(runProductThin(env, chatId));
+      ctx.waitUntil(runProductThin(env, chatId, ctx));
     } else if (text.startsWith('/help') || text === '') {
       ctx.waitUntil(Promise.all([registerCommands(env.BOT_TOKEN), sendTelegram(env.BOT_TOKEN, chatId, HELP)]));
       return new Response('ok');
