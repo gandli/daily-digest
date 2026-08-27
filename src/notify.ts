@@ -75,14 +75,12 @@ export async function sendPerRepoMessages(
   messages: { html: string; repo?: string; ogUrl?: string }[],
   archiveRepo?: string,
 ): Promise<void> {
-  await Promise.all(
-    messages.map(async (m) => {
-      await fetch(`${API}/bot${token}/sendMessage`, {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: m.html, parse_mode: 'HTML', link_preview_options: m.ogUrl ? { url: m.ogUrl, prefer_large_media: true } : undefined }),
-      }).then(r => r.text()); // 消费 body 防 stalled HTTP response
-    }),
-  );
+  for (const m of messages) {
+    await fetch(`${API}/bot${token}/sendMessage`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: m.html, parse_mode: 'HTML', link_preview_options: m.ogUrl ? { url: m.ogUrl, prefer_large_media: true } : undefined }),
+    }).then(r => r.text()); // 消费 body 防 stalled HTTP response
+  }
 }
 
 // timing-safe 比较 webhook secret

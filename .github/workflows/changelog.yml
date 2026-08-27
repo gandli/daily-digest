@@ -2,8 +2,8 @@ name: changelog
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'v*'
 
 # changelog 自动更新 + 提交回 main。防循环: git-auto-commit 仅当 CHANGELOG 实际变化才 commit,
 # 且 deploy workflow 幂等(失败无害)。

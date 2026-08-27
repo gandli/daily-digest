@@ -101,6 +101,20 @@ export async function archiveOgImage(env: Env, repoFull: string): Promise<string
   }
 }
 
+// Telegraph 匿名账号: createAccount 每次建唯一 token(Accounts 免费, 无密)。返回 null 则跳过 Telegraph。
+export async function createTelegraphAccount(): Promise<string | null> {
+  try {
+    const res = await fetch('https://api.telegra.ph/createAccount?short_name=daily_digest&author_name=daily-digest', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    });
+    const j = (await res.json()) as { ok?: boolean; result?: { access_token?: string } };
+    return j.ok && j.result?.access_token ? j.result.access_token : null;
+  } catch (e) {
+    console.error('telegraph account failed', String(e).slice(0, 80));
+    return null;
+  }
+}
+
 export async function createTelegraphPage(
   token: string,
   dateStr: string,

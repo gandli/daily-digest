@@ -20,6 +20,7 @@ export interface Env {
 
 export type SourceItem = {
   title: string; // owner/repo 或条目标题
+  titleZh?: string; // 标题中文翻译(Actions 重管线翻译; 缺省回退原文 title)
   url: string;
   desc: string; // 原文描述(翻译前)
   descZh?: string; // 主描述: zread wiki 中文优先, 缺失时翻译兜底
