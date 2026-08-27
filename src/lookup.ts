@@ -1,5 +1,5 @@
 import type { Env, SourceItem } from './types';
-import { resolveDescriptions, translateBatch, translateTextZh, isChinese, summarizeZh } from './translate';
+import { resolveDescriptions, translateBatch, translateTextZh, isChinese, summarizeZh, generateTagsZh } from './translate';
 import { fetchDeepwikiOverview } from './deepwiki';
 import { renderMessage, renderMarkdown } from './render';
 import { sendPerRepoMessages, sendTelegram } from './notify';
@@ -103,7 +103,7 @@ export async function fanoutRepoRefs(env: Env, chatId: string, text: string, ctx
           `<a href="https://deepwiki.com/${esc(item.title)}">deepwiki</a> · <a href="https://zread.ai/${esc(item.title)}">zread</a> · <a href="https://codewiki.google/github.com/${esc(item.title)}">codewiki</a>\n\n` +
           `#archive${topicTags ? ` ${topicTags}` : ''}\n\n` +
           `📁 ${archiveLinks(item.url, undefined, mdLink)}`;
-        await sendPerRepoMessages(env.BOT_TOKEN, chatId, [{ html, ogUrl: item.url }], env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
+        await sendPerRepoMessages(env.BOT_TOKEN, chatId, [{ html, photo: `https://opengraph.githubassets.com/1/${item.title}`, ogUrl: item.url }], env.GH_ARCHIVE_REPO || 'gandli/daily-digest', env.CACHE);
         // 仍索引(为 /search 可查)
         await indexArchivedItems(env, [item], stamp).catch(() => {});
         await env.CACHE.put(`lookup:${today()}:${r.toLowerCase()}`, '1', { expirationTtl: 172800 }).catch(() => {});
@@ -231,7 +231,7 @@ export async function lookupRepo(env: Env, chatId: string, repo: string): Promis
   }
   // 一条消息: ogUrl 触发 TG link_preview(GitHub repo → opengraph.githubassets 动态生成 OG 卡)
   const chunks = renderMessage(today(), [item]);
-  await sendPerRepoMessages(env.BOT_TOKEN, chatId, chunks.map((html) => ({ html, ogUrl: item.url })), env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
+  await sendPerRepoMessages(env.BOT_TOKEN, chatId, chunks.map((html) => ({ html, photo: `https://opengraph.githubassets.com/1/${item.title}`, ogUrl: item.url })), env.GH_ARCHIVE_REPO || 'gandli/daily-digest', env.CACHE);
   // 索引独立写入, 不依赖 archive 成功(archive 抛错 → 索引仍落, 避免 seenToday 死循环)
   const stamp = `${today()}-${Date.now() % 86400000}`; // 单次计算: 索引 date 必须等于实际文件名
   try {
@@ -424,10 +424,14 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
     }
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     // 统一印刷: 标题直链(中文优先) / 中文摘要 / 标签 / 存档三链——对齐 repo 卡的 renderMessage 三段结构
+    // 标签: 无现成 topics 时用 LLM 生成领域标签
+    let tagsZh: string[] | null = null;
+    if (env.OPENROUTER_API_KEY) tagsZh = await generateTagsZh(env, (summaryZh ?? title).slice(0, 400)).catch(() => null);
+    const tagLine = `#archive${tagsZh?.length ? ` ${tagsZh.map((t) => `#${t}`).join(' ')}` : ''}`;
     const confirm = [
       `<b><a href="${esc(url)}">${esc(titleZh)}</a></b>`,
       summaryZh ? `\n\n📝 ${esc(summaryZh).slice(0, 300)}` : '',
-      `\n\n#archive`,
+      `\n\n${tagLine}`,
       `\n\n📁 ${archiveLinks(url, undefined, `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`)}`,
     ].join('');
     // 有 og:image → sendPhoto(图=OG 卡, caption=确认+链接); 无图/发送失败 → 纯文字

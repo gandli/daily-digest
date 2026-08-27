@@ -85,10 +85,16 @@ export async function registerCommands(token: string): Promise<void> {
 export async function sendPerRepoMessages(
   token: string,
   chatId: string,
-  messages: { html: string; repo?: string; ogUrl?: string }[],
+  messages: { html: string; repo?: string; ogUrl?: string; photo?: string }[],
   archiveRepo?: string,
+  cache?: { get: (k: string) => Promise<string | null>; put: (k: string, v: string) => Promise<void> },
 ): Promise<void> {
   for (const m of messages) {
+    // 实体图优先(sendPhoto, 经 TG 图床缓存 file_id) → 无 photo 回落 link_preview(ogUrl)
+    if (m.photo) {
+      await sendPhotoOrText(token, chatId, m.photo, m.html, cache);
+      continue;
+    }
     await fetch(`${API}/bot${token}/sendMessage`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, text: m.html, parse_mode: 'HTML', link_preview_options: m.ogUrl ? { url: m.ogUrl, prefer_large_media: true } : undefined }),

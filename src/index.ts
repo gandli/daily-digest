@@ -1,13 +1,13 @@
 import type { Env, SourceItem } from './types';
 import { sources } from './sources';
-import { resolveDescriptions, generateTitleZh } from './translate';
+import { resolveDescriptions } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes, renderProductMessage } from './render';
 import { sendPerRepoMessages, sendTelegram, sendChatAction, sendPhotoOrText, sendVideoOrText, registerCommands, safeEqual, sendTelegramKbd, answerCallbackQuery, editMessageKbd, type InlineKB } from './notify';
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage } from './archive';
 import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, archiveLinks, backfillDescriptions } from './lookup';
 import { extractUrl } from './urlmd';
 import { extractTweet, fetchTweet, renderTweetHtml, articleToText, type FxTweet } from './fxtweet';
-import { summarizeZh, summarizeZhDeep, translateTextZh, translateBatch, isChinese } from './translate';
+import { summarizeZh, summarizeZhDeep, translateTextZh, translateBatch, isChinese, generateTitleZh, generateTagsZh } from './translate';
 
 // 北京时间日期串 YYYY-MM-DD(UTC+8 无 DST,直接偏移即可)
 export const shanghaiDate = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
@@ -228,6 +228,7 @@ export async function archiveTweet(
     await archiveDatedToGitHub(env, stamp, md);
     // Telegraph 存档(单帖一页; 失败静默——增强非必需)
     let tgLine = '';
+    let tgPageUrl = '';
     if (env.TELEGRAPH_TOKEN) {
       const nodes: unknown[] = [
         { tag: 'p', children: [`@${tweet.author?.screen_name ?? handle} · ${tweet.created_at ?? ''}`] },
@@ -240,6 +241,7 @@ export async function archiveTweet(
       const pageUrl = await createTelegraphPage(env.TELEGRAPH_TOKEN, `X · @${handle} · ${stamp.slice(0, 10)}`, nodes);
       if (pageUrl) {
         tgLine = `\n📄 Telegraph: ${pageUrl}`;
+        tgPageUrl = pageUrl;
         // 键用完整 stamp(含 ms, 唯一)——同日多条 X 帖互不覆盖, 也不覆盖 digest 的 archive:tg:<date>。
         // digest 用日期键(每天一条), X 帖用时间戳键(每帖一条)。
         try { await env.CACHE.put(`archive:tg:${stamp}`, pageUrl); } catch { /* KV 额度忽略 */ }
@@ -255,15 +257,15 @@ export async function archiveTweet(
     // 帖子正文含 GitHub repo 链接 → 联动查询(后台独立 waitUntil, 不阻塞主卡; repo 多时分批防子请求上限)
     if (ctx) ctx.waitUntil(fanoutRepoRefs(env, chatId, md, ctx));
     const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
-    // 统一对齐 product/trending 卡: LLM 生成标题 / 中文内容 / #archive / 存档三链 — 一张卡一次发送
-    const links = `#archive\n\n📁 ${archiveLinks(tUrl, tgLine ? tgLine.split(' ').pop() : undefined, `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`)}`;
+    // 统一对齐 product/trending 卡: LLM 生成标题 / 中文内容 / #archive(LLM标签) / 存档三链 — 一张卡一次发送
+    const tags = await generateTagsZh(env, (tweet.text ?? '').slice(0, 300)).catch(() => null);
+    const tagLine = `#archive${tags?.length ? ` ${tags.map((t) => `#${t}`).join(' ')}` : ''}`;
+    const links = `${tagLine}\n\n📁 ${archiveLinks(tUrl, tgLine ? tgLine.split(' ').pop() : undefined, `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`)}`;
     const titleZh = generateTitleZh(env, (tweet.text ?? '').slice(0, 600)).catch(() => null);
     const card = renderTweetHtml(tweet, (await titleZh) ?? '', hasZh ? textZh! : (tweet.text ?? ''), '', links);
-    if (isVideo && media0?.url) {
-      await sendVideoOrText(env.BOT_TOKEN, chatId, media0.url, photo, card);
-    } else {
-      await sendPhotoOrText(env.BOT_TOKEN, chatId, photo, card, env.CACHE);
-    }
+    // Tweet 卡链接预览 = Telegraph 页(og:image 由 Telegraph 渲染), 无 Telegraph 回退原推 URL。
+    // 不用 sendPhotoOrText(发媒体图) —— 用户指定 Telegraph 作链接预览。
+    await sendPerRepoMessages(env.BOT_TOKEN, chatId, [{ html: card, ogUrl: tgPageUrl || tUrl }], repo);
   } catch (e) {
     console.error('archiveTweet store failed', String(e).slice(0, 100));
     await sendTelegram(env.BOT_TOKEN, chatId, `⚠️ 已取到帖子但存档失败(${String(e).slice(0, 120)})。请重发一次该链接重试。`);
@@ -355,8 +357,9 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
   await sendPerRepoMessages(
     env.BOT_TOKEN,
     env.CHAT_ID,
-    chunks.map((html, i) => ({ html, repo: items[i].title })),
+    chunks.map((html, i) => ({ html, photo: `https://opengraph.githubassets.com/1/${items[i].title}`, ogUrl: items[i].url, repo: items[i].title })),
     env.GH_ARCHIVE_REPO || 'gandli/daily-digest',
+    env.CACHE,
   );
   // 纯文字兜底副本不再发——sendPhoto 失败时 sendPerRepoMessages 内部已降级纯文字
 

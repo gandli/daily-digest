@@ -28,7 +28,9 @@ export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl
     const wb = `https://web.archive.org/web/2/${encodeURIComponent(it.url).replace(/%3A/g, ':').replace(/%2F/g, '/')}`;
     l.push(`<a href="${wb}">Wayback</a>`);
     l.push(`<a href="${esc(mdPath)}">Archive</a>`);
-    return `\n\n📁 ${l.join(' · ')}`;
+    // wiki 三链也统一在卡片底部(与存档三链并列)
+    const wikis = `<a href="https://deepwiki.com/${esc(it.title)}">deepwiki</a> · <a href="https://zread.ai/${esc(it.title)}">zread</a> · <a href="https://codewiki.google/github.com/${esc(it.title)}">codewiki</a>`;
+    return `\n\n📁 ${l.join(' · ')}\n🗂 ${wikis}`;
   };
   return items.map((it, i) => {
     const langTag = it.lang ? ` · #${it.lang}` : '';
@@ -37,11 +39,10 @@ export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl
     const head = i === 0 ? `${header}\n\n` : `<b>${i + 1}/${items.length}</b> `;
     const topicTags = (it.topics ?? []).map((t) => `#${t}`).join(' ');
     const tags = [`#trending`, topicTags].filter(Boolean).join(' ');
-    const descLine = isChinese(it.descZh) ? `${esc(unesc(it.descZh!))}\n\n` : ''; // ponytail: 非中文/空 → 整行跳过, 不泄露 repo 英文一句话
+    const descLine = isChinese(it.descZh) ? `${esc(unesc(it.descZh!))}` : ''; // ponytail: 非中文/空 → 整行跳过, 不泄露 repo 英文一句话
     const body =
       `<b><a href="${esc(it.url)}">${esc(it.titleZh ?? it.title)}</a></b>${stars}${langTag}\n\n` + // 标题层(中文优先)
       descLine + // 描述层(仅来自 zread/deepwiki 的中文)
-      `<a href="https://deepwiki.com/${esc(it.title)}">deepwiki</a> · <a href="https://zread.ai/${esc(it.title)}">zread</a> · <a href="https://codewiki.google/github.com/${esc(it.title)}">codewiki</a>` +
       (tags ? `\n\n${tags}` : '');
     // ponytail: wikiDesc 极端超长时仍可能超4096——截断到安全长度
     let msg = head + body + links(it);
