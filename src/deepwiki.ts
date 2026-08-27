@@ -3,7 +3,7 @@
 const DW_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126';
 
 /** 从 deepwiki.com /:owner/:repo 页面的 RSC payload 提取 Overview 正文(英文, 纯文本) */
-export function extractDeepwikiOverview(payload: string, maxLen = 400): string | null {
+export function extractDeepwikiOverview(payload: string, maxLen = 800): string | null {
   // deepwiki 2026-08 结构: "Overview:[可选标题]<details><summary>Relevant source files</summary>...</details>"
   // repo 间有差异: 有的正文紧跟 </details>, 有的在 "## Purpose and Scope" 等标题后
   const marker = /Overview[:\s]*[^\n<]*\s*(?:\n|<details>)[\s\S]*?<\/details>/m;
