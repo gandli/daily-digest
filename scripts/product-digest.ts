@@ -8,7 +8,7 @@ import { fetchHackerNewsProducts } from '../src/sources/hn';
 import { urlToMarkdown } from '../src/urlmd';
 import { summarizeZhDeep, translateTextZh, isChinese } from '../src/translate';
 import { renderProductMessage, renderMarkdown, renderTelegraphNodes } from '../src/render';
-import { createTelegraphPage, archiveToGitHub } from '../src/archive';
+import { createTelegraphPage, createTelegraphAccount, archiveToGitHub } from '../src/archive';
 import { sendPerRepoMessages } from '../src/notify';
 import { topicsFromTitle, shanghaiDate } from '../src/index';
 import type { Env, SourceItem } from '../src/types';
@@ -79,11 +79,20 @@ async function main() {
       }
     } else if (!it.descZh) it.descZh = it.desc;
     it.topics = topicsFromTitle(it.title);
+    // 标题翻译(英文标题 → 中文, zeli 中文卡片风格)
+    if (env.OPENROUTER_API_KEY && it.title && !/[\u4e00-\u9fff]/.test(it.title)) {
+      it.titleZh = (await translateTextZh(env, it.title).catch(() => null)) ?? undefined;
+    }
+    // 引文翻译(quote 是英文原文核心句 → 中文)
+    if (env.OPENROUTER_API_KEY && it.quote && !/[\u4e00-\u9fff]/.test(it.quote)) {
+      it.quote = (await translateTextZh(env, it.quote).catch(() => null)) ?? it.quote;
+    }
     console.log(`  summary ${it.title.slice(0, 40)}: ${(it.descZh ?? '').slice(0, 30)}`);
   }
 
-  // 4. Telegraph + 渲染
-  const telegraphUrl = env.TELEGRAPH_TOKEN ? await createTelegraphPage(env.TELEGRAPH_TOKEN, `product-${dateStr}`, renderTelegraphNodes(items)).catch(() => null) : null;
+  // 4. Telegraph + 渲染(无 TELEGRAPH_TOKEN 时匿名建号, 全自动)
+  const tgToken = env.TELEGRAPH_TOKEN ?? (await createTelegraphAccount());
+  const telegraphUrl = tgToken ? await createTelegraphPage(tgToken, `product-${dateStr}`, renderTelegraphNodes(items)).catch(() => null) : null;
   const chunks = renderProductMessage(dateStr, items, telegraphUrl ?? undefined, env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
   console.log(`[4/5] rendered ${chunks.length} messages${telegraphUrl ? `, telegraph: ${telegraphUrl}` : ''}`);
 

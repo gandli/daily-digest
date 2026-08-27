@@ -39,7 +39,7 @@ export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl
     const tags = [`#trending`, topicTags].filter(Boolean).join(' ');
     const descLine = isChinese(it.descZh) ? `${esc(unesc(it.descZh!))}\n\n` : ''; // ponytail: 非中文/空 → 整行跳过, 不泄露 repo 英文一句话
     const body =
-      `<b><a href="${esc(it.url)}">${esc(it.title)}</a></b>${stars}${langTag}\n\n` + // 标题层
+      `<b><a href="${esc(it.url)}">${esc(it.titleZh ?? it.title)}</a></b>${stars}${langTag}\n\n` + // 标题层(中文优先)
       descLine + // 描述层(仅来自 zread/deepwiki 的中文)
       `<a href="https://deepwiki.com/${esc(it.title)}">deepwiki</a> · <a href="https://zread.ai/${esc(it.title)}">zread</a>` +
       (tags ? `\n\n${tags}` : '');
@@ -69,7 +69,7 @@ export function renderProductMessage(dateStr: string, items: SourceItem[], teleg
     links.push(`<a href="https://web.archive.org/web/2/${encodeURIComponent(it.url).replace(/%3A/g, ':').replace(/%2F/g, '/')}">Wayback</a>`);
     links.push(`<a href="${esc(mdPath)}">Archive</a>`);
     let msg =
-      `${head}<b><a href="${esc(it.url)}">${esc(it.title)}</a></b>${score}${metaLine}` +
+      `${head}<b><a href="${esc(it.url)}">${esc(it.titleZh ?? it.title)}</a></b>${score}${metaLine}` +
       descLine +
       quoteLine +
       `\n#product ${topicTags}`.replace(/\s+/g, ' ') +
