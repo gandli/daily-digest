@@ -262,7 +262,7 @@ export async function archiveTweet(
     if (isVideo && media0?.url) {
       await sendVideoOrText(env.BOT_TOKEN, chatId, media0.url, photo, card);
     } else {
-      await sendPhotoOrText(env.BOT_TOKEN, chatId, photo, card);
+      await sendPhotoOrText(env.BOT_TOKEN, chatId, photo, card, env.CACHE);
     }
   } catch (e) {
     console.error('archiveTweet store failed', String(e).slice(0, 100));
@@ -437,7 +437,7 @@ async function replyArchived(env: Env, chatId: string, repo: string): Promise<vo
       (it.topics?.length ? `🏷 ${it.topics.map((t) => `#${t}`).join(' ')}\n\n` : '') +
       `📁 ${archiveLinks(repoUrl, tgUrl || undefined, link)}`;
   const photo = `https://raw.githubusercontent.com/${archiveRepo}/archive/og-images/${it.repo.replace('/', '__')}.png`;
-  await sendPhotoOrText(env.BOT_TOKEN, chatId, photo, html);
+  await sendPhotoOrText(env.BOT_TOKEN, chatId, photo, html, env.CACHE);
 }
 
 /** /archive [页码]: 最近存档列表, inline keyboard 翻页, Telegraph 链接优先。 */

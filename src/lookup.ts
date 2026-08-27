@@ -229,9 +229,9 @@ export async function lookupRepo(env: Env, chatId: string, repo: string): Promis
     }
     console.log('lookup: fallback to GitHub desc translation');
   }
-  // 一条消息: OG 图做照片, 条目做 caption(优先自家 og-images 存档域, 规避官方域对 TG 出口的 IP 配额)
+  // 一条消息: ogUrl 触发 TG link_preview(GitHub repo → opengraph.githubassets 动态生成 OG 卡)
   const chunks = renderMessage(today(), [item]);
-  await sendPerRepoMessages(env.BOT_TOKEN, chatId, chunks.map((html) => ({ html, repo: item.title })), env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
+  await sendPerRepoMessages(env.BOT_TOKEN, chatId, chunks.map((html) => ({ html, ogUrl: item.url })), env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
   // 索引独立写入, 不依赖 archive 成功(archive 抛错 → 索引仍落, 避免 seenToday 死循环)
   const stamp = `${today()}-${Date.now() % 86400000}`; // 单次计算: 索引 date 必须等于实际文件名
   try {
