@@ -65,6 +65,17 @@ describe('renderProductMessage(HN 酷产品)', () => {
     expect(msg).not.toContain('📝');
     expect(msg).toContain('Show HN: X');
   });
+  it('zeli 风格: 显示作者 by + 相对时间', () => {
+    const past = new Date(Date.now() - 3600e3).toISOString(); // -1h
+    const [msg] = renderProductMessage('2026-08-26', [{ title: 'Show HN: T', url: 'https://x.dev', descZh: '中', author: 'Fe2_O3', createdAt: past } as never]);
+    expect(msg).toContain('by Fe2_O3');
+    expect(msg).toContain('about 1 hours ago'); // 粗略边界, 断言受控 1h
+  });
+  it('无 author/createdAt → 不显示 meta 行', () => {
+    const [msg] = renderProductMessage('2026-08-26', [{ title: 'Show HN: N', url: 'https://x.dev', descZh: '中' } as never]);
+    expect(msg).not.toContain('by ');
+    expect(msg).not.toContain('ago');
+  });
 });
 describe('Telegraph 渲染: 中文守卫(P1-A)', () => {
   const base = { title: 'o/r', url: 'https://github.com/o/r', desc: 'English fallback desc' };
