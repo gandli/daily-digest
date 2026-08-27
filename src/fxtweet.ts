@@ -51,8 +51,9 @@ export async function fetchTweet(handle: string, id: string): Promise<FxTweet | 
   }
 }
 
-/** 帖子 → Telegram HTML(esc 由调用方处理前先本地转义)。 */
-export function renderTweetHtml(t: FxTweet): string {
+/** 帖子 → Telegram HTML, 对齐 product/trending 三段式: 作者直链 / 内容(中英) / 互动 / 存档三链。
+ * links: 存档三链 HTML(Wayback·Archive·Telegraph 由调用方拼好)。 */
+export function renderTweetHtml(t: FxTweet, zhLine = '', links = ''): string {
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const a = t.author ?? {};
   const stats = [
@@ -76,12 +77,15 @@ export function renderTweetHtml(t: FxTweet): string {
         },
       )}`
     : '';
+  // product 对齐: 作者名直链(标题层) → 中文内容优先(🌐翻译) → 互动行 → 标签 → 存档三链
   return [
-    `<b>🐦 ${esc(a.name ?? a.screen_name ?? '')} <a href="${esc(t.url ?? '')}">@${esc(a.screen_name ?? '')}</a></b>`,
+    `🐦 <b><a href="${esc(t.url ?? '')}">${esc(a.name ?? a.screen_name ?? '')} · @${esc(a.screen_name ?? '')}</a></b>`,
     '',
     esc(t.text ?? '').slice(0, 3500),
+    zhLine,
     mediaLine,
     date,
     stats ? `\n\n${stats}` : '',
-  ].join('\n');
+    links,
+  ].filter((s) => s !== '').join('\n');
 }
