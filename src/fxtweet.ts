@@ -51,41 +51,17 @@ export async function fetchTweet(handle: string, id: string): Promise<FxTweet | 
   }
 }
 
-/** 帖子 → Telegram HTML, 对齐 product/trending 三段式: 作者直链 / 内容(中英) / 互动 / 存档三链。
- * links: 存档三链 HTML(Wayback·Archive·Telegraph 由调用方拼好)。 */
-export function renderTweetHtml(t: FxTweet, zhLine = '', links = ''): string {
+/** 帖子 → Telegram HTML, 对齐 product/trending 三段式: 标题直链 / 内容(中英) / 存档三链。
+ * title: 标题文本(LLM 生成的帖子中文标题); links: 存档三链 HTML。
+ * 已按用户要求移除 📎媒体/🗓时间/❤️互动 行——只保留标题/内容/三链。 */
+export function renderTweetHtml(t: FxTweet, title: string, zhLine = '', links = ''): string {
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const a = t.author ?? {};
-  const stats = [
-    t.likes !== undefined ? `❤️ ${t.likes}` : '',
-    t.retweets !== undefined ? `🔁 ${t.retweets}` : '',
-    t.replies !== undefined ? `💬 ${t.replies}` : '',
-  ].filter(Boolean).join(' · ');
-  const media = (t.media?.all ?? []);
-  const zhType = (ty?: string) => (ty === 'photo' ? '图片' : ty === 'video' ? '视频' : ty === 'gif' ? 'GIF' : ty ?? 'media');
-  const mediaLine = media.length
-    ? `\n\n📎 ${media.map((m) => `<a href="${esc(m.url ?? m.thumbnail_url ?? '')}">${esc(zhType(m.type))}</a>`).join(' · ')}`
-    : '';
-  const date = t.created_at
-    ? // Twitter UTC 时间串 → 北京时间 YYYY-MM-DD HH:mm(纯字符串变换, 无 Date 解析)
-      `\n\n🗓 ${t.created_at.replace(
-        /^(\w{3}) (\w{3}) (\d{2}) (\d{2}):(\d{2}):\d{2} \+\d{4} (\d{4})$/,
-        (_s, _wd, mon, d, hh, mm, yr) => {
-          const months: Record<string, string> = { Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06', Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12' };
-          const h = (Number(hh) + 8) % 24;
-          return `${yr}-${months[mon] ?? '??'}-${d} ${String(h).padStart(2, '0')}:${mm}`;
-        },
-      )}`
-    : '';
-  // product 对齐: 作者名直链(标题层) → 中文内容优先(🌐翻译) → 互动行 → 标签 → 存档三链
+  // product 对齐: LLM 生成标题直链 → 中文内容(🌐翻译) → 存档三链
   return [
-    `🐦 <b><a href="${esc(t.url ?? '')}">${esc(a.name ?? a.screen_name ?? '')} · @${esc(a.screen_name ?? '')}</a></b>`,
+    `<b><a href="${esc(t.url ?? '')}">${esc(title || t.text?.slice(0, 60) || '')}</a></b>`,
     '',
     esc(t.text ?? '').slice(0, 3500),
     zhLine,
-    mediaLine,
-    date,
-    stats ? `\n\n${stats}` : '',
     links,
   ].filter((s) => s !== '').join('\n');
 }

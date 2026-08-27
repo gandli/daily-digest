@@ -1,6 +1,6 @@
 import type { Env, SourceItem } from './types';
 import { sources } from './sources';
-import { resolveDescriptions } from './translate';
+import { resolveDescriptions, generateTitleZh } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes, renderProductMessage } from './render';
 import { sendPerRepoMessages, sendTelegram, sendChatAction, sendPhotoOrText, sendVideoOrText, registerCommands, safeEqual, sendTelegramKbd, answerCallbackQuery, editMessageKbd, type InlineKB } from './notify';
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage } from './archive';
@@ -255,9 +255,10 @@ export async function archiveTweet(
     // 帖子正文含 GitHub repo 链接 → 联动查询(后台独立 waitUntil, 不阻塞主卡; repo 多时分批防子请求上限)
     if (ctx) ctx.waitUntil(fanoutRepoRefs(env, chatId, md, ctx));
     const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
-    // 统一对齐 product/trending 卡: 作者直链 / 中文内容 / #archive / 存档三链 — 一张卡一次发送
+    // 统一对齐 product/trending 卡: LLM 生成标题 / 中文内容 / #archive / 存档三链 — 一张卡一次发送
     const links = `\n\n📁 ${archiveLinks(tUrl, tgLine ? tgLine.split(' ').pop() : undefined, `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`)}\n#archive`;
-    const card = renderTweetHtml(tweet, zhLine, links);
+    const titleZh = generateTitleZh(env, (tweet.text ?? '').slice(0, 600)).catch(() => null);
+    const card = renderTweetHtml(tweet, (await titleZh) ?? '', zhLine, links);
     if (isVideo && media0?.url) {
       await sendVideoOrText(env.BOT_TOKEN, chatId, media0.url, photo, card);
     } else {

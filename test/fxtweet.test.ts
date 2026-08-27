@@ -23,40 +23,33 @@ describe('extractTweet: X/Twitter 帖子链接', () => {
   });
 });
 
-describe('renderTweetHtml: 转义与拼装', () => {
-  it('HTML 特殊字符转义', () => {
-    const html = renderTweetHtml({ text: '<b>&"test"', author: { screen_name: 'j', name: '<J>' }, url: 'https://x.com/j/s/1' });
-    expect(html).toContain('&lt;b&gt;&amp;');
-    expect(html).toContain('&lt;J&gt;');
+describe('renderTweetHtml: 转义与拼装(三段式: 标题/内容/三链)', () => {
+  it('HTML 特殊字符转义(标题+正文)', () => {
+    const html = renderTweetHtml({ text: '<b>&"test"', url: 'https://x.com/j/s/1' }, '标题<b>');
+    expect(html).toContain('&lt;b&gt;&amp;'); // 正文
+    expect(html).toContain('标题&lt;b&gt;'); // 标题转义
   });
-  it('媒体行渲染为 HTML 链接(parse_mode:HTML)', () => {
-    const html = renderTweetHtml({ text: 'pic', media: { all: [{ type: 'photo', url: 'https://pbs.twimg.com/x.jpg' }] } });
-    expect(html).toContain('<a href="https://pbs.twimg.com/x.jpg">图片</a>');
+  it('标题直链 + 内容 + 三链段', () => {
+    const html = renderTweetHtml({ text: '正文', url: 'https://x.com/j/s/1' }, 'LLM标题', '', '\n\n📁 Wayback·Archive');
+    expect(html).toContain('<a href="https://x.com/j/s/1">LLM标题</a>');
+    expect(html).toContain('正文');
+    expect(html).toContain('📁 Wayback·Archive');
   });
-  it('媒体类型标签中文化(photo→图片 video→视频 gif→GIF)', () => {
-    const html = renderTweetHtml({ text: 'x', media: { all: [{ type: 'photo', url: 'https://p/1' }, { type: 'video', url: 'https://v/2.mp4' }, { type: 'gif', url: 'https://g/3' }] } });
-    expect(html).toContain('>图片</a>');
-    expect(html).toContain('>视频</a>');
-    expect(html).toContain('>GIF</a>');
-  });
-  it('日期格式化为 YYYY-MM-DD HH:mm(北京时间)', () => {
-    const html = renderTweetHtml({ text: 'd', created_at: 'Mon Jul 13 01:16:37 +0000 2026' });
-    expect(html).toContain('2026-07-13 09:16');
-  });
-  it('无作者/stats/media → 不崩, 无 undefined', () => {
-    const html = renderTweetHtml({ text: 'just text' } as never);
+  it('无标题 → 回退正文截断(不崩, 无 undefined)', () => {
+    const html = renderTweetHtml({ text: 'just text' } as never, '');
     expect(html).toContain('just text');
     expect(html).not.toContain('undefined');
   });
-  it('有 stats → 渲染', () => {
-    const html = renderTweetHtml({ text: 'x', likes: 100, retweets: 5, replies: 2 } as never);
-    expect(html).toContain('❤️ 100');
-    expect(html).toContain('🔁 5');
-    expect(html).toContain('💬 2');
+  it('已移除媒体/stats/时间行(对齐 product 纯三段式)', () => {
+    const html = renderTweetHtml({ text: 'x', likes: 100, retweets: 5, replies: 2, media: { all: [{ type: 'photo', url: 'https://p/1' }] }, created_at: 'Mon Jul 13 01:16:37 +0000 2026' } as never, '');
+    expect(html).not.toContain('📎');
+    expect(html).not.toContain('❤️');
+    expect(html).not.toContain('🗓');
   });
-  it('日期解析失败 → 原样保留不崩', () => {
-    const html = renderTweetHtml({ text: 'd', created_at: 'bad date format' } as never);
-    expect(html).toContain('bad date format');
+  it('🌐 翻译段 + 三链可选衔接', () => {
+    const html = renderTweetHtml({ text: 'en' }, '标题', '\n\n🌐 翻译内容', '\n📁 三链');
+    expect(html).toContain('🌐 翻译内容');
+    expect(html).toContain('📁 三链');
   });
 });
 
