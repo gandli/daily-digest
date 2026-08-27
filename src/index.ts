@@ -3,7 +3,7 @@ import { fetchTrending } from './sources/trending';
 import { resolveDescriptions } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes, renderProductMessage, esc } from './render';
 import { sendPerRepoMessages, sendTelegram, sendChatAction, sendPhotoOrText, registerCommands, safeEqual, sendTelegramKbd, answerCallbackQuery, editMessageKbd, type InlineKB } from './notify';
-import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage } from './archive';
+import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage, createTelegraphAccount } from './archive';
 import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, archiveLinks, backfillDescriptions } from './lookup';
 import { extractUrl } from './urlmd';
 import { extractTweet, fetchTweet, renderTweetHtml, articleToText, type FxTweet } from './fxtweet';
@@ -344,10 +344,11 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
 
   // 3. Telegraph 备份页(可选,失败静默)——索引 archive:tg:<date> 供 /archive 优先展示
   let telegraphUrl: string | null = null;
-  if (env.TELEGRAPH_TOKEN) {
+  const tgToken = env.TELEGRAPH_TOKEN ?? (await createTelegraphAccount().catch(() => null)); // 匿名建号兜底: 未配 token 也能建页
+  if (tgToken) {
     const titleText = items.slice(0, 5).map((it) => it.title).join(', ');
     const tgTitle = await generateTitleZh(env, titleText).catch(() => null);
-    telegraphUrl = await createTelegraphPage(env.TELEGRAPH_TOKEN, tgTitle || `digest-${dateStr}`, renderTelegraphNodes(items));
+    telegraphUrl = await createTelegraphPage(tgToken, tgTitle || `digest-${dateStr}`, renderTelegraphNodes(items));
     try {
       if (telegraphUrl) await env.CACHE.put(`archive:tg:${dateStr}`, telegraphUrl);
     } catch {
@@ -393,7 +394,7 @@ export async function runProductThin(env: Env, chatId: string, ctx?: ExecutionCo
       const items = data.items ?? [];
       if (items.length) {
         const chunks = renderProductMessage(dateStr, items, data.telegraphUrl, repo);
-        await sendPerRepoMessages(env.BOT_TOKEN, chatId, chunks.map((html, i) => ({ html, ogUrl: items[i].url })), repo);
+        await sendPerRepoMessages(env.BOT_TOKEN, chatId, chunks.map((html, i) => ({ html, photo: items[i].photo, ogUrl: items[i].url })), repo, env.CACHE);
         // product 含 GitHub repo → 后台 fanout 精简 repo 卡(与 X 帖一致)
         if (ctx && items.some((it) => /github\.com\//i.test(`${it.url} ${it.desc} ${it.title}`))) {
           ctx.waitUntil(fanoutRepoRefs(env, chatId, items.map((it) => `github.com/${it.title} ${it.url} ${it.desc}`).join(' '), ctx));

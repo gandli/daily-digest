@@ -31,4 +31,5 @@ export type SourceItem = {
   starsToday?: number; // 今日新增
   author?: string; // HN 用户名(zeli 风格展示)
   createdAt?: string; // ISO 时间(zeli 风格: about X hours ago)
+  photo?: string; // og:image 直链(Actions 侧预取, runProductThin 发实体图)
 };

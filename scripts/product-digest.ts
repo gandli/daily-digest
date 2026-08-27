@@ -5,7 +5,7 @@
 // 用法: OPENROUTER_API_KEY=.. BOT_TOKEN=.. CHAT_ID=.. GH_TOKEN=.. npx tsx scripts/product-digest.ts [dateStr]
 
 import { fetchHackerNewsProducts } from '../src/sources/hn';
-import { urlToMarkdown } from '../src/urlmd';
+import { urlToMarkdown, extractOgImage } from '../src/urlmd';
 import { summarizeZhDeep, translateTextZh, isChinese, generateTitleZh } from '../src/translate';
 import { renderProductMessage, renderMarkdown, renderTelegraphNodes } from '../src/render';
 import { createTelegraphPage, createTelegraphAccount, archiveToGitHub } from '../src/archive';
@@ -61,9 +61,17 @@ async function main() {
   const withUrl = items.filter((it) => !it.desc && it.url && /^https?:\/\//.test(it.url));
   for (const it of withUrl) {
     const md = await urlToMarkdown(env, it.url, {}).catch(() => '');
-    const body = md.replace(/[#*>`|\!-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 6000);
+    const body = md.replace(/[#*>`|!-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 6000);
     if (body.length > 40) it.desc = body;
     console.log(`  url→md ${it.url.slice(0, 60)}: ${body.length} chars`);
+    // og:image 预取(与 urlToMarkdown 链复用一次 fetch 的头部; 失败静默 — 图是增强)
+    try {
+      const h = await fetch(it.url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(10000) });
+      if (h.ok) it.photo = extractOgImage((await h.text()).slice(0, 100_000)) ?? undefined;
+      if (!it.photo) it.photo = `https://www.google.com/s2/favicons?domain=${new URL(it.url).hostname}&sz=64`;
+    } catch {
+      try { it.photo = `https://www.google.com/s2/favicons?domain=${new URL(it.url).hostname}&sz=64`; } catch { /* URL 解析失败则纯文字 */ }
+    }
   }
 
   // 3. 深摘要(OpenRouter,全量无 MAX_DEEP_PER_RUN=2 预算限制)
