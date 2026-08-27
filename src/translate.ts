@@ -170,7 +170,7 @@ async function translateZhOpenRouter(env: Env, text: string): Promise<string | n
         body: JSON.stringify({
           model,
           messages: [
-            { role: 'system', content: '你是专业翻译。把给定文本翻译成自然流畅的简体中文，直接输出译文，不要解释，不要 markdown。' },
+            { role: 'system', content: '你是专业翻译，面向软件/开发/科技文档的中文翻译。把给定文本翻译成自然流畅的简体中文，直接输出译文，不要解释，不要 markdown。注意：这是技术语境，术语要按软件开发含义理解——常见技术缩写保留英文(如 AI、API、LLM(大语言模型)、SDK、CLI、repo、GitHub、CPU、GPU)；企业/机构名不译。避免把专业缩写误译为人类学位的同形词(如 LLM=大语言模型，不是法学硕士)。' },
             { role: 'user', content: text.slice(0, 3000) },
           ],
           temperature: 0.2,
