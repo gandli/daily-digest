@@ -53,6 +53,19 @@ export async function generateTitleZh(env: Env, text: string): Promise<string | 
   );
 }
 
+/** 由正文生成领域标签(LLM)。返回空格分隔的英文/数字标签(带#), ≤4个。失败/无 key → null。 */
+export async function generateTagsZh(env: Env, text: string): Promise<string[] | null> {
+  if (!env.OPENROUTER_API_KEY) return null;
+  const out = await openrouterChat(
+    env,
+    '你是标签编辑。根据给定内容生成 2-4 个领域标签(英文小写, 反映主题), 用空格分隔, 不带#。只输出标签单词, 不要解释。',
+    text,
+  );
+  if (!out) return null;
+  const tags = out.match(/[a-z][a-z0-9-]{1,19}/g) ?? [];
+  return tags.slice(0, 4);
+}
+
 // 描述解析链(按序兜底): zread wiki 中文 → deepwiki 英文 Overview → 翻译成中文 → 英文原文。
 // 用户要求: 必须来自 zread 或 deepwiki。两者都未命中 → 该条不显示描述(诚实降级), 不硬凑 repo 一句话。
 export async function resolveDescriptions(env: Env, items: SourceItem[]): Promise<void> {
