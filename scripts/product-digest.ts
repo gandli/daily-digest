@@ -6,7 +6,7 @@
 
 import { fetchHackerNewsProducts } from '../src/sources/hn';
 import { urlToMarkdown } from '../src/urlmd';
-import { summarizeZhDeep, translateTextZh, isChinese } from '../src/translate';
+import { summarizeZhDeep, translateTextZh, isChinese, generateTitleZh } from '../src/translate';
 import { renderProductMessage, renderMarkdown, renderTelegraphNodes } from '../src/render';
 import { createTelegraphPage, createTelegraphAccount, archiveToGitHub } from '../src/archive';
 import { sendPerRepoMessages } from '../src/notify';
@@ -92,7 +92,11 @@ async function main() {
 
   // 4. Telegraph + 渲染(无 TELEGRAPH_TOKEN 时匿名建号, 全自动)
   const tgToken = env.TELEGRAPH_TOKEN ?? (await createTelegraphAccount());
-  const telegraphUrl = tgToken ? await createTelegraphPage(tgToken, `product-${dateStr}`, renderTelegraphNodes(items)).catch(() => null) : null;
+  // Telegraph 标题 LLM 生成(前5 标题), 失败回退 product-<date>
+  const tgTitle = items.length
+    ? await generateTitleZh(env, items.slice(0, 5).map((it) => it.title).join(', ')).catch(() => null)
+    : null;
+  const telegraphUrl = tgToken ? await createTelegraphPage(tgToken, tgTitle || `product-${dateStr}`, renderTelegraphNodes(items)).catch(() => null) : null;
   const chunks = renderProductMessage(dateStr, items, telegraphUrl ?? undefined, env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
   console.log(`[4/5] rendered ${chunks.length} messages${telegraphUrl ? `, telegraph: ${telegraphUrl}` : ''}`);
 
