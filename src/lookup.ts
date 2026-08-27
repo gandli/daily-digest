@@ -86,9 +86,22 @@ export async function fanoutRepoRefs(env: Env, chatId: string, text: string, ctx
       try {
         const item = await fetchRepo(r, env.GH_TOKEN);
         if (!item) return;
-        const stars = item.stars ? ` ⭐${item.stars}` : '';
+        // 完整三段式: 标题⭐·语言 / 中文摘要(描述翻译) / 标签 / 存档三链 —— 对齐统一排版
+        const stars = item.stars ? ` ⭐${item.stars >= 1000 ? (item.stars / 1000).toFixed(1) + 'k' : item.stars}` : '';
         const lang = item.lang ? ` · ${item.lang}` : '';
-        const html = `<b><a href="${esc(item.url)}">${esc(item.title)}</a></b>${stars}${lang}\n\n${esc(item.desc ?? item.title)}`;
+        // reptile: 描述翻译(fetchRepo 已给英文 desc; 转中文), 失败回退原文免空白
+        let descZh = item.descZh;
+        if (!isChinese(descZh ?? '') && item.desc) {
+          const t = item.desc.length > 8 ? (await translateTextZh(env, item.desc.slice(0, 500)).catch(() => null)) : null;
+          descZh = (isChinese(t ?? '') ? t : null) ?? item.desc;
+        }
+        const topicTags = (item.topics ?? []).slice(0, 4).map((x) => `#${x}`).join(' ');
+        const mdLink = `https://github.com/${env.GH_ARCHIVE_REPO || 'gandli/daily-digest'}/blob/archive/archive/${today().slice(0, 4)}/${today()}.md`;
+        const html =
+          `<b><a href="${esc(item.url)}">${esc(item.title)}</a></b>${stars}${lang}\n\n` +
+          (descZh ? `📝 ${esc(descZh).slice(0, 300)}\n\n` : '') +
+          `#archive${topicTags ? ` ${topicTags}` : ''}\n\n` +
+          `📁 ${archiveLinks(item.url, undefined, mdLink)}`;
         await sendPerRepoMessages(env.BOT_TOKEN, chatId, [{ html, ogUrl: item.url }], env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
         // 仍索引(为 /search 可查)
         await indexArchivedItems(env, [item], stamp).catch(() => {});
