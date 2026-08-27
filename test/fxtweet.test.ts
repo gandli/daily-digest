@@ -25,30 +25,32 @@ describe('extractTweet: X/Twitter 帖子链接', () => {
 
 describe('renderTweetHtml: 转义与拼装(三段式: 标题/内容/三链)', () => {
   it('HTML 特殊字符转义(标题+正文)', () => {
-    const html = renderTweetHtml({ text: '<b>&"test"', url: 'https://x.com/j/s/1' }, '标题<b>');
+    const html = renderTweetHtml({ text: '<b>&"test"', url: 'https://x.com/j/s/1' }, '标题<b>', '<b>&"test"');
     expect(html).toContain('&lt;b&gt;&amp;'); // 正文
     expect(html).toContain('标题&lt;b&gt;'); // 标题转义
   });
   it('标题直链 + 内容 + 三链段', () => {
-    const html = renderTweetHtml({ text: '正文', url: 'https://x.com/j/s/1' }, 'LLM标题', '', '\n\n📁 Wayback·Archive');
+    const html = renderTweetHtml({ text: '正文', url: 'https://x.com/j/s/1' }, 'LLM标题', '正文', '', '\n\n📁 Wayback·Archive');
     expect(html).toContain('<a href="https://x.com/j/s/1">LLM标题</a>');
     expect(html).toContain('正文');
     expect(html).toContain('📁 Wayback·Archive');
   });
   it('无标题 → 回退正文截断(不崩, 无 undefined)', () => {
-    const html = renderTweetHtml({ text: 'just text' } as never, '');
+    const html = renderTweetHtml({ text: 'just text' } as never, '', 'just text');
     expect(html).toContain('just text');
     expect(html).not.toContain('undefined');
   });
   it('已移除媒体/stats/时间行(对齐 product 纯三段式)', () => {
-    const html = renderTweetHtml({ text: 'x', likes: 100, retweets: 5, replies: 2, media: { all: [{ type: 'photo', url: 'https://p/1' }] }, created_at: 'Mon Jul 13 01:16:37 +0000 2026' } as never, '');
+    const html = renderTweetHtml({ text: 'x', likes: 100, retweets: 5, replies: 2, media: { all: [{ type: 'photo', url: 'https://p/1' }] }, created_at: 'Mon Jul 13 01:16:37 +0000 2026' } as never, '', 'x');
     expect(html).not.toContain('📎');
     expect(html).not.toContain('❤️');
     expect(html).not.toContain('🗓');
   });
-  it('🌐 翻译段 + 三链可选衔接', () => {
-    const html = renderTweetHtml({ text: 'en' }, '标题', '\n\n🌐 翻译内容', '\n📁 三链');
-    expect(html).toContain('🌐 翻译内容');
+  it('非中文原文 → 中文替换(不带 🌐 标记)', () => {
+    const html = renderTweetHtml({ text: 'english', url: 'https://x.com/e/1' }, '小标题', '中文翻译', '', '\n📁 三链');
+    expect(html).toContain('中文翻译');
+    expect(html).not.toContain('english'); // 原文被中文替换
+    expect(html).not.toContain('🌐');
     expect(html).toContain('📁 三链');
   });
 });

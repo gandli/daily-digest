@@ -51,16 +51,15 @@ export async function fetchTweet(handle: string, id: string): Promise<FxTweet | 
   }
 }
 
-/** 帖子 → Telegram HTML, 对齐 product/trending 三段式: 标题直链 / 内容(中英) / 存档三链。
- * title: 标题文本(LLM 生成的帖子中文标题); links: 存档三链 HTML。
- * 已按用户要求移除 📎媒体/🗓时间/❤️互动 行——只保留标题/内容/三链。 */
-export function renderTweetHtml(t: FxTweet, title: string, zhLine = '', links = ''): string {
+/** 帖子 → Telegram HTML, 对齐 product/trending 三段式: 标题直链 / 中文正文(替换原文) / 存档三链。
+ * title: 标题文本; body: 正文(非中文已译中文, 直接替换原文)。 */
+export function renderTweetHtml(t: FxTweet, title: string, body: string, zhLine = '', links = ''): string {
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  // product 对齐: LLM 生成标题直链 → 中文内容(🌐翻译) → 存档三链
+  // product 对齐: LLM 生成标题直链 → 中文正文 → 存档三链。zhLine 仅作可选的原文英文展示(默认无)。
   return [
     `<b><a href="${esc(t.url ?? '')}">${esc(title || t.text?.slice(0, 60) || '')}</a></b>`,
     '',
-    esc(t.text ?? '').slice(0, 3500),
+    esc(body).slice(0, 3500),
     zhLine,
     links,
   ].filter((s) => s !== '').join('\n');

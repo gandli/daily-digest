@@ -258,7 +258,7 @@ export async function archiveTweet(
     // 统一对齐 product/trending 卡: LLM 生成标题 / 中文内容 / #archive / 存档三链 — 一张卡一次发送
     const links = `\n\n📁 ${archiveLinks(tUrl, tgLine ? tgLine.split(' ').pop() : undefined, `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`)}\n#archive`;
     const titleZh = generateTitleZh(env, (tweet.text ?? '').slice(0, 600)).catch(() => null);
-    const card = renderTweetHtml(tweet, (await titleZh) ?? '', zhLine, links);
+    const card = renderTweetHtml(tweet, (await titleZh) ?? '', hasZh ? textZh! : (tweet.text ?? ''), '', links);
     if (isVideo && media0?.url) {
       await sendVideoOrText(env.BOT_TOKEN, chatId, media0.url, photo, card);
     } else {
