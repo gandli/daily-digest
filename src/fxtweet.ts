@@ -58,9 +58,8 @@ export function renderTweetHtml(t: FxTweet, title: string, body: string, zhLine 
   // product 对齐: LLM 生成标题直链 → 中文正文 → 存档三链。zhLine 仅作可选的原文英文展示(默认无)。
   return [
     `<b><a href="${esc(t.url ?? '')}">${esc(title || t.text?.slice(0, 60) || '')}</a></b>`,
-    '',
     esc(body).slice(0, 3500),
     zhLine,
     links,
-  ].filter((s) => s !== '').join('\n');
+  ].filter((s) => s !== '').join('\n\n');
 }
