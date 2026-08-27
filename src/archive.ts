@@ -38,23 +38,24 @@ async function putToArchiveBranch(env: Env, path: string, content: string, messa
   } catch {
     // 无网/限流 → 直接走创建,失败由下方统一处理
   }
-  const res = await fetch(`https://api.github.com/repos/${repo}/contents/${path}`, {
-    method: 'PUT',
-    headers: {
-      Authorization: `token ${env.GH_TOKEN}`,
-      Accept: 'application/vnd.github+json',
-      'User-Agent': 'daily-digest',
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({
-      message,
-      content: encoded,
-      branch: 'archive', // 存档独立分支, 不污染 main 代码历史(contents API 按分支精确跟踪)
-      ...(sha ? { sha } : {}),
-    }),
-  });
-  if (!res.ok) console.error(`archive put ${path} ${res.status}: ${await res.text()}`);
-  return res.ok;
+  let ok = false;
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}/contents/${path}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `token ${env.GH_TOKEN}`,
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'daily-digest',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ message, content: encoded, branch: 'archive', ...(sha ? { sha } : {}) }),
+    });
+    if (!res.ok) console.error(`archive put ${path} ${res.status}: ${await res.text()}`);
+    ok = res.ok;
+  } catch (e) {
+    console.error(`archive put ${path} network error`, String(e).slice(0, 80));
+  }
+  return ok;
 }
 
 /**
@@ -126,7 +127,7 @@ export async function createTelegraphPage(
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         access_token: token,
-        title: `Daily Digest · ${dateStr}`,
+        title: dateStr,
         author_name: 'daily-digest',
         content: nodes,
         return_content: false,

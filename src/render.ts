@@ -20,7 +20,7 @@ const relTime = (iso?: string): string => {
 // Telegram HTML 消息。一个项目一条消息(首条带头部), 标题/描述/wiki 分层, 带 topics 标签 + 存档三链。
 // archiveRepo: GitHub 存档仓库(用于拼 md 链接); 三链 = Telegraph(当日页,有则) → web.archive → GitHub md。
 export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl?: string, archiveRepo = 'gandli/daily-digest'): string[] {
-  const header = `📊 <b>Daily Digest</b> · ${dateStr}\n#digest #d${dateStr.replace(/-/g, '')}`;
+  const header = `📊 <b>${dateStr}</b>`;
   const mdPath = `https://github.com/${archiveRepo}/blob/archive/archive/${dateStr.slice(0, 4)}/${dateStr}.md`;
   const links = (it: SourceItem): string => {
     const l: string[] = [];
@@ -53,7 +53,7 @@ export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl
 
 // HN 酷产品消息(仿 trending 但独立)。标题直链 + 中文描述 + #product + 领域标签 + 存档三链。
 export function renderProductMessage(dateStr: string, items: SourceItem[], telegraphUrl?: string, archiveRepo = 'gandli/daily-digest'): string[] {
-  const header = `🚀 <b>HN 酷产品</b> · ${dateStr}\n#product #d${dateStr.replace(/-/g, '')}`;
+  const header = `🚀 <b>${dateStr}</b>`;
   const mdPath = `https://github.com/${archiveRepo}/blob/archive/archive/${dateStr.slice(0, 4)}/${dateStr}.md`;
   return items.map((it, i) => {
     const score = it.stars ? ` ⭐ ${fmtK(it.stars)}` : '';
@@ -93,7 +93,7 @@ export function renderMarkdown(dateStr: string, items: SourceItem[], telegraphUr
     )
     .join('\n');
   return (
-    `# Daily Digest · ${dateStr}\n\n` +
+    `# ${dateStr}\n\n` +
     (telegraphUrl ? `Telegraph: ${telegraphUrl}\n\n` : '') +
     rows +
     `\n\n---\n由 daily-digest bot 自动生成\n`
