@@ -89,7 +89,7 @@ async function main() {
 
   // 5a. 落 archive 分支(JSON + markdown)
   const jsonPath = `product/${dateStr}.json`;
-  const jsonPayload = JSON.stringify({ date: dateStr, items, generatedAt: new Date().toISOString() }, null, 2);
+  const jsonPayload = JSON.stringify({ date: dateStr, items, telegraphUrl: telegraphUrl ?? undefined, generatedAt: new Date().toISOString() }, null, 2);
   await putToArchiveBranch(env, jsonPath, jsonPayload, `product: ${dateStr}`);
   const md = renderMarkdown(dateStr, items, telegraphUrl ?? undefined);
   await archiveToGitHub(env, dateStr, md);
