@@ -21,6 +21,19 @@ export function archToEntry(e: { repo: string; date: string; desc?: string; desc
 }
 
 export function matchEntries(entries: SearchEntry[], q: string): SearchEntry[] {
-  const query = q.toLowerCase();
-  return entries.filter((e) => e[3].includes(query));
+  const query = q.toLowerCase().trim();
+  if (!query) return [];
+  // 多词 AND: 每词都必须在 hay 里(substring 匹配——hay 已是词拼接, 词边界不额外处理)。
+  // 排序: 名称含查询词越多越前(名称命中=更精确), 同分稳定。
+  const words = query.split(/\s+/).filter(Boolean);
+  const scored = entries
+    .map((e) => {
+      const hay = e[3];
+      if (!words.every((w) => hay.includes(w))) return null;
+      const name = e[1].toLowerCase();
+      return { e, score: words.filter((w) => name.includes(w)).length };
+    })
+    .filter((x): x is { e: SearchEntry; score: number } => x !== null)
+    .sort((a, b) => b.score - a.score);
+  return scored.map((x) => x.e);
 }

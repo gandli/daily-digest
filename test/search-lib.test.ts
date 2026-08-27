@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { libToEntry, archToEntry } from '../src/search-index';
+import { libToEntry, archToEntry, matchEntries, type SearchEntry } from '../src/search-index';
 
 // /search 合并搜索回归锁: search:index 单键索引(star/bm/arch 都并入) 内存过滤
 // 旧实现逐键 get 6076 次打爆免费版 50 子请求上限 /search 无响应——本锁验证新索引路径
@@ -104,5 +104,34 @@ describe('/search 合并搜索(单键索引)', () => {
     expect(token.length).toBeLessThan(20); // 短 token(64B 内), 长 query 不落 callback
     const q = await (store.get(`search:q:${token}`) as string | undefined);
     expect(q).toBe('aiml'); // KV 里能找 return 原 query
+  });
+});
+
+describe('matchEntries 词 AND + 排序', () => {
+  // 仿 libToEntry: hay = name + desc 拼接(小写)
+  const E = (name: string, desc: string): SearchEntry => ['star', name, `https://github.com/x/${name}`, `${name} ${desc}`.toLowerCase(), ''];
+
+  it('单词命中', () => {
+    expect(matchEntries([E('a', 'rust cli tool')], 'rust')).toHaveLength(1);
+  });
+
+  it('多词 AND: 全词命中才过', () => {
+    const es = [E('a', 'rust cli tool'), E('b', 'rust only'), E('c', 'go cli tool')];
+    expect(matchEntries(es, 'rust cli')).toHaveLength(1); // 只有 a 两词都在
+    expect(matchEntries(es, 'rust cli')[0][1]).toBe('a');
+  });
+
+  it('名称前缀命中优先(name 含查询词 → 靠前)', () => {
+    const es = [E('rust-cli', 'a command line tool'), E('other', 'rust cli tool')];
+    const out = matchEntries(es, 'rust cli');
+    expect(out[0][1]).toBe('rust-cli'); // 名称含 rust → 靠前
+  });
+
+  it('空 query → 空结果', () => {
+    expect(matchEntries([E('a', 'x')], '')).toHaveLength(0);
+  });
+
+  it('大小写不敏感', () => {
+    expect(matchEntries([E('a', 'Rust CLI')], 'rust')).toHaveLength(1);
   });
 });

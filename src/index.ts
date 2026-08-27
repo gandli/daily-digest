@@ -7,6 +7,7 @@ import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage, createTeleg
 import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, archiveLinks, backfillDescriptions } from './lookup';
 import { extractUrl } from './urlmd';
 import { extractTweet, fetchTweet, renderTweetHtml, articleToText, type FxTweet } from './fxtweet';
+import { matchEntries, type SearchEntry } from './search-index';
 import { summarizeZh, summarizeZhDeep, translateTextZh, translateBatch, isChinese, generateTitleZh, generateTagsZh } from './translate';
 
 // 北京时间日期串 YYYY-MM-DD(UTC+8 无 DST,直接偏移即可)
@@ -63,15 +64,11 @@ export async function searchArchive(env: Env, chatId: string, query: string, pag
       await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ 搜索索引未初始化, 请联系管理员运行 seed 脚本。');
       return;
     }
-    const entries = JSON.parse(raw) as [string, string, string, string, string?][]; // [src,name,url,hay,desc]
+    const entries = JSON.parse(raw) as SearchEntry[];
     const q = query.toLowerCase();
-    // ponytail: 线性扫描 6076 条毫秒级; 索引超 5 万条再考虑分片
+    // 词 AND 匹配 + 相关度排序(见 matchEntries)
     type Hit = { src: string; name: string; url: string; desc?: string };
-    const hits: Hit[] = [];
-    for (const [src, name, url, hay, desc] of entries) {
-      if (!hay.includes(q)) continue;
-      hits.push({ src, name, url, desc });
-    }
+    const hits: Hit[] = matchEntries(entries, q).map(([src, name, url, , desc]) => ({ src, name, url, desc }));
     // 分页渲染 + inline keyboard 翻页(复用 archive 同款模式: answerCallbackQuery 放 finally)
     const total = hits.length;
     const maxPage = Math.max(1, Math.ceil(total / SEARCH_PAGE));
