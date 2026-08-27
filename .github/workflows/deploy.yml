@@ -48,13 +48,18 @@ jobs:
             exit 0
           fi
           npx wrangler deploy
-      # 播种 search:index(单KV键, 文件系统库索引)——/search 依赖它, 失败不阻塞部署
+      # 播种 search:index(单KV键, 文件系统库索引)——/search 依赖它。
+      # 幂等: KV 已存在该键即跳过(wrangler kv key get 退出码 0), 避免每次 deploy 消耗免费 puts 配额打爆 429。
       - name: Seed search index
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          KV_NS: 51e73f8381d34b9c95eaebdf4f7d8101
         run: |
+          set +e
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then exit 0; fi
           if [ ! -f data/library.jsonl ]; then echo "::notice::library.jsonl missing, skip seeding"; exit 0; fi
+          npx wrangler kv key get "search:index" --namespace-id=$KV_NS --remote >/dev/null 2>&1
+          if [ $? -eq 0 ]; then echo "::notice::search:index already seeded, skip"; exit 0; fi
           node scripts/seed-search-index.mjs
-          npx wrangler kv key put "search:index" --path=data/lib-index.json --namespace-id=51e73f8381d34b9c95eaebdf4f7d8101 --remote
+          npx wrangler kv key put "search:index" --path=data/lib-index.json --namespace-id=$KV_NS --remote
