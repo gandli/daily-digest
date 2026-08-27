@@ -143,6 +143,22 @@ export async function indexArchivedItems(env: Env, items: SourceItem[], dateStr:
       /* 索引失败不影响主流程 */
     }
   }
+  // 增量追加 search:index(单键 RMW; 个人 bot 并发极低, 丢条目概率近零)
+  if (!items.length) return;
+  try {
+    const raw = await env.CACHE.get('search:index');
+    const entries: unknown[][] = raw ? JSON.parse(raw) : [];
+    const haySet = new Set(entries.map((e) => String(e[1]))); // 去重: 全量 name 集合
+    for (const it of items) {
+      if (haySet.has(it.title)) continue; // 幂等: 已存在跳过
+      const name = it.title;
+      const hay = `${name} ${it.desc ?? ''} ${it.descZh ?? ''} ${dateStr}`.toLowerCase();
+      entries.push(['x', name, it.url ?? '', hay, (it.descZh ?? it.desc ?? '').slice(0, 120)]);
+    }
+    await env.CACHE.put('search:index', JSON.stringify(entries));
+  } catch {
+    /* search:index 增量失败不影响主流程 */
+  }
 }
 
 /** 从文本提取 GitHub 仓库链接或裸 owner/repo。优先 github.com 域; 兜底裸 owner/repo(排除文件名形态)。 */
