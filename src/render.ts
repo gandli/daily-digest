@@ -28,9 +28,9 @@ export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl
     const wb = `https://web.archive.org/web/2/${encodeURIComponent(it.url).replace(/%3A/g, ':').replace(/%2F/g, '/')}`;
     l.push(`<a href="${wb}">Wayback</a>`);
     l.push(`<a href="${esc(mdPath)}">Archive</a>`);
-    // wiki 三链也统一在卡片底部(与存档三链并列)
+    // wiki 三链在倒数第二行(存档三链之前), 存档在最后一行
     const wikis = `<a href="https://deepwiki.com/${esc(it.title)}">deepwiki</a> · <a href="https://zread.ai/${esc(it.title)}">zread</a> · <a href="https://codewiki.google/github.com/${esc(it.title)}">codewiki</a>`;
-    return `\n\n📁 ${l.join(' · ')}\n🗂 ${wikis}`;
+    return `\n\n🗂 ${wikis}\n📁 ${l.join(' · ')}`;
   };
   return items.map((it, i) => {
     const langTag = it.lang ? ` · #${it.lang}` : '';

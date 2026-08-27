@@ -89,19 +89,28 @@ export async function fanoutRepoRefs(env: Env, chatId: string, text: string, ctx
         // 完整三段式: 标题⭐·语言 / 中文摘要(描述翻译) / 标签 / 存档三链 —— 对齐统一排版
         const stars = item.stars ? ` ⭐${item.stars >= 1000 ? (item.stars / 1000).toFixed(1) + 'k' : item.stars}` : '';
         const lang = item.lang ? ` · ${item.lang}` : '';
-        // reptile: 描述翻译(fetchRepo 已给英文 desc; 转中文), 失败回退原文免空白
-        let descZh = item.descZh;
-        if (!isChinese(descZh ?? '') && item.desc) {
-          const t = item.desc.length > 8 ? (await translateTextZh(env, item.desc.slice(0, 500)).catch(() => null)) : null;
-          descZh = (isChinese(t ?? '') ? t : null) ?? item.desc;
+        // 描述优先 wiki 三链(fetchDeepwikiOverview 是 wiki 英文 Overview), 失败回退 GitHub desc
+        let descZh = item.descZh ?? '';
+        if (!isChinese(descZh)) {
+          // 1. wiki: deepwiki Overview(英文) → 翻译
+          const dw = await fetchDeepwikiOverview(r, 300).catch(() => null);
+          if (dw && dw.length > 8) {
+            const t = await translateTextZh(env, dw.slice(0, 500)).catch(() => null);
+            descZh = (isChinese(t ?? '') ? t : null) ?? dw;
+          } else if (item.desc) {
+            // 2. 兜底: GitHub desc(英文)→翻译; 或已是中文
+            if (isChinese(item.desc)) descZh = item.desc;
+            else { const t = item.desc.length > 8 ? (await translateTextZh(env, item.desc.slice(0, 500)).catch(() => null)) : null; descZh = (isChinese(t ?? '') ? t : null) ?? item.desc; }
+          }
         }
         const topicTags = (item.topics ?? []).slice(0, 4).map((x) => `#${x}`).join(' ');
         const mdLink = `https://github.com/${env.GH_ARCHIVE_REPO || 'gandli/daily-digest'}/blob/archive/archive/${today().slice(0, 4)}/${today()}.md`;
         const html =
           `<b><a href="${esc(item.url)}">${esc(item.title)}</a></b>${stars}${lang}\n\n` +
           (descZh ? `📝 ${esc(descZh).slice(0, 300)}\n\n` : '') +
-          `<a href="https://deepwiki.com/${esc(item.title)}">deepwiki</a> · <a href="https://zread.ai/${esc(item.title)}">zread</a> · <a href="https://codewiki.google/github.com/${esc(item.title)}">codewiki</a>\n\n` +
           `#archive${topicTags ? ` ${topicTags}` : ''}\n\n` +
+          // wiki 三链在倒数第二行(存档三链之前)
+          `🗂 <a href="https://deepwiki.com/${esc(item.title)}">deepwiki</a> · <a href="https://zread.ai/${esc(item.title)}">zread</a> · <a href="https://codewiki.google/github.com/${esc(item.title)}">codewiki</a>\n` +
           `📁 ${archiveLinks(item.url, undefined, mdLink)}`;
         await sendPerRepoMessages(env.BOT_TOKEN, chatId, [{ html, photo: `https://opengraph.githubassets.com/1/${item.title}`, ogUrl: item.url }], env.GH_ARCHIVE_REPO || 'gandli/daily-digest', env.CACHE);
         // 仍索引(为 /search 可查)
