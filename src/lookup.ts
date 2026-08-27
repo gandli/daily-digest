@@ -1,5 +1,5 @@
 import type { Env, SourceItem } from './types';
-import { resolveDescriptions, translateBatch, isChinese, summarizeZh } from './translate';
+import { resolveDescriptions, translateBatch, translateTextZh, isChinese, summarizeZh } from './translate';
 import { fetchDeepwikiOverview } from './deepwiki';
 import { renderMessage, renderMarkdown } from './render';
 import { sendPerRepoMessages, sendTelegram } from './notify';
@@ -400,13 +400,21 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
     await fanoutRepoRefs(env, chatId, clipped, ctx);
     const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
     await indexArchivedItems(env, [{ title: new URL(url).hostname, url, desc: summaryZh, descZh: undefined } as SourceItem], stamp);
-    // 统一格式化回复: 标题行 / 中文摘要 / 存档链接(HTML 转义)
     const host = new URL(url).hostname;
+    // 标题: md 首行非空非标点优先(页面标题), 否则原 URL 域名; 英文 → 中文
+    let title = md.split('\n').map((l) => l.trim()).find((l) => l && !/^[#*>\-|`]/.test(l) && !/^https?:\/\//i.test(l)) ?? host;
+    title = title.replace(/[#*>`[\]()!-]/g, '').trim().slice(0, 80);
+    let titleZh = title;
+    if (!isChinese(titleZh) && env.OPENROUTER_API_KEY) {
+      titleZh = (await translateTextZh(env, title).catch(() => null)) ?? title;
+    }
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // 统一印刷: 标题直链(中文优先) / 中文摘要 / 标签 / 存档三链——对齐 repo 卡的 renderMessage 三段结构
     const confirm = [
-      `📄 <b><a href="${esc(url)}">网页存档 · ${esc(host)}</a></b>`,
-      summaryZh ? `\n📝 <b>摘要</b> ${esc(summaryZh).slice(0, 300)}` : '',
-      `\n📁 ${archiveLinks(url, undefined, `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`)}`,
+      `<b><a href="${esc(url)}">${esc(titleZh)}</a></b>`,
+      summaryZh ? `\n\n📝 ${esc(summaryZh).slice(0, 300)}` : '',
+      `\n\n#archive`,
+      `\n\n📁 ${archiveLinks(url, undefined, `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`)}`,
     ].join('');
     // 有 og:image → sendPhoto(图=OG 卡, caption=确认+链接); 无图/发送失败 → 纯文字
     if (photo) {
