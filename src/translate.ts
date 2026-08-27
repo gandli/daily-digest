@@ -9,6 +9,50 @@ export function isChinese(s?: string | null): boolean {
   return cjk >= 5 && cjk > s.length * 0.3;
 }
 
+// free 模型池: minimax-m3 与 dots 均已实测可用; ox-alpha 备用。失败逐模型回退。
+const OPENROUTER_MODELS = ['minimax/minimax-m3:free', 'stealth/ox-alpha', 'dots-studio/dots-3-note-preview:free'];
+
+/** OpenRouter 免费模型单次 chat(中文输出校验)。失败/无 key → null。 */
+async function openrouterChat(env: Env, system: string, text: string): Promise<string | null> {
+  if (!env.OPENROUTER_API_KEY) return null;
+  for (const model of OPENROUTER_MODELS) {
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
+          'HTTP-Referer': 'https://github.com/gandli/daily-digest',
+          'X-Title': 'daily-digest',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: text.slice(0, 3000) },
+          ],
+          temperature: 0.2,
+        }),
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!res.ok) continue;
+      const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      const out = j.choices?.[0]?.message?.content?.trim() ?? '';
+      if (out && out.length > 3 && isChinese(out)) return out;
+    } catch { /* 下一模型 */ }
+  }
+  return null;
+}
+
+/** 由正文生成中文标题(LLM)。失败/无 key → null。 */
+export async function generateTitleZh(env: Env, text: string): Promise<string | null> {
+  return openrouterChat(
+    env,
+    '你是标题编辑。根据给定帖子内容生成简短、点题的简体中文标题(≤20字), 直接输出标题, 不要引号, 不要 markdown, 不要解释。',
+    text,
+  );
+}
+
 // 描述解析链(按序兜底): zread wiki 中文 → deepwiki 英文 Overview → 翻译成中文 → 英文原文。
 // 用户要求: 必须来自 zread 或 deepwiki。两者都未命中 → 该条不显示描述(诚实降级), 不硬凑 repo 一句话。
 export async function resolveDescriptions(env: Env, items: SourceItem[]): Promise<void> {
@@ -245,8 +289,7 @@ export async function summarizeZh(env: Env, text: string): Promise<string | null
 // 中文稳定免费模型候选按序尝试(minimax-m3→ox-alpha→dots-3)。必须带 HTTP-Referer + X-Title 头(否则 402)。
 // 输出约定: 第一段中文摘要, 末尾 QUOTE: 后跟一句原文英文核心句(zeli 引文风格)。
 // 失败/无 key/额度满 → 返回 null(调用方回退 CF bart summarizeZh)。
-// 模型候选(按序尝试, 首个成功): 中文稳定免费模型。单点可能 429 限流 → 多模型兜底。全失败回退调用方 CF bart。
-const OPENROUTER_MODELS = ['minimax/minimax-m3:free', 'stealth/ox-alpha', 'dots-studio/dots-3-note-preview:free'];
+// 模型候选(top OPENROUTER_MODELS 顶部定义): 中文稳定免费模型, 单点可能 429 限流 → 多模型兜底。
 export type DeepSummary = { summaryZh: string; quote?: string };
 export async function summarizeZhDeep(env: Env, article: string): Promise<DeepSummary | null> {
   if (!env.OPENROUTER_API_KEY) return null;

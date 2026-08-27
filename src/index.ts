@@ -1,6 +1,6 @@
 import type { Env, SourceItem } from './types';
 import { sources } from './sources';
-import { resolveDescriptions } from './translate';
+import { resolveDescriptions, generateTitleZh } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes, renderProductMessage } from './render';
 import { sendPerRepoMessages, sendTelegram, sendChatAction, sendPhotoOrText, sendVideoOrText, registerCommands, safeEqual, sendTelegramKbd, answerCallbackQuery, editMessageKbd, type InlineKB } from './notify';
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage } from './archive';
@@ -193,7 +193,8 @@ export async function archiveTweet(
     : null;
   const hasZh = !!textZh && isChinese(textZh) && textZh !== tweet.text;
   const zhLine = hasZh ? `\n\n<b>🌐 中文翻译</b>\n${esc(textZh!).slice(0, 3500)}` : '';
-  // 卡片媒体: video→sendVideo 内嵌播放(mp4 直链, 失败落缩略图卡); photo→直链图; 无媒体→帖内 repo og 图/s2 保底
+  // 卡片媒体: video→sendVideo 内嵌播放; photo→直链图; 无媒体→帖内 repo og 图/s2 保底。
+  // 提前算好 photo/video, 但不在 publisher 前发——统一到存档后一张对齐卡(renderTweetHtml 一次发送)。
   const media0 = (tweet.media?.all ?? [])[0];
   const repoRef = tweet.text?.match(/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/i)?.[1]
     ?? `x.com/${tweet.author?.screen_name ?? handle}`;
@@ -202,11 +203,7 @@ export async function archiveTweet(
     (tweet.text?.includes('github.com')
       ? `https://opengraph.githubassets.com/1/${repoRef}`
       : `https://www.google.com/s2/favicons?domain=x.com&sz=64`);
-  if (media0?.type === 'video' && media0.url) {
-    await sendVideoOrText(env.BOT_TOKEN, chatId, media0.url, photo, renderTweetHtml(tweet) + zhLine);
-  } else {
-    await sendPhotoOrText(env.BOT_TOKEN, chatId, photo, renderTweetHtml(tweet) + zhLine);
-  }
+  const isVideo = media0?.type === 'video' && !!media0.url;
   const stamp = `${shanghaiDate()}-${Date.now() % 86400000}`;
   const tUrl = tweet.url ?? `https://x.com/${handle}/status/${id}`;
   const md = [
@@ -258,14 +255,15 @@ export async function archiveTweet(
     // 帖子正文含 GitHub repo 链接 → 联动查询(后台独立 waitUntil, 不阻塞主卡; repo 多时分批防子请求上限)
     if (ctx) ctx.waitUntil(fanoutRepoRefs(env, chatId, md, ctx));
     const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
-    // 统一格式化回复(与网页存档同款三行式): 标题行 / 中文摘要 / 双存档链接
-    const escT = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const confirm = [
-      `🐦 <b>X 存档</b> · @${escT(handle)}`,
-      tweetDescZh ? `\n📝 <b>摘要</b> ${escT(tweetDescZh).slice(0, 300)}` : '',
-      `\n📁 ${archiveLinks(tUrl, tgLine ? tgLine.split(' ').pop() : undefined, `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`)}`,
-    ].join('');
-    await sendTelegram(env.BOT_TOKEN, chatId, confirm);
+    // 统一对齐 product/trending 卡: LLM 生成标题 / 中文内容 / #archive / 存档三链 — 一张卡一次发送
+    const links = `\n\n📁 ${archiveLinks(tUrl, tgLine ? tgLine.split(' ').pop() : undefined, `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`)}\n#archive`;
+    const titleZh = generateTitleZh(env, (tweet.text ?? '').slice(0, 600)).catch(() => null);
+    const card = renderTweetHtml(tweet, (await titleZh) ?? '', zhLine, links);
+    if (isVideo && media0?.url) {
+      await sendVideoOrText(env.BOT_TOKEN, chatId, media0.url, photo, card);
+    } else {
+      await sendPhotoOrText(env.BOT_TOKEN, chatId, photo, card);
+    }
   } catch (e) {
     console.error('archiveTweet store failed', String(e).slice(0, 100));
     await sendTelegram(env.BOT_TOKEN, chatId, `⚠️ 已取到帖子但存档失败(${String(e).slice(0, 120)})。请重发一次该链接重试。`);
