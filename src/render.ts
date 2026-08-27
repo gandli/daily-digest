@@ -41,7 +41,7 @@ export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl
     const body =
       `<b><a href="${esc(it.url)}">${esc(it.titleZh ?? it.title)}</a></b>${stars}${langTag}\n\n` + // 标题层(中文优先)
       descLine + // 描述层(仅来自 zread/deepwiki 的中文)
-      `<a href="https://deepwiki.com/${esc(it.title)}">deepwiki</a> · <a href="https://zread.ai/${esc(it.title)}">zread</a>` +
+      `<a href="https://deepwiki.com/${esc(it.title)}">deepwiki</a> · <a href="https://zread.ai/${esc(it.title)}">zread</a> · <a href="https://codewiki.google/github.com/${esc(it.title)}">codewiki</a>` +
       (tags ? `\n\n${tags}` : '');
     // ponytail: wikiDesc 极端超长时仍可能超4096——截断到安全长度
     let msg = head + body + links(it);

@@ -100,6 +100,7 @@ export async function fanoutRepoRefs(env: Env, chatId: string, text: string, ctx
         const html =
           `<b><a href="${esc(item.url)}">${esc(item.title)}</a></b>${stars}${lang}\n\n` +
           (descZh ? `📝 ${esc(descZh).slice(0, 300)}\n\n` : '') +
+          `<a href="https://deepwiki.com/${esc(item.title)}">deepwiki</a> · <a href="https://zread.ai/${esc(item.title)}">zread</a> · <a href="https://codewiki.google/github.com/${esc(item.title)}">codewiki</a>\n` +
           `#archive${topicTags ? ` ${topicTags}` : ''}\n\n` +
           `📁 ${archiveLinks(item.url, undefined, mdLink)}`;
         await sendPerRepoMessages(env.BOT_TOKEN, chatId, [{ html, ogUrl: item.url }], env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
