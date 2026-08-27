@@ -1,3 +1,9 @@
+# [](https://github.com/gandli/daily-digest/compare/v0.0.2...v) (2026-08-27)
+
+
+### Bug Fixes
+
+* **product:** 并发化 urlToMarkdown + sendPerRepoMessages 绕 waitUntil 30s 墙 ([#121](https://github.com/gandli/daily-digest/issues/121)) ([330cb91](https://github.com/gandli/daily-digest/commit/330cb919c5922f64371297d99e1e389964c51a26))
 # [](https://github.com/gandli/daily-digest/compare/v0.0.2...v) (2026-08-26)
 # [](https://github.com/gandli/daily-digest/compare/v0.0.1...v) (2026-08-26)
 
