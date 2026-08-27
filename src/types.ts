@@ -32,9 +32,3 @@ export type SourceItem = {
   author?: string; // HN 用户名(zeli 风格展示)
   createdAt?: string; // ISO 时间(zeli 风格: about X hours ago)
 };
-
-export type Source = {
-  name: string; // 存档目录名: trending
-  tag: string; // 消息标签: #trending
-  fetch: (env: Env) => Promise<SourceItem[]>;
-};
