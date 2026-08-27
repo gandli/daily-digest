@@ -1,7 +1,7 @@
 import type { Env, SourceItem } from './types';
 import { sources } from './sources';
 import { resolveDescriptions } from './translate';
-import { renderMessage, renderMarkdown, renderTelegraphNodes, renderProductMessage } from './render';
+import { renderMessage, renderMarkdown, renderTelegraphNodes, renderProductMessage, esc } from './render';
 import { sendPerRepoMessages, sendTelegram, sendChatAction, sendPhotoOrText, sendVideoOrText, registerCommands, safeEqual, sendTelegramKbd, answerCallbackQuery, editMessageKbd, type InlineKB } from './notify';
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage } from './archive';
 import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, archiveLinks, backfillDescriptions } from './lookup';
@@ -54,9 +54,7 @@ X/Twitter 链接 → 帖子存档
 // 存档写入时增量追加(indexArchivedItems 同步维护)。
 const SEARCH_PAGE = 10; // 每页条数
 // 翻页 query 存 KV(short TTL)而非塞 callback_data——callback_data 仅限 64B, 长 query 会被截断解码残缺。
-// callback_data: sch:<page>:<token>, KV 键 search:q:<token> 存 query。token 只含安全字符。
-const S_TOKEN = () => Math.random().toString(36).slice(2, 8); // 6 位, ~7800^2 组合够个人用
-const schStoreKey = (token: string) => `search:q:${token}`;
+// callback_data: sch:<page>:<token>, KV 键 search:q:<token> 存 query。
 
 export async function searchArchive(env: Env, chatId: string, query: string, page = 0, messageId?: number): Promise<void> {
   try {
@@ -102,7 +100,6 @@ export async function searchArchive(env: Env, chatId: string, query: string, pag
         needTs.forEach((it, i) => { if (t[i]?.descZh) zhMap.set(it.desc, t[i].descZh); });
       } catch { /* 翻译失败保原文明示 */ }
     }
-    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const lines = slice.map((h) => {
       // lookup:desc 优先(backfill 补的中文), 否则 search:index desc 原文/当页翻译
       const ld = lookupDescMap.get(h.name) || '';
@@ -186,7 +183,6 @@ export async function archiveTweet(
   }
   // 正文翻译(非中文时; 失败回退原文)——必须在发卡片前算好, 否则🌐段无处安放。
   // 首选 FxEmbed 内嵌翻译(/zh-cn URL 后缀触发, Grok 引擎质量高); 空/失败落四级链
-  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const fxZh = tweet.translation?.text;
   // 正文翻译(非中文时)。ponytail: 超长正文(>450字)只译前段——免费模型12s超时对长文必失败, 且用户不看超长列表; 截断+省略防翻译失败回退英文。
   // fxZh 是 Grok 翻译(可信): 只要含 CJK 就算成功, 避免 isChinese 的30%占比阈值被大量 URL/代码稀释误判。
@@ -442,7 +438,6 @@ async function replyArchived(env: Env, chatId: string, repo: string): Promise<vo
   }
   const archiveRepo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
   const link = `https://github.com/${archiveRepo}/blob/archive/archive/${it.date.slice(0, 4)}/${it.date}.md`;
-    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const d = (it.descZh ?? it.desc ?? '').trim();
     // 三链: Telegraph(当日有页) → web.archive(repo 源 URL) → GitHub md
     const tgUrl = (await env.CACHE.get(`archive:tg:${it.date}`).catch(() => null)) || '';
@@ -472,7 +467,6 @@ async function renderArchivePage(env: Env, page: number): Promise<{ text: string
   }
   const pageKeys = sorted.slice(start, start + ARCHIVE_PAGE);
   const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
-  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const lines: string[] = [];
   for (const k of pageKeys) {
     const raw = await env.CACHE.get(k.name);
