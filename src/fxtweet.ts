@@ -16,8 +16,12 @@ export type FxTweet = {
   text?: string;
   author?: { screen_name?: string; name?: string };
   created_at?: string;
-  likes?: number; retweets?: number; replies?: number;
-  media?: { all?: FxMedia[] } | null;
+  likes?: number; retweets?: number; reposts?: number; replies?: number; // v2 用 reposts, v1 用 retweets
+  media?: {
+    all?: FxMedia[];
+    photos?: FxMedia[];
+    mosaic?: { formats?: { jpeg?: string; webp?: string } }; // 多图拼图(FxEmbed 服务端合成)
+  } | null;
   translation?: { text?: string } | null;
   article?: {
     id?: string; title?: string; preview_text?: string;
@@ -35,17 +39,19 @@ export function articleToText(t: FxTweet): string | null {
   return txt.length ? txt : null;
 }
 
-/** 拉取帖子 JSON。网络/解析失败返回 null(调用方落回 URL 链)。 */
+/** 拉取帖子 JSON(v2 API /2/status/{id}?lang=zh-cn)。网络/解析失败返回 null(调用方落回 URL 链)。
+ *  v2 相比 v1: 不用从 URL 提取 handle, translation 带 provider, 支持 search/trends 等新端点。 */
 export async function fetchTweet(handle: string, id: string): Promise<FxTweet | null> {
   try {
-    const res = await fetch(`${API}/${handle}/status/${id}/zh-cn`, {
+    // ponytail: handle 参数保留(v1 兼容签名), v2 只需 id —— 调用方无需改签名
+    const res = await fetch(`${API}/2/status/${id}?lang=zh-cn`, {
       headers: { 'User-Agent': ZH_UA },
       signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) return null;
-    const j = (await res.json()) as { code?: number; tweet?: FxTweet | null };
-    if (j.code !== 200 || !j.tweet?.text) return null; // code 字段镜像 HTTP 状态, 200 包体也要查
-    return j.tweet;
+    const j = (await res.json()) as { code?: number; status?: FxTweet | null };
+    if (j.code !== 200 || !j.status?.text) return null; // code 字段镜像 HTTP 状态, 200 包体也要查
+    return j.status;
   } catch {
     return null;
   }

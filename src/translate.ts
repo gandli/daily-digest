@@ -9,6 +9,16 @@ export function isChinese(s?: string | null): boolean {
   return cjk >= 5 && cjk > s.length * 0.3;
 }
 
+/** 中文主导判定(供"是否需要翻译"决策): 中文字符数 > 英文字母数 且 ≥20 个。
+ *  与 isChinese 的区别: isChinese 是"输出必须是中文"的守卫(占比阈值, 含大量代码/URL 的中文正文会被稀释误判);
+ *  isZhDominant 是"输入已是中文, 无需翻译"的判据(比字母数, 不受代码/URL 稀释)。 */
+export function isZhDominant(s?: string | null): boolean {
+  if (!s) return false;
+  const zh = (s.match(/[\u4e00-\u9fff]/g) ?? []).length;
+  const en = (s.match(/[a-zA-Z]/g) ?? []).length;
+  return zh > en && zh >= 20;
+}
+
 // free 模型池: minimax-m3 与 dots 均已实测可用; ox-alpha 备用。失败逐模型回退。
 const OPENROUTER_MODELS = ['minimax/minimax-m3:free', 'stealth/ox-alpha', 'dots-studio/dots-3-note-preview:free'];
 
