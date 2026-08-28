@@ -9,6 +9,7 @@ const mockDw = vi.fn(); // fetchDeepwikiOverview
 const mockUrlToMd = vi.fn(); // urlToMarkdown
 const mockExtractOg = vi.fn(); // extractOgImage
 const mockTranslateDrop = vi.fn(); // 可切换 translateBatch 是否产出中文
+const mockTgPageUrl = vi.fn(async (): Promise<string | null> => null);
 
 vi.mock('../src/notify', () => ({
   sendPerRepoMessages: (...a: unknown[]) => sendRepo(...a),
@@ -38,6 +39,8 @@ vi.mock('../src/translate', () => ({
 vi.mock('../src/archive', () => ({
   archiveToGitHub: async () => {},
   archiveOgImage: async () => null,
+  createTelegraphAccount: vi.fn(async () => 'mock-tg-token'), // 默认建号成功
+  createTelegraphPage: vi.fn(async () => mockTgPageUrl()),
 }));
 vi.mock('../src/urlmd', () => ({
   urlToMarkdown: (...a: unknown[]) => mockUrlToMd(...a),
@@ -229,5 +232,38 @@ describe('archiveUrl: 任意 URL 存档', () => {
     await archiveUrl(makeEnv(), 'chat', 'https://example.com/page', {} as any);
     expect(sendText).toHaveBeenCalledTimes(1); // 纯文字确认发出
     expect(String(sendText.mock.calls[0][2])).toContain('#archive');
+  });
+  it('Telegraph 建页成功 → 卡片带 Telegraph 链接', async () => {
+    mockExtractOg.mockReturnValue(undefined); // 无 og → s2 保底 photo 会命中 sendPhoto return
+    mockTgPageUrl.mockResolvedValue('https://telegra.ph/web-page-1');
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      const u = String(url);
+      // sendPhoto 返回 404 → 走 fallback sendTelegram(纯文字)
+      if (u.includes('sendPhoto')) return new Response('fail', { status: 404 });
+      if (u.startsWith('https://api.telegram.org')) return new Response('ok', { status: 200 });
+      if (u.includes('apple-touch-icon') || u.includes('favicon')) return new Response('', { status: 404 });
+      return new Response('<html><body>no og</body></html>', { status: 200 });
+    }));
+    const env = makeEnv();
+    await archiveUrl(env, 'chat', 'https://example.com/page', {} as any);
+    expect(sendText).toHaveBeenCalled();
+    const confirm = String(sendText.mock.calls[0][2]);
+    expect(confirm).toContain('telegra.ph/web-page-1');
+    mockTgPageUrl.mockResolvedValue(null);
+  });
+  it('Telegraph 失败(null) → 卡片无 Telegraph 段, 存档不中断', async () => {
+    mockTgPageUrl.mockResolvedValue(null);
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      const u = String(url);
+      if (u.includes('sendPhoto')) return new Response('fail', { status: 404 });
+      if (u.startsWith('https://api.telegram.org')) return new Response('ok', { status: 200 });
+      if (u.includes('apple-touch-icon') || u.includes('favicon')) return new Response('', { status: 404 });
+      return new Response('<html><body>no og</body></html>', { status: 200 });
+    }));
+    await archiveUrl(makeEnv(), 'chat', 'https://example.com/page', {} as any);
+    expect(sendText).toHaveBeenCalled();
+    const confirm = String(sendText.mock.calls[0][2]);
+    expect(confirm).not.toContain('telegra.ph');
+    expect(confirm).toContain('#archive');
   });
 });
