@@ -11,12 +11,12 @@ vi.mock('../src/fxtweet', () => ({
     return m ? { handle: m[1], id: m[2] } : null;
   },
   fetchTweet: vi.fn(),
-  renderTweetHtml: (t: any) => `<b>@${t.author?.screen_name}</b> ${(t.text ?? '').slice(0, 20)}`,
-  articleToText: () => null,
+  renderTweetHtml: (_t: any, _title: string, body: string, _zh: string, _links: string) => `<b>${_title || ''}</b> ${body.slice(0, 80)}`,
+  articleToText: vi.fn().mockReturnValue(null),
 }));
 
 import worker from '../src/index';
-import { fetchTweet } from '../src/fxtweet';
+import { fetchTweet, articleToText } from '../src/fxtweet';
 
 type Call = { url: string; body: any };
 const calls: Call[] = [];
@@ -193,13 +193,38 @@ describe('webhook 路由全分支', () => {
   it('X 帖链接 → archiveTweet 发卡', async () => {
     await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://x.com/fe2o3/status/123' } });
     expect(vi.mocked(fetchTweet)).toHaveBeenCalledWith('fe2o3', '123');
-    expect(texts().some((t) => t.includes('@fe2o3'))).toBe(true);
+    expect(texts().some((t) => t.includes('Hello world'))).toBe(true);
   });
   it('X 帖 FxEmbed 失败 → 落通用 URL 存档链', async () => {
     vi.mocked(fetchTweet).mockResolvedValueOnce(null as any);
     await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://x.com/fe2o3/status/123' } });
     // 通用链 urlToMarkdown → 走 html strip 兜底 → 有正文 → sendPhoto/文字
     expect(allMsgs().length).toBeGreaterThan(0);
+  });
+
+  it('X article 帖 → 标题用 article.title, 正文用 article 内容(非裸链接)', async () => {
+    const artTweet = {
+      url: 'https://x.com/Smartpigai/status/2093191865193677285',
+      text: 'https://x.com/i/article/2093189117383426048',
+      author: { screen_name: 'Smartpigai', name: 'Smartpig' },
+      created_at: 'Fri Aug 28 04:20:04 +0000 2026',
+      likes: 13, retweets: 2, replies: 1,
+      article: {
+        title: '从零开始，用 LangGraph 搭建你的第一个 AI Agent',
+        preview_text: '过去我们调用大模型，通常只有一个固定流程',
+        content: { blocks: [{ type: 'text', text: 'LangGraph 是一个用于构建 AI Agent 的框架' }] },
+      },
+      media: null, translation: null,
+    };
+    vi.mocked(fetchTweet).mockResolvedValueOnce(artTweet as any);
+    vi.mocked(articleToText).mockReturnValueOnce('LangGraph 是一个用于构建 AI Agent 的框架');
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://x.com/Smartpigai/status/2093191865193677285' } });
+    const card = texts().find((t) => t.includes('Smartpigai') || t.includes('LangGraph'));
+    expect(card).toBeTruthy();
+    // 标题必须是 article.title, 不能是"无法访问"或裸 URL
+    expect(card).toContain('从零开始，用 LangGraph 搭建你的第一个 AI Agent');
+    expect(card).not.toContain('无法访问');
+    expect(card).not.toContain('x.com/i/article/');
   });
 
   it('URL 首次处理 → archiveUrl 链', async () => {

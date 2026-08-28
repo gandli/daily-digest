@@ -179,14 +179,19 @@ export async function archiveTweet(
   // 正文翻译(非中文时; 失败回退原文)——必须在发卡片前算好, 否则🌐段无处安放。
   // 首选 FxEmbed 内嵌翻译(/zh-cn URL 后缀触发, Grok 引擎质量高); 空/失败落四级链
   const fxZh = tweet.translation?.text;
-  // 正文翻译(非中文时)。ponytail: 超长正文(>450字)只译前段——免费模型12s超时对长文必失败, 且用户不看超长列表; 截断+省略防翻译失败回退英文。
-  // fxZh 是 Grok 翻译(可信): 只要含 CJK 就算成功, 避免 isChinese 的30%占比阈值被大量 URL/代码稀释误判。
-  const raw = tweet.text ?? '';
-  const trunc = raw.length > 450 ? raw.slice(0, 450) + '  …' : raw;
-  const textZh = raw
-    ? (fxZh && fxZh !== raw && /[\u4e00-\u9fff]/.test(fxZh) ? fxZh : await translateTextZh(env, trunc).catch(() => null))
+  // article 帖: tweet.text 只是 article 链接, 正文在 article.title + blocks。
+  // LLM 喂裸 URL 会输出"无法访问"拒绝语(中文过守卫变标题)——title/body 优先用 article 内容。
+  const artText = articleToText(tweet);
+  const isArticle = !!artText || !!tweet.article?.title;
+  // 正文: article 帖用 preview_text + blocks 截段; 普通帖用 tweet.text
+  const bodyText = isArticle
+    ? [tweet.article?.preview_text, artText].filter(Boolean).join('\n\n')
+    : (tweet.text ?? '');
+  const trunc = bodyText.length > 450 ? bodyText.slice(0, 450) + '  …' : bodyText;
+  const textZh = bodyText
+    ? (fxZh && fxZh !== bodyText && /[\u4e00-\u9fff]/.test(fxZh) ? fxZh : await translateTextZh(env, trunc).catch(() => null))
     : null;
-  const hasZh = !!textZh && /[\u4e00-\u9fff]/.test(textZh) && textZh !== raw;
+  const hasZh = !!textZh && /[\u4e00-\u9fff]/.test(textZh) && textZh !== bodyText;
   const zhLine = hasZh ? `\n\n<b>🌐 中文翻译</b>\n${esc(textZh!).slice(0, 3500)}` : '';
   // 卡片媒体: video→sendVideo 内嵌播放; photo→直链图; 无媒体→帖内 repo og 图/s2 保底。
   // 提前算好 photo/video, 但不在 publisher 前发——统一到存档后一张对齐卡(renderTweetHtml 一次发送)。
@@ -223,13 +228,17 @@ export async function archiveTweet(
     await archiveDatedToGitHub(env, stamp, md);
     // Telegraph 存档(单帖一页; 失败静默——增强非必需)
     // 页标题 = LLM 帖子标题(易读), 失败回退 "X · @handle · 日期"
-    const titleZh = await generateTitleZh(env, (tweet.text ?? '').slice(0, 600)).catch(() => null);
+    // article 帖: article.title 是现成中文标题 → 直接用, 不再调 LLM(裸 URL 喂 LLM 必得拒绝语)
+    const titleText = tweet.article?.title || (tweet.text ?? '').slice(0, 600);
+    let titleZh: string | null = tweet.article?.title
+      ? tweet.article.title
+      : await generateTitleZh(env, titleText).catch(() => null);
     let tgLine = '';
     let tgPageUrl = '';
     if (env.TELEGRAPH_TOKEN) {
       const nodes: unknown[] = [
         { tag: 'p', children: [`@${tweet.author?.screen_name ?? handle} · ${tweet.created_at ?? ''}`] },
-        { tag: 'p', children: [tweet.text ?? ''] },
+        ...(isArticle ? [{ tag: 'p', children: [`${tweet.author?.name ?? ''} · ${tweet.article?.title ?? ''}`] }] : [{ tag: 'p', children: [tweet.text ?? ''] }]),
         ...(articleToText(tweet) ? [{ tag: 'h3' as const, children: [`📄 ${tweet.article?.title ?? '嵌套文章'}`] }, { tag: 'p', children: [articleToText(tweet)!] }] : []),
         ...(hasZh ? [{ tag: 'h3' as const, children: ['🌐 中文翻译'] }, { tag: 'p', children: [textZh!] }] : []),
         ...(tweet.media?.all ?? []).map((m) => ({ tag: 'figure' as const, children: [{ tag: 'img' as const, attrs: { src: m.thumbnail_url ?? m.url ?? '' } }] })),
@@ -245,20 +254,21 @@ export async function archiveTweet(
       }
     }
     // /search 描述: X 帖中文摘要(短帖直译; 长帖 CF Summarization 摘要后已是中文)——失败回退原文截断
+    // article 帖: 用 article 正文(而非裸链接)做摘要
     let tweetDescZh: string | undefined;
-    if (tweet.text) {
-      const s = await summarizeZh(env, tweet.text).catch(() => null);
-      tweetDescZh = (s && isChinese(s) ? s : await translateTextZh(env, tweet.text.slice(0, 120)).catch(() => null)) ?? undefined;
+    if (bodyText) {
+      const s = await summarizeZh(env, bodyText.slice(0, 2000)).catch(() => null);
+      tweetDescZh = (s && isChinese(s) ? s : await translateTextZh(env, bodyText.slice(0, 120)).catch(() => null)) ?? undefined;
     }
     await indexArchivedItems(env, [{ title: `x/@${handle}`, url: tweet.url ?? '', desc: tweetDescZh, descZh: tweetDescZh } as SourceItem], stamp);
     // 帖子正文含 GitHub repo 链接 → 联动查询(后台独立 waitUntil, 不阻塞主卡; repo 多时分批防子请求上限)
     if (ctx) ctx.waitUntil(fanoutRepoRefs(env, chatId, md, ctx));
     const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
     // 统一对齐 product/trending 卡: LLM 生成标题 / 中文内容 / #archive(LLM标签) / 存档三链 — 一张卡一次发送
-    const tags = await generateTagsZh(env, (tweet.text ?? '').slice(0, 300)).catch(() => null);
+    const tags = await generateTagsZh(env, bodyText.slice(0, 300) || tweet.article?.title || '').catch(() => null);
     const tagLine = `#archive${tags?.length ? ` ${tags.map((t) => `#${t}`).join(' ')}` : ''}`;
     const links = `${tagLine}\n\n📁 ${archiveLinks(tUrl, tgLine ? tgLine.split(' ').pop() : undefined, `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`)}`;
-    const card = renderTweetHtml(tweet, titleZh ?? '', hasZh ? textZh! : (tweet.text ?? ''), '', links);
+    const card = renderTweetHtml(tweet, titleZh ?? '', hasZh ? textZh! : (isArticle ? (bodyText || (tweet.text ?? '')) : (tweet.text ?? '')), '', links);
     // Tweet 卡链接预览 = Telegraph 页(og:image 由 Telegraph 渲染), 无 Telegraph 回退原推 URL。
     // 不用 sendPhotoOrText(发媒体图) —— 用户指定 Telegraph 作链接预览。
     await sendPerRepoMessages(env.BOT_TOKEN, chatId, [{ html: card, ogUrl: tgPageUrl || tUrl }], repo);
