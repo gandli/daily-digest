@@ -444,16 +444,15 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
     let tgPageUrl = '';
     const tgToken = env.TELEGRAPH_TOKEN ?? (await createTelegraphAccount().catch(() => null));
     if (tgToken) {
-      // markdown 转 telegraph nodes: 简易按行分段 + 标题/代码块识别
+      // markdown 转 telegraph nodes: 简易按行分段。Telegraph 仅支持 h3/h4(#/##→h3, ###→h4); li 须嵌 ul
       const nodes = clipped.split('\n').map((line) => {
         const l = line.trim();
         if (!l) return { tag: 'br' as const, children: [] };
-        if (l.startsWith('### ')) return { tag: 'h3' as const, children: [l.slice(4)] };
-        if (l.startsWith('## ')) return { tag: 'h3' as const, children: [l.slice(3)] };
-        if (l.startsWith('# ')) return { tag: 'h4' as const, children: [l.slice(2)] };
+        if (/^#{1,2} /.test(l)) return { tag: 'h3' as const, children: [l.replace(/^#{1,2} /, '')] };
+        if (l.startsWith('### ')) return { tag: 'h4' as const, children: [l.slice(4)] };
         if (l.startsWith('> ')) return { tag: 'blockquote' as const, children: [{ tag: 'p', children: [l.slice(2)] }] };
         if (l.startsWith('```')) return { tag: 'pre' as const, children: [{ tag: 'code', children: [l] }] };
-        if (l.startsWith('- ') || l.startsWith('* ')) return { tag: 'p', children: [{ tag: 'li', children: [l.slice(2)] }] };
+        if (l.startsWith('- ') || l.startsWith('* ')) return { tag: 'ul' as const, children: [{ tag: 'li', children: [l.slice(2)] }] };
         return { tag: 'p', children: [l] };
       });
       const pageUrl = await createTelegraphPage(tgToken, titleZh || host, nodes);
