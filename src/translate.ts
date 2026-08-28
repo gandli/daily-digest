@@ -12,8 +12,8 @@ export function isChinese(s?: string | null): boolean {
 // free 模型池: minimax-m3 与 dots 均已实测可用; ox-alpha 备用。失败逐模型回退。
 const OPENROUTER_MODELS = ['minimax/minimax-m3:free', 'stealth/ox-alpha', 'dots-studio/dots-3-note-preview:free'];
 
-/** OpenRouter 免费模型单次 chat(中文输出校验)。失败/无 key → null。 */
-async function openrouterChat(env: Env, system: string, text: string): Promise<string | null> {
+/** OpenRouter 免费模型单次 chat(默认中文输出校验; requireZh=false 收任意输出, 供英文标签生成)。失败/无 key → null。 */
+async function openrouterChat(env: Env, system: string, text: string, requireZh = true): Promise<string | null> {
   if (!env.OPENROUTER_API_KEY) return null;
   for (const model of OPENROUTER_MODELS) {
     try {
@@ -38,7 +38,7 @@ async function openrouterChat(env: Env, system: string, text: string): Promise<s
       if (!res.ok) continue;
       const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
       const out = j.choices?.[0]?.message?.content?.trim() ?? '';
-      if (out && out.length > 3 && isChinese(out)) return out;
+      if (out && out.length > 3 && (!requireZh || isChinese(out))) return out;
     } catch { /* 下一模型 */ }
   }
   return null;
@@ -60,6 +60,7 @@ export async function generateTagsZh(env: Env, text: string): Promise<string[] |
     env,
     '你是标签编辑。根据给定内容生成 2-4 个领域标签(英文小写, 反映主题), 用空格分隔, 不带#。只输出标签单词, 不要解释。',
     text,
+    false, // 标签是英文 → 不能过中文守卫, 否则永远 null
   );
   if (!out) return null;
   const tags = out.match(/[a-z][a-z0-9-]{1,19}/g) ?? [];
