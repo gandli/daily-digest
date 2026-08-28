@@ -300,6 +300,27 @@ describe('webhook 路由全分支', () => {
     await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://example.com/page' } });
     expect(texts().some((t) => t.includes('此前已处理归档'))).toBe(true);
   });
+  it('URL 重发 done(记录带标题+摘要) → 回具体内容卡片(非梗概)', async () => {
+    await env.CACHE.put('reproc:https://example.com/page', JSON.stringify({
+      translated: true, descOk: true, md: '2026-08-27T120000',
+      t: '公司 Wi-Fi 安全指南', s: '讲企业内网威胁模型与零信任接入实践的文章。',
+    }));
+    await env.CACHE.put('archive:tg:2026-08-27T120000', 'https://telegra.ph/web-done-1');
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://example.com/page' } });
+    const card = texts().find((t) => t.includes('📝'));
+    expect(card).toBeTruthy();
+    expect(card).toContain('公司 Wi-Fi 安全指南');
+    expect(card).toContain('零信任接入实践');
+    expect(card).not.toContain('该链接此前已处理归档'); // 具体内容替换梗概
+    expect(card).toContain('telegra.ph/web-done-1'); // archive:tg 完整 stamp 键命中
+  });
+  it('URL 重发 done(老记录无标题) → 回退梗概头, 不空标题', async () => {
+    await env.CACHE.put('reproc:https://example.com/page', JSON.stringify({ translated: true, descOk: true, md: '2026-08-27T120000' }));
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://example.com/page' } });
+    const card = texts().find((t) => t.includes('📁'));
+    expect(card).toContain('该链接此前已处理归档');
+    expect(card).not.toContain('📝');
+  });
   it('URL 重发判定 retry(上次未翻译) → 重跑 + 提示', async () => {
     await env.CACHE.put('reproc:https://example.com/page', JSON.stringify({ translated: false, descOk: false }));
     await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://example.com/page' } });

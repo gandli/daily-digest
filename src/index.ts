@@ -701,19 +701,22 @@ export default {
           ctx.waitUntil(archiveUrl(env, chatId, url, ctx));
           await sendTelegram(env.BOT_TOKEN, chatId, '🔁 检测到上次处理不完整(未翻译或缺描述), 重新归档中…');
         } else if (verdict === 'done') {
-          // 已完整处理过: 优先回 Telegraph 页(若有存档索引), 否则回 GitHub .md 存档链接。
-          // 读 reproc 键里的 md stamp; 无 md(老记录)则重挂一次归档取回存档信息, 而非"无需重复"梗概。
+          // 已完整处理过: 回具体内容(标题+摘要, reproc 记录) + 三链存档; 无 md(老记录)则重挂归档补信息。
           const rec = await env.CACHE.get(`reproc:${url.slice(0, 400)}`).catch(() => null);
-          let stamp = '';
-          try { stamp = rec ? (JSON.parse(rec)?.md ?? '') : ''; } catch { /* 忽略 */ }
+          let stamp = '', recTitle = '', recSummary = '';
+          try {
+            const r = rec ? (JSON.parse(rec) as { md?: string; t?: string; s?: string }) : null;
+            stamp = r?.md ?? ''; recTitle = r?.t ?? ''; recSummary = r?.s ?? '';
+          } catch { /* 忽略 */ }
           if (stamp) {
-                      const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
-                      const link = `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`;
-                      const tgUrl = (await env.CACHE.get(`archive:tg:${stamp.slice(0, 10)}`).catch(() => null)) || '';
-                      // 三链: Telegraph → web.archive(源 URL) → GitHub md
-                      const links = archiveLinks(url, tgUrl || undefined, link);
-                      await sendTelegram(env.BOT_TOKEN, chatId, `♻️ <b>该链接此前已处理归档</b>\n\n📁 ${links}`);
-                    } else {
+            const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
+            const link = `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`;
+            const tgUrl = (await env.CACHE.get(`archive:tg:${stamp}`).catch(() => null)) || '';
+            // 三链: Telegraph → web.archive(源 URL) → GitHub md
+            const links = archiveLinks(url, tgUrl || undefined, link);
+            const head = recTitle ? `<b><a href="${esc(url)}">${esc(recTitle)}</a></b>` : '<b>该链接此前已处理归档</b>';
+            await sendTelegram(env.BOT_TOKEN, chatId, `♻️ ${head}\n\n${recSummary ? `📝 ${esc(recSummary)}\n\n` : ''}📁 ${links}`);
+          } else {
             // 老记录无 md——重挂一次归档补上存档信息, 回给用户(而非"无需重复")
             await sendTelegram(env.BOT_TOKEN, chatId, '♻️ 已识别此前处理过, 重新归档取回存档链接…');
             await archiveUrl(env, chatId, url, ctx);

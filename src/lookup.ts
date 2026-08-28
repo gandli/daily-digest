@@ -48,11 +48,11 @@ export async function shouldReprocess(env: Env, url: string): Promise<'first' | 
   return prev.translated && prev.descOk ? 'done' : 'retry';
 }
 
-/** shouldReprocess 的配对写: 处理结束后回填真实质量。 */
-export async function markProcessed(env: Env, url: string, translated: boolean, descOk: boolean, mdStamp?: string): Promise<void> {
+/** shouldReprocess 的配对写: 处理结束后回填真实质量。title/summary 供重复卡片渲染具体内容。 */
+export async function markProcessed(env: Env, url: string, translated: boolean, descOk: boolean, mdStamp?: string, title?: string, summary?: string): Promise<void> {
   // ponytail: 键截断防 KV 512B 上限抛错(url 理论上可超长); 截断碰撞仅影响 7 天 TTL 去重, 可接受
   try {
-    await env.CACHE.put(`reproc:${url.slice(0, 400)}`, JSON.stringify({ ts: Date.now(), translated, descOk, md: mdStamp }), { expirationTtl: 7 * 86400 });
+    await env.CACHE.put(`reproc:${url.slice(0, 400)}`, JSON.stringify({ ts: Date.now(), translated, descOk, md: mdStamp, t: title?.slice(0, 120), s: summary?.slice(0, 300) }), { expirationTtl: 7 * 86400 });
   } catch {
     // 写失败只影响重发判定(下次按 retry 重跑), 不杀调用方
   }
@@ -462,7 +462,7 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
       }
     }
     // 重发质量记录: translated=中文摘要成功; descOk 网页无 deepwiki/zread 概念, 归档+摘要齐即 true
-    ctx?.waitUntil?.(markProcessed(env, url, translatedOk, true, stamp));
+    ctx?.waitUntil?.(markProcessed(env, url, translatedOk, true, stamp, titleZh, summaryZh ?? undefined));
     // 内容含 GitHub repo 链接 → 逐个走 repo lookup(去重防递归; 上限 3 个省子请求)
     await fanoutRepoRefs(env, chatId, clipped, ctx);
     const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
