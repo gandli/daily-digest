@@ -145,6 +145,51 @@ describe('fetchTrending', () => {
     expect(items[9].title).toBe('owner/r9');
   });
 
+  it('handler 边界: article 外的 h2 a/desc 命中(!cur) → 忽略', async () => {
+    // 页头/页脚散落的同类选择器, cur=null 时 element/text 回调必须不崩
+    mockPage(`<html><body>
+      <h2><a href="/stray/lonely">stray/lonely</a></h2>
+      <p class="col-9">stray description outside article</p>
+      ${stubRow({ name: 'ok' })}
+    </body></html>`);
+    const items = await fetchTrending();
+    expect(items).toHaveLength(1);
+    expect(items[0].title).toBe('owner/ok');
+  });
+
+  it('h2 内非 repo 链接(/blob/xxx、/topics/x) → 不设 title, 条目丢弃', async () => {
+    mockPage(`<html><body>${stubRow({})}</body></html>`.replace('/owner/repo', '/owner/repo/blob/main/README.md'));
+    const items = await fetchTrending();
+    expect(items).toHaveLength(0);
+  });
+
+  it('lang 空/重复文本 → 首个非空生效, 后续忽略', async () => {
+    // itemprop span 内两块文本: 空白块 + 实义块 → 只取实义
+    mockPage(`<html><body><article class="Box-row">
+      <h2><a href="/o/l">o/l</a></h2>
+      <span itemprop="programmingLanguage">  </span><span itemprop="programmingLanguage">Go</span><span itemprop="programmingLanguage">Rust</span>
+      <p class="col-9">d</p>
+    </article></body></html>`);
+    const items = await fetchTrending();
+    expect(items[0].lang).toBe('Go');
+  });
+
+  it('stargazers 重复命中(多链接) → 首次数值生效(stars !== undefined 短路)', async () => {
+    mockPage(`<html><body><article class="Box-row">
+      <h2><a href="/o/s">o/s</a></h2>
+      <a href="/o/s/stargazers">1,000</a><a href="/o/s/stargazers">2,000</a>
+      <p class="col-9">d</p>
+    </article></body></html>`);
+    const items = await fetchTrending();
+    expect(items[0].stars).toBe(1000);
+  });
+
+  it('stars today 变体(无逗号)→ 解析成功', async () => {
+    mockPage(`<html><body>${stubRow({ today: '999 stars today' })}</body></html>`);
+    const items = await fetchTrending();
+    expect(items[0].starsToday).toBe(999);
+  });
+
   it('非 200 → 抛 trending fetch <status>', async () => {
     globalThis.fetch = (async () => new Response('', { status: 500 })) as typeof fetch;
     await expect(fetchTrending()).rejects.toThrow('trending fetch 500');

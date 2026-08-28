@@ -180,12 +180,12 @@ describe('路由: 路径与方法', () => {
     const res = await post('https://x/other', 'sec', {});
     expect(res.status).toBe(404);
   });
-  it('POST /run → 404(bug: /run 逻辑被锁在 GET 分支内, POST 永远到不了 → 死路由)即使带 token', async () => {
+  it('POST /run 错 token → 403(端点已修复: /run 移出 GET 分支, 真实可达)', async () => {
     env.WEBHOOK_SECRET = 'sec';
-    const res = await post('https://x/run', 'sec', {});
-    expect(res.status).toBe(404);
+    const res = await post('https://x/run', 'wrong', {});
+    expect(res.status).toBe(403);
   });
-  it('GET /run → 405(进 GET 分支后 /run 内断言 POST 失败)', async () => {
+  it('GET /run → 405(端点已修复: /run 在 GET 探活分支之前)', async () => {
     const res = await worker.fetch(new Request('https://x/run'), env, ctx);
     expect(res.status).toBe(405);
   });
