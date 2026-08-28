@@ -8,7 +8,7 @@ import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArc
 import { extractUrl } from './urlmd';
 import { extractTweet, fetchTweet, renderTweetHtml, articleToText, type FxTweet } from './fxtweet';
 import { matchEntries, type SearchEntry } from './search-index';
-import { summarizeZh, summarizeZhDeep, translateTextZh, translateBatch, isChinese, generateTitleZh, generateTagsZh } from './translate';
+import { summarizeZh, summarizeZhDeep, translateTextZh, translateBatch, isChinese, isZhDominant, generateTitleZh, generateTagsZh } from './translate';
 
 // 北京时间日期串 YYYY-MM-DD(UTC+8 无 DST,直接偏移即可)
 export const shanghaiDate = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
@@ -188,7 +188,9 @@ export async function archiveTweet(
     ? [tweet.article?.preview_text, artText].filter(Boolean).join('\n\n')
     : (tweet.text ?? '');
   const trunc = bodyText.length > 450 ? bodyText.slice(0, 450) + '  …' : bodyText;
-  const textZh = bodyText
+  // 正文已是中文 → 不翻译(isChinese 占比阈值对含代码/URL 的中文帖会稀释误判; isZhDominant 比字母数不受稀释)
+  const isZhBody = isZhDominant(bodyText);
+  const textZh = bodyText && !isZhBody
     ? (fxZh && fxZh !== bodyText && /[\u4e00-\u9fff]/.test(fxZh) ? fxZh : await translateTextZh(env, trunc).catch(() => null))
     : null;
   const hasZh = !!textZh && /[\u4e00-\u9fff]/.test(textZh) && textZh !== bodyText;

@@ -227,6 +227,27 @@ describe('webhook 路由全分支', () => {
     expect(card).not.toContain('x.com/i/article/');
   });
 
+  it('X 中文帖 → 不走翻译(中文主导判定), 卡片无🌐翻译段', async () => {
+    const zhTweet = {
+      ...TWEET,
+      text: '这是一个纯中文的帖子内容，讲述了 AI Agent 的构建方法与实践经验分享',
+      translation: null,
+    };
+    let translateCalled = false;
+    vi.mocked(fetchTweet).mockResolvedValueOnce(zhTweet as any);
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async (i: RequestInfo | URL, init?: RequestInit) => {
+      if (String(i).includes('openrouter.ai')) { translateCalled = true; return orig(i, init); }
+      return orig(i, init);
+    }) as typeof fetch;
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://x.com/fe2o3/status/123' } });
+    globalThis.fetch = orig;
+    expect(translateCalled).toBe(false); // 中文正文 → 不调翻译
+    const card = texts().find((t) => t.includes('中文的帖子'));
+    expect(card).toBeTruthy();
+    expect(card).not.toContain('🌐');
+  });
+
   it('URL 首次处理 → archiveUrl 链', async () => {
     await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://example.com/page' } });
     expect(allMsgs().length).toBeGreaterThan(0);
