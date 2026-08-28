@@ -539,6 +539,17 @@ function buildArchiveKeyboard(page: number, maxPage: number): InlineKB {
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
+    // /run: 手动触发完整管线(含发送)。需 POST + X-Runner-Token header(token 不进 URL, 避免落日志)。
+    // 必须在 GET 探活分支之前 —— GET 块会吞掉所有路径的 GET。
+    if (url.pathname === '/run') {
+      if (req.method !== 'POST') return new Response('method not allowed', { status: 405 });
+      const got = req.headers.get('X-Runner-Token') ?? '';
+      if (!env.WEBHOOK_SECRET || got !== env.WEBHOOK_SECRET) {
+        return new Response('forbidden', { status: 403 });
+      }
+      const n = await runDigest(env, url.searchParams.get('cache') !== '0');
+      return Response.json({ ok: true, chunks: n });
+    }
     if (req.method === 'GET') {
       // /preview: 数据管线自检(抓取→翻译→渲染, 不发消息)。仅未配凭证时开放。
       if (url.pathname === '/preview' && !env.BOT_TOKEN) {
@@ -560,17 +571,6 @@ export default {
           items,
         });
       }
-      // /run: 手动触发完整管线(含发送)。需 POST + X-Runner-Token header(token 不进 URL, 避免落日志)。
-      if (url.pathname === '/run') {
-        // fetch handler 入口已过滤 method==='GET', 此处 TS 收窄为 'GET'——运行时仍可能 POST, 用 as 断言
-        if ((req.method as string) !== 'POST') return new Response('method not allowed', { status: 405 });
-        const got = req.headers.get('X-Runner-Token') ?? '';
-        if (!env.WEBHOOK_SECRET || got !== env.WEBHOOK_SECRET) {
-          return new Response('forbidden', { status: 403 });
-        }
-        const n = await runDigest(env, url.searchParams.get('cache') !== '0');
-        return Response.json({ ok: true, chunks: n });
-      }
       return new Response('daily-digest worker running\n', { headers: { 'content-type': 'text/plain' } });
     }
     if (url.pathname !== '/telegram' || req.method !== 'POST') {
@@ -588,10 +588,12 @@ export default {
       callback_query?: {
         id?: string;
         data?: string;
+        from?: { id?: number };
         message?: { chat?: { id?: number }; message_id?: number };
       };
     };
-    const chatId = String(update.message?.chat?.id ?? update.callback_query?.message?.chat?.id ?? '');
+    // chatId: message 或 callback 所属消息; callback 无 message(消息已删/inline 模式)→ from.id 兜底
+    const chatId = String(update.message?.chat?.id ?? update.callback_query?.message?.chat?.id ?? update.callback_query?.from?.id ?? '');
     const text = (update.message?.text ?? '').trim();
 
     // c) 白名单外:不响应任何动作

@@ -47,7 +47,7 @@ vi.mock('../src/urlmd', () => ({
   extractOgImage: (...a: unknown[]) => mockExtractOg(...a),
 }));
 
-import { lookupRepo, fanoutRepoRefs, backfillDescriptions, archiveUrl, markProcessed } from '../src/lookup';
+import { lookupRepo, fanoutRepoRefs, backfillDescriptions, archiveUrl, markProcessed, refreshLookupDescriptions } from '../src/lookup';
 
 // ---- 内存 KV stub(+list) ----
 function makeEnv(): any {
@@ -155,6 +155,40 @@ describe('fanoutRepoRefs: 存档内容 repo 联动', () => {
     vi.stubGlobal('fetch', vi.fn(async () => ghResponse({ message: 'Not Found' }, 404)));
     await fanoutRepoRefs(makeEnv(), 'chat', 'https://github.com/a/private', {} as any);
     expect(sendRepo).not.toHaveBeenCalled(); // 静默跳过
+  });
+  it('精简卡描述链: deepwiki 命中且翻译中文 → 用翻译', async () => {
+    mockDw.mockResolvedValue('An English overview paragraph long enough here');
+    const env = makeEnv();
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) =>
+      ghResponse({ full_name: 'x/y', description: 'gh desc', stargazers_count: 1200, language: 'Go', topics: ['t1'] })));
+    await fanoutRepoRefs(env, 'chat', 'https://github.com/x/y', {} as any);
+    const html = String((sendRepo.mock.calls[0][2] as { html: string }[])[0].html);
+    expect(html).toContain('这是翻译后的中文描述内容'); // translateTextZh 返回值
+  });
+  it('精简卡描述链: deepwiki miss → GitHub desc 英文翻译兜底', async () => {
+    mockDw.mockResolvedValue(null);
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      ghResponse({ full_name: 'x/z', description: 'A github description here', topics: [] })));
+    await fanoutRepoRefs(makeEnv(), 'chat', 'https://github.com/x/z', {} as any);
+    const html = String((sendRepo.mock.calls[0][2] as { html: string }[])[0].html);
+    expect(html).toContain('📝'); // 有描述行
+  });
+  it('精简卡描述链: GitHub desc 已中文 → 直接用不翻译', async () => {
+    mockDw.mockResolvedValue(null);
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      ghResponse({ full_name: 'x/zh', description: '这已经是中文描述了', topics: [] })));
+    await fanoutRepoRefs(makeEnv(), 'chat', 'https://github.com/x/zh', {} as any);
+    const html = String((sendRepo.mock.calls[0][2] as { html: string }[])[0].html);
+    expect(html).toContain('这已经是中文描述了');
+  });
+  it('stars ≥1000 → k 格式化; topics → 标签', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      ghResponse({ full_name: 'x/pop', description: 'd', stargazers_count: 23400, topics: ['rust', 'cli', 'web', 'db', 'extra'] })));
+    await fanoutRepoRefs(makeEnv(), 'chat', 'https://github.com/x/pop', {} as any);
+    const html = String((sendRepo.mock.calls[0][2] as { html: string }[])[0].html);
+    expect(html).toContain('⭐23.4k');
+    expect(html).toContain('#rust');
+    expect(html).not.toContain('#extra'); // topics 截 4
   });
 });
 
@@ -265,5 +299,65 @@ describe('archiveUrl: 任意 URL 存档', () => {
     const confirm = String(sendText.mock.calls[0][2]);
     expect(confirm).not.toContain('telegra.ph');
     expect(confirm).toContain('#archive');
+  });
+});
+
+// ---------- refreshLookupDescriptions (cron 每日描述刷新, 此前 0 测试) ----------
+describe('refreshLookupDescriptions: 过期描述重刷', () => {
+  it('缓存超 7 天 + deepwiki 命中 + 翻译中文 → 回写新 zh', async () => {
+    mockDw.mockResolvedValue('Fresh english overview long enough to translate well');
+    const env = makeEnv();
+    const old = { zh: '旧中文描述', ts: Date.now() - 8 * 86400_000 };
+    await env.CACHE.put('lookup:desc:old/repo', JSON.stringify(old));
+    await refreshLookupDescriptions(env);
+    const raw = await env.CACHE.get('lookup:desc:old/repo');
+    expect(JSON.parse(raw!).zh).toContain('中文描述');
+    expect(JSON.parse(raw!).ts).toBeGreaterThan(old.ts);
+  });
+  it('缓存未过期 → 跳过(deepwiki 0 命)', async () => {
+    mockDw.mockResolvedValue('Fresh overview text');
+    const env = makeEnv();
+    await env.CACHE.put('lookup:desc:fresh/repo', JSON.stringify({ zh: '新的', ts: Date.now() }));
+    await refreshLookupDescriptions(env);
+    expect(mockDw).not.toHaveBeenCalled();
+    const raw = await env.CACHE.get('lookup:desc:fresh/repo');
+    expect(JSON.parse(raw!).zh).toBe('新的');
+  });
+  it('deepwiki miss/翻译非中文 → 保持旧值等下次', async () => {
+    mockDw.mockResolvedValue(null);
+    const env = makeEnv();
+    const old = { zh: '保持不变的旧值', ts: Date.now() - 30 * 86400_000 };
+    await env.CACHE.put('lookup:desc:keep/repo', JSON.stringify(old));
+    await refreshLookupDescriptions(env);
+    const raw = await env.CACHE.get('lookup:desc:keep/repo');
+    expect(JSON.parse(raw!).zh).toBe('保持不变的旧值');
+  });
+  it('缓存损坏值 → 跳过不崩', async () => {
+    const env = makeEnv();
+    await env.CACHE.put('lookup:desc:corrupt/repo', 'not-json{{{');
+    await expect(refreshLookupDescriptions(env)).resolves.toBeUndefined();
+    expect(mockDw).not.toHaveBeenCalled();
+  });
+});
+
+// ---------- lookupRepo 描述缓存命中 ----------
+describe('lookupRepo: 描述缓存', () => {
+  it('lookup:desc 缓存 7 天内 → 跳过 deepwiki/翻译, 直接用缓存 zh', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      ghResponse({ full_name: 'c/cache', description: 'gh desc', topics: [] })));
+    const env = makeEnv();
+    await env.CACHE.put('lookup:desc:c/cache', JSON.stringify({ zh: '缓存里的中文描述', ts: Date.now() }));
+    await lookupRepo(env, 'chat', 'c/cache');
+    expect(mockDw).not.toHaveBeenCalled();
+    expect(sendRepo).toHaveBeenCalledTimes(1);
+  });
+  it('缓存过期(>7天) → 重走 deepwiki 链', async () => {
+    mockDw.mockResolvedValue('An english overview that is fresh here');
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      ghResponse({ full_name: 'c/stale', description: 'gh desc', topics: [] })));
+    const env = makeEnv();
+    await env.CACHE.put('lookup:desc:c/stale', JSON.stringify({ zh: '旧', ts: Date.now() - 8 * 86400_000 }));
+    await lookupRepo(env, 'chat', 'c/stale');
+    expect(mockDw).toHaveBeenCalledTimes(1);
   });
 });
