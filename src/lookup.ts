@@ -1,5 +1,5 @@
 import type { Env, SourceItem } from './types';
-import { resolveDescriptions, translateBatch, translateTextZh, isChinese, summarizeZh, generateTagsZh } from './translate';
+import { resolveDescriptions, translateBatch, translateTextZh, isChinese, summarizeZh, generateTagsZh, generateTitleZh } from './translate';
 import { fetchDeepwikiOverview } from './deepwiki';
 import { renderMessage, renderMarkdown, esc } from './render';
 import { sendPerRepoMessages, sendTelegram } from './notify';
@@ -444,7 +444,7 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
     title = title.replace(/[#*>`[\]()!-]/g, '').trim().slice(0, 80);
     let titleZh = title;
     if (!isChinese(titleZh) && env.OPENROUTER_API_KEY) {
-      titleZh = (await translateTextZh(env, title).catch(() => null)) ?? title;
+      titleZh = (await generateTitleZh(env, title).catch(() => null)) ?? (await translateTextZh(env, title).catch(() => null)) ?? title;
     }
     // 统一印刷: 标题直链(中文优先) / 中文摘要 / 标签 / 存档三链——对齐 repo 卡的 renderMessage 三段结构
     // 标签: 无现成 topics 时用 LLM 生成领域标签
