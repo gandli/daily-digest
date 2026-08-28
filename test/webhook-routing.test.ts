@@ -227,6 +227,49 @@ describe('webhook 路由全分支', () => {
     expect(card).not.toContain('x.com/i/article/');
   });
 
+  it('X 多图帖(4 photo + mosaic) → 卡片用 mosaic 拼图而非首图', async () => {
+    const multiTweet = {
+      ...TWEET,
+      media: {
+        all: [
+          { type: 'photo', url: 'https://pbs.twimg.com/media/1.jpg' },
+          { type: 'photo', url: 'https://pbs.twimg.com/media/2.jpg' },
+          { type: 'photo', url: 'https://pbs.twimg.com/media/3.jpg' },
+          { type: 'photo', url: 'https://pbs.twimg.com/media/4.jpg' },
+        ],
+        mosaic: { formats: { jpeg: 'https://mosaic.fxtwitter.com/jpeg/123/1/2/3/4' } },
+      },
+    };
+    let photoUrl = '';
+    vi.mocked(fetchTweet).mockResolvedValueOnce(multiTweet as any);
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async (i: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(i);
+      if (u.includes('sendPhoto')) { const b = JSON.parse(String(init?.body ?? '{}')); photoUrl = b.photo; return new Response(JSON.stringify({ ok: true }), { status: 200 }); }
+      return orig(i, init);
+    }) as typeof fetch;
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://x.com/fe2o3/status/123' } });
+    globalThis.fetch = orig;
+    expect(photoUrl).toContain('mosaic.fxtwitter.com');
+    expect(photoUrl).not.toContain('pbs.twimg.com/media/1.jpg');
+  });
+  it('X 单图帖 → 不用 mosaic(只有1张, 直接原图)', async () => {
+    const singleTweet = {
+      ...TWEET,
+      media: { all: [{ type: 'photo', url: 'https://pbs.twimg.com/media/solo.jpg' }], photos: [{ type: 'photo', url: 'https://pbs.twimg.com/media/solo.jpg' }] },
+    };
+    let photoUrl = '';
+    vi.mocked(fetchTweet).mockResolvedValueOnce(singleTweet as any);
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async (i: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(i);
+      if (u.includes('sendPhoto')) { const b = JSON.parse(String(init?.body ?? '{}')); photoUrl = b.photo; return new Response(JSON.stringify({ ok: true }), { status: 200 }); }
+      return orig(i, init);
+    }) as typeof fetch;
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://x.com/fe2o3/status/123' } });
+    globalThis.fetch = orig;
+    expect(photoUrl).toBe('https://pbs.twimg.com/media/solo.jpg');
+  });
   it('X 中文帖 → 不走翻译(中文主导判定), 卡片无🌐翻译段', async () => {
     const zhTweet = {
       ...TWEET,

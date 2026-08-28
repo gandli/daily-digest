@@ -200,7 +200,10 @@ export async function archiveTweet(
   const media0 = (tweet.media?.all ?? [])[0];
   const repoRef = tweet.text?.match(/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/i)?.[1]
     ?? `x.com/${tweet.author?.screen_name ?? handle}`;
-  const photo =
+  // 多图帖(≥2 photo) → mosaic 拼图单张展示全部; 单图/视频/无媒体走原逻辑
+  const photos = (tweet.media?.photos ?? (tweet.media?.all ?? []).filter((m) => m.type === 'photo'));
+  const mosaicUrl = photos.length >= 2 ? tweet.media?.mosaic?.formats?.jpeg : undefined;
+  const photo = mosaicUrl ??
     (media0?.type === 'photo' ? media0.url : media0?.thumbnail_url) ??
     (tweet.text?.includes('github.com')
       ? `https://opengraph.githubassets.com/1/${repoRef}`
@@ -214,7 +217,7 @@ export async function archiveTweet(
     `- 原链: ${tUrl}`,
     `- 作者: ${tweet.author?.name ?? ''} (@${tweet.author?.screen_name ?? handle})`,
     `- 时间: ${tweet.created_at ?? ''}`,
-    `- 数据: ❤️ ${tweet.likes ?? '-'} · 🔁 ${tweet.retweets ?? '-'} · 💬 ${tweet.replies ?? '-'}`,
+    `- 数据: ❤️ ${tweet.likes ?? '-'} · 🔁 ${tweet.reposts ?? tweet.retweets ?? '-'} · 💬 ${tweet.replies ?? '-'}`,
     '',
     '---',
     '',
@@ -272,8 +275,9 @@ export async function archiveTweet(
     const links = `${tagLine}\n\n📁 ${archiveLinks(tUrl, tgLine ? tgLine.split(' ').pop() : undefined, `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`)}`;
     const card = renderTweetHtml(tweet, titleZh ?? '', hasZh ? textZh! : (isArticle ? (bodyText || (tweet.text ?? '')) : (tweet.text ?? '')), '', links);
     // Tweet 卡链接预览 = Telegraph 页(og:image 由 Telegraph 渲染), 无 Telegraph 回退原推 URL。
-    // 不用 sendPhotoOrText(发媒体图) —— 用户指定 Telegraph 作链接预览。
-    await sendPerRepoMessages(env.BOT_TOKEN, chatId, [{ html: card, ogUrl: tgPageUrl || tUrl }], repo);
+    // 多图帖用 mosaic 实体图发 sendPhoto; 单图/视频/无媒体走 ogUrl 链接预览。
+    // ponytail: 单图 sendPhoto 实体图(有 file_id 缓存), 多图 mosaic 拼图, 无媒体/视频回退 ogUrl 链接预览
+    await sendPerRepoMessages(env.BOT_TOKEN, chatId, [{ html: card, photo: mosaicUrl || (photos.length === 1 ? photo : undefined), ogUrl: tgPageUrl || tUrl }], repo);
   } catch (e) {
     console.error('archiveTweet store failed', String(e).slice(0, 100));
     await sendTelegram(env.BOT_TOKEN, chatId, `⚠️ 已取到帖子但存档失败(${String(e).slice(0, 120)})。请重发一次该链接重试。`);
