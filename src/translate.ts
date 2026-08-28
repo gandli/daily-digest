@@ -46,11 +46,13 @@ async function openrouterChat(env: Env, system: string, text: string, requireZh 
 
 /** 由正文生成中文标题(LLM)。失败/无 key → null。 */
 export async function generateTitleZh(env: Env, text: string): Promise<string | null> {
-  return openrouterChat(
+  const out = await openrouterChat(
     env,
-    '你是标题编辑。根据给定帖子内容生成简短、点题的简体中文标题(≤20字), 直接输出标题, 不要引号, 不要 markdown, 不要解释。',
+    '你是标题编辑。根据给定内容生成简短、点题的简体中文标题(≤20字), 直接输出标题, 不要引号, 不要 markdown, 不要解释。禁止输出"标题:"、"标题："等前缀。',
     text,
   );
+  if (!out) return null;
+  return out.replace(/^标题[:：]\s*/, '').replace(/^["'`“”]+|["'`“”]+$/g, '').slice(0, 20);
 }
 
 /** 由正文生成领域标签(LLM)。返回空格分隔的英文/数字标签(带#), ≤4个。失败/无 key → null。 */
@@ -58,13 +60,18 @@ export async function generateTagsZh(env: Env, text: string): Promise<string[] |
   if (!env.OPENROUTER_API_KEY) return null;
   const out = await openrouterChat(
     env,
-    '你是标签编辑。根据给定内容生成 2-4 个领域标签(英文小写, 反映主题), 用空格分隔, 不带#。只输出标签单词, 不要解释。',
+    '你是标签编辑。根据给定内容生成 2-4 个领域标签, 中文或英文小写均可, 反映主题。用空格分隔, 不带#。只输出标签词, 不要解释。',
     text,
     false, // 标签是英文 → 不能过中文守卫, 否则永远 null
   );
   if (!out) return null;
-  const tags = out.match(/[a-z][a-z0-9-]{1,19}/g) ?? [];
-  return tags.slice(0, 4);
+  // 标签允许中英混合(血糖/cgm/机器学习), 词界: 连续非空白非#串
+  const tags = out.match(/[^\s#]+/g) ?? [];
+  const cleaned = tags
+    .map((t) => t.replace(/^#+|#+$/g, '').replace(/[.,;、。,;::""''()（）]/g, '').trim())
+    .filter((t) => t.length >= 2 && t.length <= 20 && !/^\d+$/.test(t));
+  // 去重 + 截 4
+  return [...new Set(cleaned)].slice(0, 4);
 }
 
 // 描述解析链(按序兜底): zread wiki 中文 → deepwiki 英文 Overview → 翻译成中文 → 英文原文。

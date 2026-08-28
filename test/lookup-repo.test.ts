@@ -33,6 +33,7 @@ vi.mock('../src/translate', () => ({
   translateTextZh: async () => '这是翻译后的中文描述内容',
   summarizeZh: async () => null,
   generateTagsZh: async () => ['ai'],
+  generateTitleZh: async () => '测试标题',
 }));
 vi.mock('../src/archive', () => ({
   archiveToGitHub: async () => {},

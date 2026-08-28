@@ -13,7 +13,7 @@ const mkEnv = (extra: Record<string, unknown> = {}) => ({
 }) as never;
 
 // OpenRouter 响应构造器
-const orOk = (content: string) => new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+const orOk = (content: string, status = 200) => new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status, headers: { 'content-type': 'application/json' } });
 const orErr = (status: number) => new Response('err', { status });
 
 beforeEach(() => {
@@ -31,6 +31,14 @@ describe('generateTitleZh: OpenRouter 多模型回退', () => {
     }) as typeof fetch;
     expect(await generateTitleZh(mkEnv(), 'some english text')).toBe('这是生成的中文标题');
     expect(seen.length).toBe(1);
+  });
+  it('输出带 标题: 前缀 → 剥前缀', async () => {
+    globalThis.fetch = (async () => orOk('标题：血糖监测基础模型')) as typeof fetch;
+    expect(await generateTitleZh(mkEnv(), 'text')).toBe('血糖监测基础模型');
+  });
+  it('输出超长 → 截 20 字', async () => {
+    globalThis.fetch = (async () => orOk('这是一个非常非常非常非常非常非常非常非常非常长的标题超过二十个字')) as typeof fetch;
+    expect(await generateTitleZh(mkEnv(), 'text')).toHaveLength(20);
   });
   it('首模型 429 → 落第二模型', async () => {
     let n = 0;
@@ -74,9 +82,21 @@ describe('generateTagsZh: 标签解析', () => {
     globalThis.fetch = (async () => orOk('rust cli tool dev web database')) as typeof fetch;
     expect(await generateTagsZh(mkEnv(), 'text')).toHaveLength(4);
   });
-  it('纯中文输出(无标签词) → 空数组', async () => {
-    globalThis.fetch = (async () => orOk('这是纯中文输出没有标签')) as typeof fetch;
-    expect(await generateTagsZh(mkEnv(), 'text')).toEqual([]);
+  it('中文标签(血糖监测等) → 正常抽取', async () => {
+    globalThis.fetch = (async () => orOk('血糖 cgm 监测 基础模型')) as typeof fetch;
+    expect(await generateTagsZh(mkEnv(), 'text')).toEqual(['血糖', 'cgm', '监测', '基础模型']);
+  });
+  it('带 # 前缀/标点 → 清洗后抽取', async () => {
+    globalThis.fetch = (async () => orOk('#血糖 #cgm, #监测。')) as typeof fetch;
+    expect(await generateTagsZh(mkEnv(), 'text')).toEqual(['血糖', 'cgm', '监测']);
+  });
+  it('重复词 → 去重', async () => {
+    globalThis.fetch = (async () => orOk('rust rust cli')) as typeof fetch;
+    expect(await generateTagsZh(mkEnv(), 'text')).toEqual(['rust', 'cli']);
+  });
+  it('纯数字/单字符 → 丢弃', async () => {
+    globalThis.fetch = (async () => orOk('a 123 rust')) as typeof fetch;
+    expect(await generateTagsZh(mkEnv(), 'text')).toEqual(['rust']);
   });
   it('OpenRouter 全挂 → null', async () => {
     globalThis.fetch = (async () => orErr(500)) as typeof fetch;
