@@ -73,18 +73,18 @@ async function postUpdate(update: unknown) {
 
 describe('验签 fail-closed', () => {
   it('secret token 不匹配 → 403, 无 TG API 调用', async () => {
-    const res = await post('https://x/telegram', 'wrong', { message: { chat: { id: 944783507 }, text: '/trending' } });
+    const res = await post('https://x/telegram', 'wrong', { message: { chat: { id: 944783507 }, text: '/gt' } });
     expect(res.status).toBe(403);
     await Promise.allSettled(pending);
     expect(calls.length).toBe(0);
   });
   it('缺 secret token header → 403', async () => {
-    const res = await post('https://x/telegram', null, { message: { chat: { id: 944783507 }, text: '/trending' } });
+    const res = await post('https://x/telegram', null, { message: { chat: { id: 944783507 }, text: '/gt' } });
     expect(res.status).toBe(403);
   });
   it('env.WEBHOOK_SECRET 未配置 → fail-closed 全拒', async () => {
     env.WEBHOOK_SECRET = undefined;
-    const res = await post('https://x/telegram', 'sec', { message: { chat: { id: 944783507 }, text: '/trending' } });
+    const res = await post('https://x/telegram', 'sec', { message: { chat: { id: 944783507 }, text: '/gt' } });
     expect(res.status).toBe(403);
   });
   it('非法 JSON 但验签通过 → 秒回 200(不 crash, 无 chatId 走忽略)', async () => {
@@ -96,7 +96,7 @@ describe('验签 fail-closed', () => {
 
 describe('chatId 白名单', () => {
   it('白名单外消息 chatId → 忽略(200, 全链路零 TG API 调用)', async () => {
-    const res = await postUpdate({ message: { chat: { id: 999 }, text: '/trending' } });
+    const res = await postUpdate({ message: { chat: { id: 999 }, text: '/gt' } });
     expect(res.status).toBe(200);
     expect(calls.length).toBe(0);
   });

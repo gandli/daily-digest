@@ -10,8 +10,8 @@
 
 | 命令 | 行为 | 备注 |
 |------|------|------|
-| `/gt` `/trending` | 用缓存 `digest:<date>` 秒回； 无缓存触发完整管线 `runDigest(env, true)` | 当天 trending 固定， 不重抓 |
-| `/hn` `/product` | 读 archive 分支 `product/<date>.json` 秒回产品卡； miss → `repository_dispatch` 触发 Actions 生成并回占位提示 | Actions 完成后直发 TG， 不经 Worker 重管线 |
+| `/gt` | 用缓存 `digest:<date>` 秒回； 无缓存触发完整管线 `runDigest(env, true)` | 当天 trending 固定， 不重抓 |
+| `/hn` | 读 archive 分支 `product/<date>.json` 秒回产品卡； miss → `repository_dispatch` 触发 Actions 生成并回占位提示 | Actions 完成后直发 TG， 不经 Worker 重管线 |
 | `/ph` | Product Hunt 每日热门: 官方 Atom feed 免 key 直拉 top10 → 译中 → 产品卡 (ogUrl 预览); 当日缓存 `ph:<date>` 秒回; 榜单存档 `ph-<date>.md` | 无 Actions, Worker 内完成; 拉取失败 ⚠️ 提示 |
 | `/search <关键词>` | 单键索引 `search:index` 内存过滤 → 分页 10 条 + inline keyboard 翻页/跳转 | 描述批量译中 (TranSmart/m2m100) |
 | `/archive [页码]` | `archive:idx:*` 遍历倒序 → 10 条/页 + 三链 (Telegraph/web.archive/GitHub md) | 分页 inline keyboard |
@@ -79,8 +79,8 @@ Binding `CACHE`。
 
 | 卡型 | 标题直链 | 中文正文 | 标签 | OG 图 | Telegraph | Wayback | GitHub md | 子请求预算 |
 |------|---------|---------|------|------|-----------|---------|-----------|-----------|
-| digest 推送 (/trending·cron) | ✓ | ✓ | ✓ | ✓ sendPhoto | ✓ 建页 | ✓ 链接 | ✓ 批量 | ~40/日管线 |
-| /trending 当日重放 | ✓ | ✓ | ✓ | ✗ 纯文本 | ✗ | ✗ | ✓ | 1 |
+| digest 推送 (/gt·cron) | ✓ | ✓ | ✓ | ✓ sendPhoto | ✓ 建页 | ✓ 链接 | ✓ 批量 | ~40/日管线 |
+| /gt 当日重放 | ✓ | ✓ | ✓ | ✗ 纯文本 | ✗ | ✗ | ✓ | 1 |
 | 单仓查询 | ✓ | ✓ | ✓ | ✓ | ✓ 建页 | ✓ save | ✓ 缓冲 | ~9 |
 | 多仓联动 fanout | ✓ | ✓ | ✓ | ✓ | ✗ 两链 | ✓ save | ✓ 缓冲 | 3×N (≤40) |
 | 网页存档 | ✓ | ✓ | ✓ | ✓ | ✓ 建页 | ✓ save | ✓ 缓冲 | ~10 |
@@ -93,7 +93,7 @@ Binding `CACHE`。
 
 `BOT_TOKEN` · `CHAT_ID` · `WEBHOOK_SECRET` · `GH_TOKEN` · `TELEGRAPH_TOKEN`
 
-可选: `OPENROUTER_API_KEY` (/product 深度摘要 + 手册 AI 正文) · `JINA_API_KEY` / `GENEDAI_API_KEY` (URL→markdown 兜底) · `CF_ACCOUNT_ID` / `CF_API_TOKEN` (Browser Rendering)
+可选: `OPENROUTER_API_KEY` (/hn 深度摘要 + 手册 AI 正文) · `JINA_API_KEY` / `GENEDAI_API_KEY` (URL→markdown 兜底) · `CF_ACCOUNT_ID` / `CF_API_TOKEN` (Browser Rendering)
 
 ## 6. 数据流摘要
 
@@ -105,8 +105,8 @@ cron 08:30 ──> scheduled
   refreshLookupDescriptions / backfillDescriptions
   flushArchivedPending: pend:arc:* → Git Data API 一个 commit → archive 分支
 
-webhook ──> /product | /search | /archive | 链接 | /trending
-  /product → archive 分支 product JSON 秒回； miss → repository_dispatch
+webhook ──> /hn | /search | /archive | 链接 | /gt
+  /hn → archive 分支 product JSON 秒回； miss → repository_dispatch
   /search → search:index 过滤 → 译中 → 分页 keyboard
   /archive → archive:idx 倒序 → 三链
   repo链接 → lookupRepo → 存档缓冲 + index

@@ -79,16 +79,16 @@ describe('手册场景', () => {
     scenarios.push(await runScenario(env, fetcher, '01-start', '快速开始: /start 与帮助', '新用户首次接触, 了解命令与支持的链接类型。', async (post) => {
       await post(upd('/start'), { target: 'input', label: '发送 /start 启动 Bot' });
     }));
-    // 2 /trending: round1 无缓存 → 占位 + 完整管线出卡; round2 再发 → 缓存秒回
-    scenarios.push(await runScenario(env, fetcher, '02-trending', '/trending 今日 GitHub Trending', '拉当天 Trending; 首次跑完整管线(抓取→翻译→存档→发卡), 当天再次发送秒回缓存。', async (post) => {
-      await post(upd('/trending'), { target: 'input', label: '发送 /trending' });
-      await post(upd('/trending'));
+    // 2 /gt: round1 无缓存 → 占位 + 完整管线出卡; round2 再发 → 缓存秒回
+    scenarios.push(await runScenario(env, fetcher, '02-trending', '/gt 今日 GitHub Trending', '拉当天 Trending; 首次跑完整管线(抓取→翻译→存档→发卡), 当天再次发送秒回缓存。', async (post) => {
+      await post(upd('/gt'), { target: 'input', label: '发送 /gt' });
+      await post(upd('/gt'));
     }));
-    // 3 /product: round1 未生成 → dispatch 占位; round2 已生成 → 产品卡
-    scenarios.push(await runScenario(env, fetcher, '03-product', '/product 今日 HN 酷产品', '读 Actions 生成的当日产品卡; 未生成时自动触发 GitHub Actions, 生成完成后推送。', async (post) => {
-      await post(upd('/product'), { target: 'input', label: '发送 /product' });
+    // 3 /hn: round1 未生成 → dispatch 占位; round2 已生成 → 产品卡
+    scenarios.push(await runScenario(env, fetcher, '03-product', '/hn 今日 HN 酷产品', '读 Actions 生成的当日产品卡; 未生成时自动触发 GitHub Actions, 生成完成后推送。', async (post) => {
+      await post(upd('/hn'), { target: 'input', label: '发送 /hn' });
       productSeeded = true;
-      await post(upd('/product'));
+      await post(upd('/hn'));
     }));
     last().steps[last().steps.length - 1].annotate = { target: 'bubble', label: '产品卡: 标题直链/作者/中文摘要/三链' };
     // 4 /archive: 12 条存档 → 第 1 页 + 按钮翻到第 2 页(原地编辑)

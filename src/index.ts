@@ -39,8 +39,8 @@ export { topicsFromTitle };
 const HELP = `📊 daily-digest 使用
 
 <b>命令</b>
-/gt — 今日 GitHub Trending(兼容 /trending)
-/hn — 今日 HN 酷产品(兼容 /product)
+/gt — 今日 GitHub Trending
+/hn — 今日 HN 酷产品
 /ph — Product Hunt 每日热门
 /search 关键词 — 搜索历史存档
 /archive — 历史存档(分页+三链)
@@ -305,7 +305,7 @@ export async function archiveTweet(
   }
 }
 
-// 共享管线:cron 与 /trending 都走这里。
+// 共享管线:cron 与 /gt 都走这里。
 export async function runDigest(env: Env, useCache = true): Promise<number> {
   const dateStr = shanghaiDate();
   const cacheKey = `digest:${dateStr}`;
@@ -401,7 +401,7 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
   );
   // 纯文字兜底副本不再发——sendPhoto 失败时 sendPerRepoMessages 内部已降级纯文字
 
-  // 5. 缓存 + 存档(失败不影响已发消息)。缓存存 chunks+repos——重放(/trending 用缓存)能带 OG 图
+  // 5. 缓存 + 存档(失败不影响已发消息)。缓存存 chunks+repos——重放(/gt 用缓存)能带 OG 图
   try {
     const repos = items.map((i) => i.title);
     await env.CACHE.put(cacheKey, JSON.stringify({ chunks, repos }), { expirationTtl: 86400 });
@@ -414,7 +414,7 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
   return chunks.length;
 }
 
-// /product 薄路径: 读 Actions 生成的 archive 分支 JSON → 渲染 → 发 TG(秒回, 1 子请求)。
+// /hn 薄路径: 读 Actions 生成的 archive 分支 JSON → 渲染 → 发 TG(秒回, 1 子请求)。
 // miss(当日 JSON 不存在) → repository_dispatch 触发 Actions 生成 + 占位提示。
 // 重活(抓取/urlToMarkdown/深摘要/存档/直发)全在 scripts/product-digest.ts(Actions), Worker 零重活。
 export async function runProductThin(env: Env, chatId: string, ctx?: ExecutionContext): Promise<number> {
@@ -669,12 +669,12 @@ export default {
 
     // 注册命令菜单(幂等)+ 分派命令
     // 慢命令先显示"正在输入…"(低成本, 标准体验)。/help/空即时跳过。
-    if (text.startsWith('/trending') || text.startsWith('/gt') || text.startsWith('/product') || text.startsWith('/hn') || text.startsWith('/ph') || text.startsWith('/archive') || text.startsWith('/search')) {
+    if (text.startsWith('/gt') || text.startsWith('/hn') || text.startsWith('/ph') || text.startsWith('/archive') || text.startsWith('/search')) {
       ctx.waitUntil(sendChatAction(env.BOT_TOKEN, chatId)); // 随主 pipeline 后台, 不 block 分派
     }
-    if (text.startsWith('/trending') || text.startsWith('/gt')) {
+    if (text.startsWith('/gt')) {
       // 用缓存(useCache=true): 当天 GitHub trending 固定不变, 无需每次重抓。
-      // cron 早 08:30 已跑一次写 digest:<date> 缓存, /trending 当天后续读缓存秒回。
+      // cron 早 08:30 已跑一次写 digest:<date> 缓存, /gt 当天后续读缓存秒回。
       // 首屏无缓存(如当天未到 cron)才触发完整抓取+描述链。缓存命中仅回纯文本(无 OG 照片),
       // 换取不等 10-30s 描述链。需带图可二次发 /archive 或等 cron。
       ctx.waitUntil(
@@ -686,7 +686,7 @@ export default {
           if (n < 0) await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ Trending 抓取失败, 请稍后再试。');
         })(),
       );
-    } else if (text.startsWith('/product') || text.startsWith('/hn')) {
+    } else if (text.startsWith('/hn')) {
       // 薄路径: 读 Actions 生成的 archive 分支 JSON 秒回; miss → repository_dispatch 触发 Actions 生成。
       ctx.waitUntil(runProductThin(env, chatId, ctx));
     } else if (text.startsWith('/ph')) {
@@ -780,7 +780,7 @@ export default {
 
   async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
     await runDigest(env, false); // cron 不读缓存,保证每日新鲜抓取
-    // /product 已迁 Actions(product-digest.yml cron 30 0 * * * 直发 TG), Worker 不再重跑
+    // /hn 已迁 Actions(product-digest.yml cron 30 0 * * * 直发 TG), Worker 不再重跑
     await refreshLookupDescriptions(env); // 已查过的 repo 定期重跑 deepwiki/zread, 同步上游描述
     await backfillDescriptions(env, 40); // 星标仓缺/未译描述 → 每天低速补 40 条
     try {

@@ -10,12 +10,12 @@
 - [x] Telegraph 每日备份页 + `archive:tg` 索引
 - [x] archive 分支存放 md (`archive/<YYYY>/<date>.md`)
 - [x] 存档三链: Telegraph → 互联网档案馆 web.archive.org → GitHub md
-- [x] `/product` — 今日 HN 酷产品 (archive 分支 JSON 秒回 / repository_dispatch 触发 Actions)
+- [x] `/hn` — 今日 HN 酷产品 (archive 分支 JSON 秒回 / repository_dispatch 触发 Actions)
 - [x] X article 长文帖: 直用内嵌标题/正文, 不再喂裸链接给 LLM (#151)
 
 ### 命令
-- [x] `/trending` — 当天固定， 用缓存秒回
-- [x] `/product` — 秒回 / dispatch 兜底
+- [x] `/gt` — 当天固定， 用缓存秒回
+- [x] `/hn` — 秒回 / dispatch 兜底
 - [x] `/search <kw>` — 索引过滤 + 中文描述 + 分页/跳转 keyboard
 - [x] `/archive [n]` — 分页列表 + 三链
 - [x] `/help`

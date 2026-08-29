@@ -1,10 +1,12 @@
 // 覆盖缺口收口: 小单元直测(answerCallbackQuery / articleToText / HN 缺字段兜底 /
-// 翻译链低层响应形态 / summarizeZhDeep QUOTE 拆分)。纯 stub, 不触网。
+// 翻译链低层响应形态 / summarizeZhDeep QUOTE 拆分 / lookup 低层故障分支)。纯 stub, 不触网。
 import { describe, it, expect, vi } from 'vitest';
 import { answerCallbackQuery } from '../src/notify';
 import { articleToText } from '../src/fxtweet';
 import { fetchHackerNewsProducts } from '../src/sources/hn';
 import { translateTextZh, summarizeZhDeep } from '../src/translate';
+import { saveToWayback, shouldReprocess, markProcessed, extractRepoRefs, indexArchivedItems, backfillDescriptions, refreshLookupDescriptions } from '../src/lookup';
+import { makeEnv } from '../scripts/manual/runner';
 
 describe('answerCallbackQuery', () => {
   it('POST callback_query_id; 网络错静默不抛', async () => {
@@ -108,5 +110,117 @@ describe('summarizeZhDeep: QUOTE 拆分', () => {
     const out = await summarizeZhDeep({ OPENROUTER_API_KEY: 'sk' } as any, '文章正文');
     expect(out?.summaryZh).toContain('第二模型');
     expect(n).toBe(2);
+  });
+});
+
+describe('saveToWayback: 静默语义', () => {
+  it('无 url → 立即 resolve', async () => {
+    await expect(saveToWayback(undefined)).resolves.toBeUndefined();
+  });
+  it('fetch 抛错 → 静默 resolve 不上抛', async () => {
+    globalThis.fetch = (async () => { throw new Error('net down'); }) as typeof fetch;
+    await expect(saveToWayback('https://example.com/a')).resolves.toBeUndefined();
+  });
+});
+
+describe('shouldReprocess / markProcessed: KV 写故障', () => {
+  const badKv = { get: async () => null, put: async () => { throw new Error('kv down'); } } as any;
+  it('占位 put 抛错 → 仍按 first 返回', async () => {
+    await expect(shouldReprocess(badKv, 'https://example.com/x')).resolves.toBe('first');
+  });
+  it('markProcessed put 抛错 → 静默不上抛', async () => {
+    await expect(markProcessed(badKv, 'https://example.com/x', true, true, 'stamp', '标题', '摘要')).resolves.toBeUndefined();
+  });
+});
+
+describe('extractRepoRefs: 剥 .git / 滤文件路径 / 去重', () => {
+  it('混合引用只留干净 owner/repo(去重按原始捕获, 剥 .git 后不合并)', () => {
+    const refs = extractRepoRefs('看 https://github.com/a/b.git 与 https://github.com/c/d/blob/main/x.ts');
+    expect(refs).toEqual(['a/b', 'c/d']);
+  });
+  it('无引用 → 空数组', () => {
+    expect(extractRepoRefs('no links here')).toEqual([]);
+  });
+});
+
+describe('indexArchivedItems: 空列表与索引新建', () => {
+  const mkKv = () => {
+    const store = new Map<string, string>();
+    return { store, CACHE: { get: async (k: string) => store.get(k) ?? null, put: async (k: string, v: string) => { store.set(k, v); } } } as any;
+  };
+  it('items 空 → 不写 search:index', async () => {
+    const kv = mkKv();
+    await indexArchivedItems(kv, [], '2026-08-29');
+    expect(kv.store.has('search:index')).toBe(false);
+  });
+  it('search:index 缺失 → 新建并追加条目', async () => {
+    const kv = mkKv();
+    await indexArchivedItems(kv, [{ title: 'a/b', url: 'https://github.com/a/b', desc: 'en desc', descZh: '中文描述内容' } as any], '2026-08-29');
+    const entries = JSON.parse(kv.store.get('search:index')!);
+    expect(entries).toHaveLength(1);
+    expect(entries[0][1]).toBe('a/b');
+    expect(entries[0][4]).toBe('中文描述内容');
+  });
+});
+
+describe('lookup 低层补测: saveToWayback / backfill / refresh / index 去重', () => {
+  it('saveToWayback 200 → 消费响应体后 resolve', async () => {
+    let textRead = false;
+    globalThis.fetch = (async () => ({ text: async () => { textRead = true; return 'saved'; } })) as unknown as typeof fetch;
+    await expect(saveToWayback('https://example.com/b')).resolves.toBe('saved');
+    expect(textRead).toBe(true);
+  });
+  it('响应体 text() 拒绝 → 内层 catch 兜底空串', async () => {
+    globalThis.fetch = (async () => ({ text: () => Promise.reject(new Error('body down')) })) as unknown as typeof fetch;
+    await expect(saveToWayback('https://example.com/c')).resolves.toBe('');
+  });
+
+  it('backfill: repoKey get 抛错视为未缓存 / put 抛错静默 / 中文 desc 跳过', async () => {
+    globalThis.fetch = (async () => new Response('{}', { status: 200 })) as typeof fetch;
+    const entries = [
+      ['star', 'aa/bb', '', 'hay', '已有中文描述内容'], // desc 中文 → 跳过
+      ['star', 'cc/dd', '', 'hay', ''], // repoKey get 抛错 → 视为未缓存 → deepwiki miss → put 抛错静默
+    ];
+    const store = new Map<string, string>([['search:index', JSON.stringify(entries)]]);
+    const kv = {
+      get: async (k: string) => { if (k === 'lookup:desc:cc/dd') throw new Error('get down'); return store.get(k) ?? null; },
+      put: async (k: string, v: string) => { if (k.startsWith('lookup:desc:')) throw new Error('put down'); store.set(k, v); },
+    } as any;
+    await backfillDescriptions({ CACHE: kv } as any, 5);
+    expect(store.has('lookup:desc:cc/dd')).toBe(false); // put 失败被 .catch 吞掉
+  });
+
+  it('refresh: 未过期条目 → 跳过保持旧值', async () => {
+    globalThis.fetch = (async () => new Response('{}', { status: 200 })) as typeof fetch;
+    const fresh = JSON.stringify({ zh: '新中文描述内容', ts: Date.now() });
+    const store = new Map<string, string>([['lookup:desc:aa/bb', fresh]]);
+    const kv = {
+      list: async ({ prefix }: any) => ({ keys: [...store.keys()].filter((k) => k.startsWith(prefix)).map((name) => ({ name })), list_complete: true }),
+      get: async (k: string) => store.get(k) ?? null,
+      put: async (k: string, v: string) => { store.set(k, v); },
+    } as any;
+    await refreshLookupDescriptions({ CACHE: kv } as any);
+    expect(store.get('lookup:desc:aa/bb')).toBe(fresh);
+  });
+
+  it('indexArchivedItems: 重复条目幂等跳过', async () => {
+    const store = new Map<string, string>();
+    const kv = { CACHE: { get: async (k: string) => store.get(k) ?? null, put: async (k: string, v: string) => { store.set(k, v); } } } as any;
+    const item = [{ title: 'a/b', url: 'https://github.com/a/b', descZh: '中文描述内容' }] as any;
+    await indexArchivedItems(kv, item, '2026-08-29');
+    await indexArchivedItems(kv, item, '2026-08-29');
+    const entries = JSON.parse(store.get('search:index')!);
+    expect(entries).toHaveLength(1);
+  });
+});
+
+describe('runner.makeEnv: CACHE mock 完整性', () => {
+  it('store 访问器 + delete 可用', async () => {
+    const env = makeEnv();
+    await env.CACHE.put('k1', 'v1');
+    expect(env.CACHE.store.get('k1')).toBe('v1');       // get store() 访问器
+    await env.CACHE.delete('k1');                        // delete 路径
+    expect(await env.CACHE.get('k1')).toBeNull();
+    expect((await env.CACHE.list({ prefix: 'k' })).keys).toEqual([]);
   });
 });

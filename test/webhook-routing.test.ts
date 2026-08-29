@@ -1,5 +1,5 @@
 // webhook 全路由回归锁: 每个命令/文本分支都经 worker.fetch 真实走过(非直接调内函数)。
-// 覆盖: /preview /run /trending /product /help /archive(含翻页) /search(含无 query) /repo 链 / X 帖 / URL 三态 / scheduled。
+// 覆盖: /preview /run /gt /hn /help /archive(含翻页) /search(含无 query) /repo 链 / X 帖 / URL 三态 / scheduled。
 // mock: fetchTrending / fetchTweet 可控; global fetch 只放行 TG + GitHub + Telegraph + raw; 其余 404。
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { fetchTrending } from '../src/sources/trending';
@@ -122,31 +122,21 @@ describe('webhook 路由全分支', () => {
     expect(j.count).toBe(1);
   });
 
-  it('/trending → 命中缓存时秒回卡片, 不重抓', async () => {
+  it('/gt → 命中缓存时秒回卡片, 不重抓', async () => {
     const dateStr = new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
     await env.CACHE.put(`digest:${dateStr}`, JSON.stringify({ chunks: ['cached-card'], repos: ['a/b'] }));
-    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: '/trending' } });
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: '/gt' } });
     expect(texts().some((t) => t.includes('cached-card'))).toBe(true);
     expect(vi.mocked(fetchTrending)).not.toHaveBeenCalled();
   });
-  it('短命令别名: /gt → trending 行为', async () => {
-    const dateStr = new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
-    await env.CACHE.put(`digest:${dateStr}`, JSON.stringify({ chunks: ['gt-alias-card'], repos: ['a/b'] }));
+  it('/gt 无缓存 → 先发占位再发卡', async () => {
     await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: '/gt' } });
-    expect(texts().some((t) => t.includes('gt-alias-card'))).toBe(true);
-  });
-  it('短命令别名: /hn → product 行为(产品 JSON 命中出卡)', async () => {
-    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: '/hn' } });
-    expect(texts().some((t) => t.includes('Show HN: cool tool'))).toBe(true);
-  });
-  it('/trending 无缓存 → 先发占位再发卡', async () => {
-    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: '/trending' } });
     expect(texts().some((t) => t.includes('Trending 生成中'))).toBe(true);
     expect(vi.mocked(fetchTrending)).toHaveBeenCalled();
   });
 
-  it('/product → 读到 JSON → 卡片发出, 不触发 dispatch', async () => {
-    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: '/product' } });
+  it('/hn → 读到 JSON → 卡片发出, 不触发 dispatch', async () => {
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: '/hn' } });
     const msgs = allMsgs();
     expect(msgs.length).toBe(1);
     expect(texts().some((t) => t.includes('by fe2o3'))).toBe(true);
@@ -449,9 +439,9 @@ describe('webhook 分支补充(search 深路径 / X 帖失败 / URL 重挂)', ()
     expect(texts().some((t) => t.includes('owner/repo'))).toBe(true);
     expect(texts().some((t) => t.includes('今日已存档'))).toBe(false);
   });
-  it('/trending 抓取失败 → ⚠️ Trending 抓取失败提示', async () => {
+  it('/gt 抓取失败 → ⚠️ Trending 抓取失败提示', async () => {
     vi.mocked(fetchTrending).mockRejectedValueOnce(new Error('net down'));
-    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: '/trending' } });
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: '/gt' } });
     expect(texts().some((t) => t.includes('Trending 抓取失败'))).toBe(true);
   });
   it('sendPhoto 失败 → 回落纯文字 sendMessage', async () => {

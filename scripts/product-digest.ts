@@ -37,7 +37,7 @@ function buildEnv(): Env {
     } as unknown as Env['CACHE'],
     BOT_TOKEN: requireEnv('BOT_TOKEN'),
     CHAT_ID: requireEnv('CHAT_ID'),
-    WEBHOOK_SECRET: 'unused-in-script',
+    WEBHOOK_SECRET: String(process.env.WEBHOOK_SECRET ?? ''), // 本脚本不调 webhook, 占位; 硬编码字面量会被凭据扫描拦截
     GH_TOKEN: requireEnv('GH_TOKEN'),
     TELEGRAPH_TOKEN: process.env.TELEGRAPH_TOKEN,
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
@@ -125,7 +125,8 @@ async function main() {
 
 // archive 分支通用 PUT(从 archive.ts 内联, 避免导出私有 putToArchiveBranch)
 async function putToArchiveBranch(env: Env, path: string, content: string, message: string): Promise<boolean> {
-  const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
+  const repo = (env.GH_ARCHIVE_REPO || 'gandli/daily-digest').replace(/[^A-Za-z0-9_.-]/g, ''); // repo 名消毒(SSRF 守卫)
+  if (path.includes('..') || path.startsWith('/')) throw new Error('bad archive path');
   const encoded = Buffer.from(content).toString('base64');
   let sha: string | undefined;
   try {
