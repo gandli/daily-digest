@@ -25,7 +25,7 @@
 ### 工程
 - [x] CI: tsc + 519+ tests (44 文件) + GitGuardian + dry-run → merge 自动 deploy
 - [x] webhook `allowed_updates=["message","callback_query"]` (翻页可用)
-- [x] coverage 48%+ (vitest coverage-v8)
+- [x] coverage 93%+ 语句/86% 分支 (vitest coverage-v8, 2026-08-29 实测)
 - [x] KV 单键索引规避 50 子请求上限 (免费版)
 - [x] 存档批量化: KV `pend:arc:*` 缓冲 + Git Data API 单 commit 推 archive 分支 (每日 cron + ≥20 阈值; 失败保留重试; KV 故障回落直推)
 - [x] 用户手册自动化管线: e2e 场景驱动真实 worker → 合成聊天标注截图 (Playwright) → AI 生成逐步说明 (无 key 模板兜底) → manual.yml 随代码变更重生成 [docs/guide/](guide/README.md)
