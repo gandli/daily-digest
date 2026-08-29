@@ -50,6 +50,9 @@ export type Route = { match: (url: string) => boolean; reply: unknown | ((url: s
 
 const okJson = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
 
+// 存档 stamp(毫秒级, 每次运行必变)归一化 → scenarios.json 与截图逐字节稳定, 免产物日常 churn
+const normStamp = (s: string = '') => s.replace(/(\d{4}-\d{2}-\d{2})-\d{1,10}\.md/g, '$1-<stamp>.md');
+
 // 收集 bot 的 Telegram API 调用 → 还原成聊天气泡; 其余外网请求按 fixtures 供数据。
 export function makeCallLog(fixtures: Route[] = []) {
   const calls: { url: string; body: any }[] = [];
@@ -88,7 +91,7 @@ function harvest(fetcher: ReturnType<typeof makeCallLog>, steps: Step[]): void {
         if (steps[i].actor === 'bot' && steps[i].buttons) {
           round.push({
             actor: 'bot',
-            text: c.body.text,
+            text: normStamp(c.body.text),
             buttons: c.body.reply_markup,
             note: '原地编辑(翻页)',
             edits: i,
@@ -99,7 +102,7 @@ function harvest(fetcher: ReturnType<typeof makeCallLog>, steps: Step[]): void {
     } else if (c.url.includes('/sendMessage') || c.url.includes('/sendPhoto')) {
       round.push({
         actor: 'bot',
-        text: c.body.text ?? c.body.caption,
+        text: normStamp(c.body.text ?? c.body.caption),
         photo: c.body.photo,
         ogUrl: c.body.link_preview_options?.url,
         buttons: c.body.reply_markup,
