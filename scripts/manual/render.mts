@@ -11,7 +11,11 @@ type Step = { actor: 'user' | 'bot'; text?: string; photo?: string; ogUrl?: stri
 type Scenario = { id: string; title: string; outline: string; steps: Step[] };
 
 const host = (u: string) => { try { return new URL(u).host; } catch { return u; } };
-const br = (s = '') => s.replace(/\n/g, '<br>');
+// bot 消息是可信的 Telegram HTML 子集(b/i/code/a), 仅换行转 <br>;
+// 用户输入/系统提示线是纯文本 → 必须先转义(sourcery: fixture 含 <> & 会被当标记渲染)
+const esc = (s = '') => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const nl2br = (s = '') => s.replace(/\n/g, '<br>');
+const brEsc = (s = '') => nl2br(esc(s));
 
 // —— 每轮 = 一次用户操作 + 该操作引发的全部 bot 动作(原地编辑轮没有新 bot 步, 但要点出图) ——
 function rounds(steps: Step[]): { user: Step; bots: Step[] }[] {
@@ -34,7 +38,7 @@ function bubbleInner(s: Step, clickData: string | null): string {
     parts.push(img(s.ogUrl, host(s.ogUrl), 'preview-img'));
     parts.push(`<div class="preview-host">🔗 ${host(s.ogUrl)}</div></div>`);
   }
-  if (s.text) parts.push(`<div class="txt">${br(s.text)}</div>`);
+  if (s.text) parts.push(`<div class="txt">${nl2br(s.text)}</div>`);
   const kb = s.buttons?.inline_keyboard;
   if (kb?.length) {
     parts.push('<div class="kb">');
@@ -84,11 +88,11 @@ function buildHtml(scn: Scenario, uptoStep: number, round: { user: Step; bots: S
     const s = repl.get(i) ?? scn.steps[i];
     if (s.actor === 'user') {
       if (s.sys) {
-        msgs.push(`<div class="sysline">— ${s.text ?? ''} —</div>`);
+        msgs.push(`<div class="sysline">— ${esc(s.text ?? '')} —</div>`);
         continue;
       }
       if (s.text?.startsWith('[按钮] ')) continue; // 按钮点击不出用户气泡 —— 由被点按钮上的高亮表达
-      msgs.push(`<div class="row own" id="s${i}"><div class="bubble own">${br(s.text ?? '')}</div></div>`);
+      msgs.push(`<div class="row own" id="s${i}"><div class="bubble own">${brEsc(s.text ?? '')}</div></div>`);
     } else {
       const anno = s.annotate ?? (i === editAnnoRow ? { label: editAnnoLabel } : undefined);
       msgs.push(`<div class="row" id="s${i}"${anno ? ' data-anno="' + anno.label.replace(/"/g, '&quot;') + '"' : ''}><div class="bubble">${bubbleInner(s, clickData)}</div></div>`);
