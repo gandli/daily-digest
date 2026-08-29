@@ -131,7 +131,7 @@ describe('webhook 路由全分支', () => {
   });
   it('/gt 无缓存 → 先发占位再发卡', async () => {
     await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: '/gt' } });
-    expect(texts().some((t) => t.includes('Trending 生成中'))).toBe(true);
+    expect(texts().some((t) => t.includes('GitHub Trending 生成中'))).toBe(true);
     expect(vi.mocked(fetchTrending)).toHaveBeenCalled();
   });
 
@@ -439,10 +439,10 @@ describe('webhook 分支补充(search 深路径 / X 帖失败 / URL 重挂)', ()
     expect(texts().some((t) => t.includes('owner/repo'))).toBe(true);
     expect(texts().some((t) => t.includes('今日已存档'))).toBe(false);
   });
-  it('/gt 抓取失败 → ⚠️ Trending 抓取失败提示', async () => {
+  it('/gt 抓取失败 → ⚠️ GitHub Trending 抓取失败提示', async () => {
     vi.mocked(fetchTrending).mockRejectedValueOnce(new Error('net down'));
     await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: '/gt' } });
-    expect(texts().some((t) => t.includes('Trending 抓取失败'))).toBe(true);
+    expect(texts().some((t) => t.includes('GitHub Trending 抓取失败'))).toBe(true);
   });
   it('sendPhoto 失败 → 回落纯文字 sendMessage', async () => {
     const orig = globalThis.fetch;
