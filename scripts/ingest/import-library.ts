@@ -5,7 +5,7 @@
 //   gh auth token 已配 → bun scripts/ingest/import-library.ts stars
 //   书签:   bun scripts/ingest/import-library.ts bookmarks
 //   全量:   bun scripts/ingest/import-library.ts all
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import os from 'node:os';
@@ -78,8 +78,9 @@ async function importStars(): Promise<Entry[]> {
   const entries: Entry[] = [];
   let page = 1;
   while (true) {
-    const out = execSync(
-      `gh api "users/gandli/starred?per_page=100&page=${page}" --jq '.[]'`,
+    const out = execFileSync(
+      'gh',
+      ['api', `users/gandli/starred?per_page=100&page=${page}`, '--jq', '.[]'],
       { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 },
     );
     const items = out.trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
