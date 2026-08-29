@@ -1,7 +1,7 @@
 # daily-digest 用户手册
 
 > 本手册由 e2e 场景自动驱动生成(scripts/manual/), 随 CI 与 Bot 功能保持同步, 请勿手改章节文件。
-> 生成时间: 2026-08-29T09:37:31.748Z
+> 生成时间: 2026-08-29T09:56:34.769Z
 
 | [01. 快速开始](01-start.md) | 快速开始: /start 与帮助 |
 | [02. /trending — 今日 GitHub Trending](02-trending.md) | /trending 今日 GitHub Trending |
