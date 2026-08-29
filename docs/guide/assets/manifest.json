@@ -8,19 +8,19 @@
         "file": "01-start-r1.png",
         "user": "/start",
         "bots": [
-          "📊 daily-digest 使用\n\n<b>命令</b>\n/gt — 今日 GitHub Trending(兼容 /trending)\n/hn — 今日 HN 酷产品(兼容 /product)\n/ph — Product Hunt 每日热门\n/search 关键词 — 搜索历史存档\n/archive — 历史存档(分"
+          "📊 daily-digest 使用\n\n<b>命令</b>\n/gt — 今日 GitHub Trending\n/hn — 今日 HN 酷产品\n/ph — Product Hunt 每日热门\n/search 关键词 — 搜索历史存档\n/archive — 历史存档(分页+三链)\n\n<b>链接</b>\nGitHub 仓库链"
         ]
       }
     ]
   },
   {
     "id": "02-trending",
-    "title": "/trending 今日 GitHub Trending",
+    "title": "/gt 今日 GitHub Trending",
     "rounds": [
       {
         "k": 1,
         "file": "02-trending-r1.png",
-        "user": "/trending",
+        "user": "/gt",
         "bots": [
           "⏳ Trending 生成中(10-30 秒), 完成后自动推送。",
           "<b>1/2</b> <b><a href=\"https://github.com/antirez/kilo\">antirez/kilo</a></b> ⭐ 3.2k\n\n👤 antirez\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending #c #editor\n\n🗂 <a ",
@@ -30,7 +30,7 @@
       {
         "k": 2,
         "file": "02-trending-r2.png",
-        "user": "/trending",
+        "user": "/gt",
         "bots": [
           "<b>1/2</b> <b><a href=\"https://github.com/antirez/kilo\">antirez/kilo</a></b> ⭐ 3.2k\n\n👤 antirez\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending #c #editor\n\n🗂 <a ",
           "<b>2/2</b> <b><a href=\"https://github.com/sharkdp/bat\">sharkdp/bat</a></b> ⭐ 50.0k\n\n👤 sharkdp\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending\n\n🗂 <a href=\"https:"
@@ -40,12 +40,12 @@
   },
   {
     "id": "03-product",
-    "title": "/product 今日 HN 酷产品",
+    "title": "/hn 今日 HN 酷产品",
     "rounds": [
       {
         "k": 1,
         "file": "03-product-r1.png",
-        "user": "/product",
+        "user": "/hn",
         "bots": [
           "⏳ 今日 HN 酷产品生成中(约 2-5 分钟), 完成后自动推送。"
         ]
@@ -53,7 +53,7 @@
       {
         "k": 2,
         "file": "03-product-r2.png",
-        "user": "/product",
+        "user": "/hn",
         "bots": [
           "🚀 <b>2026-08-29</b>\n\n<b><a href=\"https://linear.app\">Linear — 快得离谱的项目管理工具</a></b>\n👤 by karpathy · about 3 hours ago\n\n📝 一款以速度著称的产品规划与 issue 跟踪工具。\n\n💬 \"Linear "
         ]
