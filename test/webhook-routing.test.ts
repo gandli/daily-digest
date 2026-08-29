@@ -128,6 +128,8 @@ describe('webhook 路由全分支', () => {
     await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: '/gt' } });
     expect(texts().some((t) => t.includes('cached-card'))).toBe(true);
     expect(vi.mocked(fetchTrending)).not.toHaveBeenCalled();
+    // 重放带 OG 图(repos 派生, TG 拉图零 Worker 子请求)
+    expect(photos().some((m) => String(m.body.photo).includes('opengraph.githubassets.com/1/a/b'))).toBe(true);
   });
   it('/gt 无缓存 → 先发占位再发卡', async () => {
     await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: '/gt' } });
@@ -141,6 +143,28 @@ describe('webhook 路由全分支', () => {
     expect(msgs.length).toBe(1);
     expect(texts().some((t) => t.includes('by fe2o3'))).toBe(true);
     expect(calls.some((c) => c.url.includes('/dispatches'))).toBe(false);
+    expect([...env.CACHE.store.keys()].some((k) => k.startsWith(`hn:${today()}`))).toBe(true); // 当日缓存已写
+  });
+  it('/hn 重复调用 → 命中当日缓存, 零外呼重放', async () => {
+    calls.length = 0;
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: '/hn' } });
+    expect(calls.filter((c) => c.url.includes('raw.githubusercontent.com')).length).toBe(0);
+    expect(calls.filter((c) => c.url.includes('api.github.com')).length).toBe(0);
+    expect(texts().some((t) => t.includes('by fe2o3'))).toBe(true); // 缓存重放
+  });
+  it('/hn JSON 缺失 → dispatch 一次 + 占位; 生成期间重复 /hn 不再重复 dispatch', async () => {
+    const dispatches: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(input);
+      if (u.includes('/dispatches')) { dispatches.push(u); return new Response('{}', { status: 200 }); }
+      if (u.includes('api.telegram.org')) { calls.push({ url: u, body: JSON.parse(String(init?.body ?? '{}')) }); return new Response('{}', { status: 200 }); }
+      return new Response('nope', { status: 404 }); // product JSON 不存在
+    }) as typeof fetch);
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: '/hn' } });
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: '/hn' } });
+    expect(dispatches.length).toBe(1); // pending 标记: 生成期间重复 /hn 不重复触发
+    expect(texts().filter((t) => t.includes('生成中(约 2-5 分钟)')).length).toBe(2);
+    vi.unstubAllGlobals();
   });
 
   it('/help → 注册命令 + 帮助', async () => {
