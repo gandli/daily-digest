@@ -35,7 +35,8 @@ export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl
     const langTag = it.lang ? ` · #${it.lang}` : '';
     const today = it.starsToday ? ` (+${fmtK(it.starsToday)} 今日)` : '';
     const stars = it.stars !== undefined ? ` ⭐ ${fmtK(it.stars)}${today}` : '';
-    const head = `<b>${i + 1}/${items.length}</b> `;
+    // 多条批量才编号(N/M); 单条卡(如 lookup 单仓)不显示 1/1 头
+    const head = items.length > 1 ? `<b>${i + 1}/${items.length}</b> ` : '';
     const topicTags = (it.topics ?? []).map((t) => `#${t}`).join(' ');
     const tags = [`#trending`, topicTags].filter(Boolean).join(' ');
     const descLine = isChinese(it.descZh) ? `${esc(unesc(it.descZh!))}` : ''; // ponytail: 非中文/空 → 整行跳过, 不泄露 repo 英文一句话

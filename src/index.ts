@@ -3,7 +3,7 @@ import { fetchTrending } from './sources/trending';
 import { resolveDescriptions } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes, renderProductMessage, esc } from './render';
 import { sendPerRepoMessages, sendTelegram, sendChatAction, sendPhotoOrText, registerCommands, safeEqual, sendTelegramKbd, answerCallbackQuery, editMessageKbd, type InlineKB } from './notify';
-import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage, createTelegraphAccount } from './archive';
+import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage, createTelegraphAccount, flushArchivedPending } from './archive';
 import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, archiveLinks, backfillDescriptions } from './lookup';
 import { extractUrl } from './urlmd';
 import { extractTweet, fetchTweet, renderTweetHtml, articleToText, type FxTweet } from './fxtweet';
@@ -54,6 +54,8 @@ X/Twitter 链接 → 帖子存档
 // 50 子请求上限直接打爆, /search 因此无响应。索引由 scripts/seed-search-index.ts 播种,
 // 存档写入时增量追加(indexArchivedItems 同步维护)。
 const SEARCH_PAGE = 10; // 每页条数
+// webhook 机会性刷写阈值: 缓冲的待写存档 ≥20 条 → 后台一次性批量 commit(不阻塞回复)。
+const ARCHIVE_FLUSH_THRESHOLD = 20;
 // 翻页 query 存 KV(short TTL)而非塞 callback_data——callback_data 仅限 64B, 长 query 会被截断解码残缺。
 // callback_data: sch:<page>:<token>, KV 键 search:q:<token> 存 query。
 
@@ -731,6 +733,14 @@ export default {
       }
     }
 
+    // 机会性刷写: 缓冲的待写存档攒够阈值 → 后台批量打一个 commit(不阻塞回复)。仅命令分派路径触达(callback 分支已提前 return)。
+    try {
+      const pend = await env.CACHE.list({ prefix: 'pend:arc:' });
+      if (pend.keys.length >= ARCHIVE_FLUSH_THRESHOLD) ctx.waitUntil(flushArchivedPending(env));
+    } catch {
+      /* KV list 异常不影响回复 */
+    }
+
     // b) 立即应答,处理放后台
     return new Response('ok');
   },
@@ -740,5 +750,10 @@ export default {
     // /product 已迁 Actions(product-digest.yml cron 30 0 * * * 直发 TG), Worker 不再重跑
     await refreshLookupDescriptions(env); // 已查过的 repo 定期重跑 deepwiki/zread, 同步上游描述
     await backfillDescriptions(env, 40); // 星标仓缺/未译描述 → 每天低速补 40 条
+    try {
+      await flushArchivedPending(env); // 把当日缓冲的存档文件一次性 commit 上 archive 分支
+    } catch (e) {
+      console.error('scheduled flush failed', String(e).slice(0, 100)); // 刷写失败保留缓冲, 明日 cron / 下次 webhook 阈值再试
+    }
   },
 };

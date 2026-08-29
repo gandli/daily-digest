@@ -107,6 +107,8 @@ describe('fanoutRepoRefs: ctx 缺省 / repo 过滤 / 单仓失败', () => {
     mockDw.mockResolvedValue(null);
     await fanoutRepoRefs(makeEnv(), 'chat', 'https://github.com/o/r https://github.com/p/q', { waitUntil: (p) => p } as any);
     expect(sendRepo).toHaveBeenCalledTimes(1); // 只有 o/r 发卡(p/q 404 → fetchRepo null → 跳过)
+    // 序号按 fresh 批量: 失败仓占位, o/r 仍为 1/2
+    expect(String((sendRepo.mock.calls[0][2] as { html: string }[])[0].html)).toContain('<b>1/2</b> ');
     await Promise.allSettled([]);
   });
   it('deepwiki 命中 → descZh 用翻译后的中文', async () => {
@@ -121,6 +123,7 @@ describe('fanoutRepoRefs: ctx 缺省 / repo 过滤 / 单仓失败', () => {
     expect(mockTranslate).toHaveBeenCalledWith(expect.anything(), 'This is a deepwiki overview in english');
     const html = sendRepo.mock.calls[0]?.[2]?.[0]?.html ?? '';
     expect(html).toContain('这是 deepwiki 翻译后的中文描述');
+    expect(String(html)).not.toMatch(/<b>\d+\/\d+<\/b>/); // 单仓批量无序号头
   });
   it('deepwiki 未命中 → 走 GitHub desc 翻译兜底', async () => {
     globalThis.fetch = (async (input: RequestInfo | URL) => {
