@@ -319,11 +319,16 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
         if (Array.isArray(parsed)) {
           for (const chunk of parsed as string[]) await sendTelegram(env.BOT_TOKEN, env.CHAT_ID, chunk);
         } else if (Array.isArray(parsed.chunks) && Array.isArray(parsed.repos)) {
+          // 重放带 OG 图: repos → opengraph.githubassets 动态卡(TG 拉图, 零 Worker 子请求)
           await sendPerRepoMessages(
             env.BOT_TOKEN,
             env.CHAT_ID,
-            (parsed.chunks as string[]).map((html, i) => ({ html, repo: parsed.repos[i] })),
+            (parsed.chunks as string[]).map((html, i) => ({
+              html,
+              photo: parsed.repos[i] ? `https://opengraph.githubassets.com/1/${parsed.repos[i]}` : undefined,
+            })),
             env.GH_ARCHIVE_REPO || 'gandli/daily-digest',
+            env.CACHE,
           );
         }
       } catch {
@@ -415,11 +420,20 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
 }
 
 // /hn 薄路径: 读 Actions 生成的 archive 分支 JSON → 渲染 → 发 TG(秒回, 1 子请求)。
-// miss(当日 JSON 不存在) → repository_dispatch 触发 Actions 生成 + 占位提示。
+// 当日 Worker 缓存 hn:<date>: JSON 命中过一次后, 重复 /hn 零外呼重放;
+// miss → repository_dispatch 触发 Actions 生成 + 占位提示 + pending 标记(10 分钟内重复 /hn 不再重复触发)。
 // 重活(抓取/urlToMarkdown/深摘要/存档/直发)全在 scripts/product-digest.ts(Actions), Worker 零重活。
 export async function runProductThin(env: Env, chatId: string, ctx?: ExecutionContext): Promise<number> {
   const dateStr = shanghaiDate();
   const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
+  const cached = await env.CACHE.get(`hn:${dateStr}`).catch(() => null);
+  if (cached) {
+    try {
+      const { chunks } = JSON.parse(cached) as { chunks: string[] };
+      await sendPerRepoMessages(env.BOT_TOKEN, chatId, chunks.map((html) => ({ html })), repo, env.CACHE);
+      return chunks.length;
+    } catch { /* 坏缓存 → 走正常链 */ }
+  }
   const jsonUrl = `https://raw.githubusercontent.com/${repo}/archive/product/${dateStr}.json`;
   const res = await fetch(jsonUrl, { signal: AbortSignal.timeout(8000) }).catch(() => null);
   if (res?.ok) {
@@ -428,6 +442,7 @@ export async function runProductThin(env: Env, chatId: string, ctx?: ExecutionCo
       const items = data.items ?? [];
       if (items.length) {
         const chunks = renderProductMessage(dateStr, items, data.telegraphUrl, repo);
+        await env.CACHE.put(`hn:${dateStr}`, JSON.stringify({ chunks }), { expirationTtl: 86400 }).catch(() => {});
         await sendPerRepoMessages(env.BOT_TOKEN, chatId, chunks.map((html, i) => ({ html, photo: items[i].photo, ogUrl: items[i].url })), repo, env.CACHE);
         // product 含 GitHub repo → 后台 fanout 精简 repo 卡(与 X 帖一致)
         if (ctx && items.some((it) => /github\.com\//i.test(`${it.url} ${it.desc} ${it.title}`))) {
@@ -438,14 +453,20 @@ export async function runProductThin(env: Env, chatId: string, ctx?: ExecutionCo
       }
     } catch { /* 坏 JSON → 走 dispatch 兜底 */ }
   }
-  // miss: 触发 Actions 生成(repository_dispatch), 占位提示
-  const dispatched = await fetch(`https://api.github.com/repos/${repo}/dispatches`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${env.GH_TOKEN}`, Accept: 'application/vnd.github+json', 'User-Agent': 'daily-digest', 'content-type': 'application/json' },
-    body: JSON.stringify({ event_type: 'product-digest' }),
-    signal: AbortSignal.timeout(8000),
-  }).then((r) => r.ok).catch(() => false);
-  await sendTelegram(env.BOT_TOKEN, chatId, dispatched
+  // miss: 触发 Actions 生成(repository_dispatch), 占位提示; pending 标记 10 分钟——生成期间重复 /hn 不再重复触发
+  const pendingKey = `hn:pending:${dateStr}`;
+  const pending = await env.CACHE.get(pendingKey).catch(() => null);
+  let dispatched = false;
+  if (!pending) {
+    dispatched = await fetch(`https://api.github.com/repos/${repo}/dispatches`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${env.GH_TOKEN}`, Accept: 'application/vnd.github+json', 'User-Agent': 'daily-digest', 'content-type': 'application/json' },
+      body: JSON.stringify({ event_type: 'product-digest' }),
+      signal: AbortSignal.timeout(8000),
+    }).then((r) => r.ok).catch(() => false);
+    if (dispatched) await env.CACHE.put(pendingKey, '1', { expirationTtl: 600 }).catch(() => {});
+  }
+  await sendTelegram(env.BOT_TOKEN, chatId, dispatched || pending
     ? '⏳ 今日 Hacker News 酷产品生成中(约 2-5 分钟), 完成后自动推送。'
     : '⚠️ 今日 Hacker News 酷产品尚未生成且触发失败, 请稍后再试。');
   console.log('product thin miss', dateStr, `dispatched=${dispatched}`);
