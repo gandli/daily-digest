@@ -74,6 +74,7 @@ Binding `CACHE`。
 - **OG 图**: 尽力附图 (OG→s2 四级链)， sendPhoto 失败降纯文字， 不为图牺牲卡片
 - **Telegraph**: 低频单发建页 (单仓查询/网页/X 帖/digest)； 多仓 fanout **不建** (批量子请求预算， 两链)
 - **Wayback**: 发卡时 fire-and-forget 请求 `web.archive.org/save/<url>` 主动触发快照 (`saveToWayback`)； digest 批量时段不触发 (子请求预算)
+- **标题来源链** (网页): og:title → md 首个 heading → md 首行非结构文本 → host； 命中垃圾标题(URL/域名/导航样板/纯日期)或非中文且有 OPENROUTER_API_KEY → LLM 生成 (喂正文前 600 字)。X 帖: article.title → fixupx 页首标题 → generateTitleZh(正文)
 
 | 卡型 | 标题直链 | 中文正文 | 标签 | OG 图 | Telegraph | Wayback | GitHub md | 子请求预算 |
 |------|---------|---------|------|------|-----------|---------|-----------|-----------|

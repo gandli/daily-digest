@@ -298,6 +298,34 @@ describe('archiveUrl: 任意 URL 存档', () => {
     expect(sendText).not.toHaveBeenCalled(); // photo 路径直接 return
     expect(ctx.waitUntil).toHaveBeenCalled(); // markProcessed 已入队列
   });
+  it('og:title 存在 → 标题优先用 og:title 而非 md 首行', async () => {
+    mockExtractOg.mockReturnValue('https://og.example/img.png');
+    mockUrlToMd.mockResolvedValue('# 页面 H1 标题\n\n正文内容');
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      const u = String(url);
+      if (u.startsWith('https://api.telegram.org')) return new Response('nope', { status: 500 }); // sendPhoto 失败 → 纯文字
+      return new Response('<html><head><meta property="og:image" content="https://og.example/img.png"><meta property="og:title" content="OG 独有标题"></head></html>', { status: 200 });
+    }));
+    await archiveUrl(makeEnv(), 'chat', 'https://example.com/page');
+    const text = String(sendText.mock.calls[0]?.[2] ?? '');
+    const titleSeg = text.split('📝')[0]; // 只断言标题段(摘要合法引用页面原文)
+    expect(titleSeg).toContain('OG 独有标题');
+    expect(titleSeg).not.toContain('页面 H1 标题');
+  });
+  it('中文烂标题(导航样板) → LLM 兜底生成标题', async () => {
+    mockExtractOg.mockReturnValue(undefined);
+    mockUrlToMd.mockResolvedValue('# 跳至主要内容\n\n这里是真正的正文内容段落');
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      const u = String(url);
+      if (u.startsWith('https://api.telegram.org')) return new Response('nope', { status: 500 });
+      return new Response('<html><body>no og</body></html>', { status: 200 });
+    }));
+    await archiveUrl(makeEnv(), 'chat', 'https://example.com/junk-title-page');
+    const text = String(sendText.mock.calls[0]?.[2] ?? '');
+    const titleSeg = text.split('📝')[0];
+    expect(titleSeg).toContain('测试标题'); // generateTitleZh mock 产出(LLM 兜底)
+    expect(titleSeg).not.toContain('跳至主要内容');
+  });
   it('无 og + 兜底图 sendPhoto 失败 → 回退纯文字确认', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
       const u = String(url);
