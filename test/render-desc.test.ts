@@ -46,6 +46,14 @@ describe('渲染: 描述层诚实降级', () => {
     expect(m).toContain('Archive');
     expect(m).not.toContain('Telegraph');
   });
+  it('序号: 单条卡无 1/1 头; 多条批量每条带 N/M 头', () => {
+    const [single] = renderMessage('2026-08-24', [mk('a/aa', ZH)]);
+    expect(single).not.toMatch(/<b>\d+\/\d+<\/b>/); // 单条不编号
+    const msgs = renderMessage('2026-08-24', [mk('a/aa', ZH), mk('b/bb', ZH), mk('c/cc', ZH)]);
+    expect(msgs[0]).toContain('<b>1/3</b> ');
+    expect(msgs[1]).toContain('<b>2/3</b> ');
+    expect(msgs[2]).toContain('<b>3/3</b> ');
+  });
 });
 describe('renderProductMessage(HN 酷产品)', () => {
   it('显示中文描述(📝) + 领域标签 + 存档三链', () => {

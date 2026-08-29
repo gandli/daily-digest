@@ -150,6 +150,20 @@ describe('fanoutRepoRefs: 存档内容 repo 联动', () => {
     expect(sendRepo).toHaveBeenCalledTimes(1); // 只 c/d
     const body = sendRepo.mock.calls[0][2] as { html: string }[];
     expect(String(body[0].html)).toContain('c/d');
+    expect(String(body[0].html)).not.toMatch(/<b>\d+\/\d+<\/b>/); // 过滤后仅剩单仓 → 不显示 1/1 序号
+  });
+  it('多仓批量 → 精简卡带 N/M 序号头(单仓无)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      const repo = String(url).split('/repos/')[1];
+      return ghResponse({ full_name: repo, description: 'desc', stargazers_count: 10, language: 'Go', topics: ['x'] });
+    }));
+    await fanoutRepoRefs(makeEnv(), 'chat', 'https://github.com/a/b and https://github.com/c/d', {} as any);
+    expect(sendRepo).toHaveBeenCalledTimes(2);
+    const htmls = (sendRepo.mock.calls as unknown[][]).map((c) => String((c[2] as { html: string }[])[0].html));
+    const ab = htmls.find((h) => h.includes('a/b'))!;
+    const cd = htmls.find((h) => h.includes('c/d'))!;
+    expect(ab).toContain('<b>1/2</b> '); // 多仓按输入序编号
+    expect(cd).toContain('<b>2/2</b> ');
   });
   it('fetchRepo 返回 null(私有 repo)/异常 → 单个跳过, 不影响其它', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ghResponse({ message: 'Not Found' }, 404)));
