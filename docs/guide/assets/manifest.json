@@ -1,0 +1,186 @@
+[
+  {
+    "id": "01-start",
+    "title": "快速开始: /start 与帮助",
+    "rounds": [
+      {
+        "k": 1,
+        "file": "01-start-r1.png",
+        "user": "/start",
+        "bots": [
+          "📊 daily-digest 使用\n\n<b>命令</b>\n/trending — 今日 GitHub Trending\n/product — 今日 HN 酷产品\n/search 关键词 — 搜索历史存档\n/archive — 历史存档(分页+三链)\n\n<b>链接</b>\nGitHub 仓库链接 → 单仓查询存档\nX/"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "02-trending",
+    "title": "/trending 今日 GitHub Trending",
+    "rounds": [
+      {
+        "k": 1,
+        "file": "02-trending-r1.png",
+        "user": "/trending",
+        "bots": [
+          "⏳ Trending 生成中(10-30 秒), 完成后自动推送。",
+          "<b>1/2</b> <b><a href=\"https://github.com/antirez/kilo\">antirez/kilo</a></b> ⭐ 3.2k\n\n👤 antirez\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending #c #editor\n\n🗂 <a ",
+          "<b>2/2</b> <b><a href=\"https://github.com/sharkdp/bat\">sharkdp/bat</a></b> ⭐ 50.0k\n\n👤 sharkdp\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending\n\n🗂 <a href=\"https:"
+        ]
+      },
+      {
+        "k": 2,
+        "file": "02-trending-r2.png",
+        "user": "/trending",
+        "bots": [
+          "<b>1/2</b> <b><a href=\"https://github.com/antirez/kilo\">antirez/kilo</a></b> ⭐ 3.2k\n\n👤 antirez\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending #c #editor\n\n🗂 <a ",
+          "<b>2/2</b> <b><a href=\"https://github.com/sharkdp/bat\">sharkdp/bat</a></b> ⭐ 50.0k\n\n👤 sharkdp\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending\n\n🗂 <a href=\"https:"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "03-product",
+    "title": "/product 今日 HN 酷产品",
+    "rounds": [
+      {
+        "k": 1,
+        "file": "03-product-r1.png",
+        "user": "/product",
+        "bots": [
+          "⏳ 今日 HN 酷产品生成中(约 2-5 分钟), 完成后自动推送。"
+        ]
+      },
+      {
+        "k": 2,
+        "file": "03-product-r2.png",
+        "user": "/product",
+        "bots": [
+          "🚀 <b>2026-08-29</b>\n\n<b><a href=\"https://linear.app\">Linear — 快得离谱的项目管理工具</a></b>\n👤 by karpathy · about 3 hours ago\n\n📝 一款以速度著称的产品规划与 issue 跟踪工具。\n\n💬 \"Linear "
+        ]
+      }
+    ]
+  },
+  {
+    "id": "04-archive",
+    "title": "/archive 历史存档与翻页",
+    "rounds": [
+      {
+        "k": 1,
+        "file": "04-archive-r1.png",
+        "user": "/archive",
+        "bots": [
+          "📂 历史存档 (第 1/2 页, 共 14 条)\n\n<b><a href=\"https://github.com/sharkdp/bat\">sharkdp/bat</a></b> · 2026-08-29\n　📝 这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n　<a href=\"https://"
+        ]
+      },
+      {
+        "k": 2,
+        "file": "04-archive-r2.png",
+        "user": "[按钮] arch:pg:1",
+        "bots": [
+          "📂 历史存档 (第 2/2 页, 共 14 条)\n\n<b><a href=\"https://github.com/demo/repo-02\">demo/repo-02</a></b> · 2026-08-29T083000\n　📝 demo/repo-02 的中文摘要示例。\n　🏷 #demo\n　<a href=\"h"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "05-search",
+    "title": "/search 关键词搜索",
+    "rounds": [
+      {
+        "k": 1,
+        "file": "05-search-r1.png",
+        "user": "/search",
+        "bots": [
+          "用法: /search 关键词\n例: /search rust cli"
+        ]
+      },
+      {
+        "k": 2,
+        "file": "05-search-r2.png",
+        "user": "/search bat",
+        "bots": [
+          "🔍 「bat」1 条命中 (第 1/1 页):\n\n⭐ <a href=\"https://github.com/sharkdp/bat\">sharkdp/bat</a>\n   带语法高亮的 cat 命令克隆"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "06-github-link",
+    "title": "粘贴 GitHub 仓库链接",
+    "rounds": [
+      {
+        "k": 1,
+        "file": "06-github-link-r1.png",
+        "user": "https://github.com/antirez/kilo",
+        "bots": [
+          "<b>1/1</b> <b><a href=\"https://github.com/antirez/kilo\">antirez/kilo</a></b> ⭐ 3.2k · #C\n\n👤 antirez\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending #c #editor\n\n\ud83d"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "07-x-link",
+    "title": "粘贴 X(Twitter) 帖子链接",
+    "rounds": [
+      {
+        "k": 1,
+        "file": "07-x-link-r1.png",
+        "user": "https://x.com/Smartpigai/status/2093191865193677285",
+        "bots": [
+          "<b><a href=\"https://x.com/Smartpigai/status/2093191865193677285\">小而美命令行工具</a></b>\n\n刚刚发布了一个用于摘要整理的新命令行工具！\n\n#archive #开发工具 #命令行\n\n📁 <a href=\"https://web.archive.o"
+        ]
+      },
+      {
+        "k": 2,
+        "file": "07-x-link-r2.png",
+        "user": "https://x.com/Smartpigai/status/2093191865193677286",
+        "bots": [
+          "<b><a href=\"https://x.com/Smartpigai/status/2093191865193677286\">小而美命令行工具</a></b>\n\n新仪表盘的截图 —— 一条帖子里的四个视图。\n\n#archive #开发工具 #命令行\n\n📁 <a href=\"https://web.archive."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "08-webpage",
+    "title": "粘贴任意网页链接",
+    "rounds": [
+      {
+        "k": 1,
+        "file": "08-webpage-r1.png",
+        "user": "https://example.com/blog/demo-post",
+        "bots": [
+          "<b><a href=\"https://example.com/blog/demo-post\">小而美命令行工具</a></b>\n\n📝 这是一段用于手册演示的中文摘要, 说明该内容的核心要点。\n\n#archive #开发工具 #命令行\n\n📁 <a href=\"https://web.archive.org/web/"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "09-repost",
+    "title": "重复发送同一链接",
+    "rounds": [
+      {
+        "k": 1,
+        "file": "09-repost-r1.png",
+        "user": "https://example.com/blog/demo-post",
+        "bots": [
+          "♻️ <b><a href=\"https://example.com/blog/demo-post\">示例博文: 演示页</a></b>\n\n📝 这是一篇用于演示重发语义的示例文章摘要。\n\n📁 <a href=\"https://telegra.ph/demo-page-08-28\">Telegraph</a> · <"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "10-cron",
+    "title": "每日自动推送(08:30)",
+    "rounds": [
+      {
+        "k": 1,
+        "file": "10-cron-r1.png",
+        "user": "⏰ 每天 08:30(北京时间)自动推送",
+        "bots": [
+          "<b>1/2</b> <b><a href=\"https://github.com/antirez/kilo\">antirez/kilo</a></b> ⭐ 3.2k\n\n👤 antirez\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending #c #editor\n\n🗂 <a ",
+          "<b>2/2</b> <b><a href=\"https://github.com/sharkdp/bat\">sharkdp/bat</a></b> ⭐ 50.0k\n\n👤 sharkdp\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending\n\n🗂 <a href=\"https:"
+        ]
+      }
+    ]
+  }
+]

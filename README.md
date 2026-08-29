@@ -18,6 +18,8 @@ GitHub Trending → **Telegram 每日中文摘要 bot**。Cloudflare Workers 免
 
 每天 **08:30(北京时间)** 自动推送 top10 仓库——每仓一条消息:OG 卡图 + 星数/语言/**中文描述**/deepwiki·zread 链接/topics 标签;数据同步 commit 到本仓 [archive 分支](https://github.com/gandli/daily-digest/tree/archive)。
 
+📖 **[用户手册](docs/guide/README.md)** — 10 个核心事务的逐步操作说明(带标注聊天截图),由 e2e 场景驱动自动生成,随 CI 与 Bot 功能保持同步(管线见 [scripts/manual/](scripts/manual/) + `.github/workflows/manual.yml`)。
+
 ## 📱 命令与消息
 
 | 输入 | 行为 |
