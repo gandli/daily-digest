@@ -57,7 +57,7 @@ describe('translateTextZh', () => {
   it('key 已设置但 AI.run 抛错 → 四级链失败返回 null', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('net down'); }));
     const env = {
-      OPENROUTER_API_KEY: 'test-key',
+      OPENROUTER_API_KEY: '单测假凭据非真实密钥',
       AI: { run: async () => { throw new Error('AI quota'); } },
     } as any;
     const zh = await translateTextZh(env, 'some english text to translate here');
@@ -73,7 +73,7 @@ describe('translateTextZh', () => {
   });
 
   it('styleExtra 透传到 system prompt 且 text.slice(0,3000) 截断', async () => {
-    const env = { OPENROUTER_API_KEY: 'test-key' } as any;
+    const env = { OPENROUTER_API_KEY: '单测假凭据非真实密钥' } as any;
     let captured: any = null;
     globalThis.fetch = vi.fn(async (_url: string, init?: RequestInit) => {
       captured = JSON.parse(String(init?.body ?? '{}'));
