@@ -1,13 +1,25 @@
-# 粘贴 GitHub 仓库链接
+### 步骤 1: 复制 GitHub 仓库链接
 
-> **事务**：粘贴 `https://github.com/owner/repo` → 已查过 → ♻️ 带描述的归档卡；首次 → 抓 repo 元数据 + deepwiki/zread 描述 + 存档 + 卡片。
+在浏览器中打开目标仓库页面,从地址栏复制完整的 URL。链接必须采用 `https://github.com/owner/repo` 格式,即只包含 `owner` 和仓库名两部分,不带分支、文件路径或查询参数。例如本次复制的链接是 `https://github.com/antirez/kilo`。
 
-## 操作步骤
+### 步骤 2: 发送给 Bot
 
-### 第 1 步 — https://github.com/antirez/kilo
+将链接直接粘贴到与 Bot 的对话窗口中并发送。Bot 会识别出这是一个 GitHub 仓库地址,触发仓库查询流程。如果这是你首次查询该仓库,Bot 会先抓取仓库元数据(包括 star 数、主要语言、作者等),再调用 deepwiki / zread 获取仓库描述,最后将所有信息归档。
 
-![第 1 步界面](assets/06-github-link-r1.png)
+### 步骤 3: 接收归档卡片
 
-- Bot 回复: antirez/kilo ⭐ 3.2k · #C 👤 antirez 这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。 #trending #c #editor 🗂 <a href="
+Bot 会返回一张带描述的归档卡片,展示仓库的关键信息。本次对 `https://github.com/antirez/kilo` 的首次查询,Bot 返回内容如下:仓库标题 `antirez/kilo`、⭐ 3.2k、标签 `#C`、作者 👤 antirez,以及一行中文描述“这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言”,末尾附带话题标签 `#trending #c #editor` 和一个 `🗂` 归档入口链接。
 
-> 本章由 e2e 场景自动生成, 与 Bot 当前行为一致。
+![首次查询返回的归档卡片](assets/06-github-link-r1.png)
+
+### 步骤 4: 二次查询触发快速召回
+
+当你再次发送同一个 `https://github.com/owner/repo` 链接时,Bot 不再重复抓取网络数据,而是直接从本地归档中读取,并在卡片前面附带 ♻️ 标识,表示“已查过 / 来自缓存”,响应速度明显快于首次。
+
+---
+
+### 小贴士
+
+- **链接尽量保持简洁**:只发送根仓库地址(`https://github.com/owner/repo`),不要附带 `?tab=readme` 或 `/tree/main` 等后缀,否则 Bot 可能无法识别为仓库级查询。
+- **认准 ♻️ 标识**:看到卡片前缀带 ♻️ 时,说明该仓库已在你的归档中,无需等待网络请求,可直接点击 `🗂` 链接查看完整描述。
+- **首次查询稍慢属正常**:首次抓取元数据并生成描述可能耗时数秒,期间请勿重复发送相同链接,以免产生重复归档。
