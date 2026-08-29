@@ -54,9 +54,9 @@ export async function registerCommands(token: string): Promise<void> {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       commands: [
-        { command: 'gt', description: '今日 GitHub Trending' },
-        { command: 'hn', description: '今日 HN 酷产品' },
-        { command: 'ph', description: 'Product Hunt 每日热门' },
+        { command: 'gt', description: '查询今日 GitHub Trending' },
+        { command: 'hn', description: '查询今日 Hacker News 酷产品' },
+        { command: 'ph', description: '查询今日 Product Hunt 热门产品' },
         { command: 'search', description: '搜索历史存档' },
         { command: 'archive', description: '历史存档(分页+三链)' },
         { command: 'help', description: '使用说明' },
