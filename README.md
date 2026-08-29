@@ -16,7 +16,7 @@
 
 GitHub Trending → **Telegram 每日中文摘要 bot**。Cloudflare Workers 免费层单项目。
 
-每天 **08:30(北京时间)** 自动推送 top10 仓库——每仓一条消息:OG 卡图 + 星数/语言/**中文描述**/deepwiki·zread 链接/topics 标签;数据同步 commit 到本仓 [archive 分支](https://github.com/gandli/daily-digest/tree/archive)。
+每天 **08:30(北京时间)** 自动推送 top10 仓库——每仓一条消息:OG 卡图 + 星数/语言/**中文描述**/deepwiki·zread 链接/topics 标签;数据批量 commit 到本仓 [archive 分支](https://github.com/gandli/daily-digest/tree/archive)(每日 cron 或缓冲满 20 条时合并为**一个 commit**,见 [存档批量化](#-存档三链))。
 
 📖 **[用户手册](docs/guide/README.md)** — 10 个核心事务的逐步操作说明(带标注聊天截图),由 e2e 场景驱动自动生成,随 CI 与 Bot 功能保持同步(管线见 [scripts/manual/](scripts/manual/) + `.github/workflows/manual.yml`)。
 
@@ -25,12 +25,15 @@ GitHub Trending → **Telegram 每日中文摘要 bot**。Cloudflare Workers 免
 | 输入 | 行为 |
 |---|---|
 | `/trending` | 当日榜单(cron 已抓取,读 `digest:<date>` 缓存秒回;当天 trending 固定不重抓) |
+| `/product` | 今日 HN 酷产品:读 archive 分支 `product/<date>.json` 秒回产品卡;未生成时自动触发 GitHub Actions,完成后推送 |
 | `/search <关键词>` | 全索引搜索(星标/书签/存档 6000+ 条),结果当页英文描述批量译中,分页 + inline keyboard 翻页/跳转 |
 | `/archive [页码]` | 历史存档分页列表,每条约**存档三链**(Telegraph → 互联网档案馆 web.archive.org → GitHub md) |
 | `/start` `/help` 其他 | 使用提示 + 命令菜单注册 |
-| 含 GitHub 仓库链接 | 单仓库查询 + 中文描述 → OG 卡;当日已查回存档三链卡;存档 archive 分支 |
-| 含 X/Twitter 链接 | FxEmbed 取帖 → **中文摘要 + 三级存档**(Telegraph/互联网档案馆/GitHub md) |
+| 含 GitHub 仓库链接 | 单仓库查询 + 中文描述 → OG 卡(单仓卡无序号);当日已查回存档三链卡 |
+| 含 X/Twitter 链接 | FxEmbed 取帖 → **中文摘要 + 三级存档**(Telegraph/互联网档案馆/GitHub md);article 长文帖直接用内嵌标题;帖内多 repo 自动逐仓联动发卡(`N/M` 序号) |
 | 含其他网页链接 | markdown 三级链 → **中文摘要(summarizeZh)** → 三级存档;重发 done 回存档链接而非"已处理过" |
+
+卡片序号 `N/M` 仅在多条批量时出现(trending/product 推送、多 repo 联动);单条卡不带序号。
 
 ## 🔗 描述获取链
 
@@ -46,9 +49,9 @@ deepwiki 概述(剥模板开场白)
 ## 📦 存档三链
 
 所有链接(网页 / X 帖 / repo)归档后回**三级存档链接**,按优先级展示:
-1. **Telegraph** — 长文备份页(每日 digest 与 X 帖各自建页)
-2. **互联网档案馆** `web.archive.org` — 兜底快照(`web/2/<url>` 自动定位最近版本)
-3. **GitHub md** — archive 分支 markdown 原文
+1. **Telegraph** — 长文备份页(每日 digest 与 X 帖各自建页,即时生效)
+2. **互联网档案馆** `web.archive.org` — 兜底快照(`web/2/<url>` 自动定位最近版本,即时生效)
+3. **GitHub md** — archive 分支 markdown 原文(**批量化**:先入 KV 缓冲,每日 cron 或缓冲满 20 条时经 Git Data API 合并 push 为一个 commit,因此该链接最长延迟到下次 flush 才生效)
 
 ## 🏗️ 架构
 
@@ -56,10 +59,11 @@ deepwiki 概述(剥模板开场白)
 - `src/zread.ts` / `src/deepwiki.ts` RSC payload 概述提取
 - `src/translate.ts` 四级翻译回退 + isChinese 守卫 + CF Summarization 摘要
 - `src/render.ts` Telegram HTML / GitHub markdown / Telegraph nodes 三种渲染
-- `src/archive.ts` GitHub Contents API 幂等存档(archive 分支) + Telegraph createPage + 分块 base64 编码
+- `src/archive.ts` 存档批量化:KV pending 缓冲(`pend:arc:*`) → Git Data API 合并 push 为一个 commit(每日 cron + 缓冲 ≥20 触发;KV 故障回落 Contents API 直推) + Telegraph createPage + 分块 base64 编码
 - `src/lookup.ts` 单仓库查询管线(URL 存档/OG 四级图链/repo 联动/去重)
 - `src/urlmd.ts` 任意 URL→markdown 三级免费链(Markdown for Agents → AI.toMarkdown → Browser Rendering)
-- `src/fxtweet.ts` X/Twitter 帖子存档(FxEmbed 公共 API)
+- `src/fxtweet.ts` X/Twitter 帖子存档(FxEmbed 公共 API,article 长文直用内嵌标题)
+- `scripts/manual/` 用户手册自动化管线:e2e 场景驱动真实 worker → 合成聊天截图(带标注) → AI 生成逐步说明 → `.github/workflows/manual.yml` 随代码变更重生成 [docs/guide/](docs/guide/)
 - KV 缓存当日 cron 结果;webhook 验签 timingSafeEqual + chat 白名单;/search 用 KV 存档索引
 
 详见 [`docs/GOAL.md`](docs/GOAL.md)(验收标准 A1–A14)。接口/命令/KV 键详表见 [`docs/INTERFACES.md`](docs/INTERFACES.md)， 开发进度见 [`docs/ROADMAP.md`](docs/ROADMAP.md)， 架构/数据流/时序图见 [`docs/diagrams/*.mmd`](docs/diagrams/)。
@@ -71,13 +75,16 @@ npm install
 npm run dev        # wrangler dev --test-scheduled
 curl http://localhost:8787/__scheduled   # 手动触发 cron 管线
 npx tsc --noEmit   # 类型检查
-npm test           # vitest 139 用例(coverage ≥45%)
+npm test           # vitest 519+ 用例(44 文件)
 npm test -- --coverage  # 覆盖率报告
+npm run manual     # 用户手册全管线: e2e 场景 → 标注截图 → AI 正文(无 key 自动模板兜底)
 ```
 
 ## 🔑 Secrets(wrangler secret put)
 
 BOT_TOKEN · CHAT_ID · WEBHOOK_SECRET · GH_TOKEN · TELEGRAPH_TOKEN(可选)
+
+可选:OPENROUTER_API_KEY(/product 深度摘要 + 手册 AI 正文,缺省走免费模型池/模板) · JINA_API_KEY / GENEDAI_API_KEY(URL→markdown 兜底链) · CF_ACCOUNT_ID / CF_API_TOKEN(Browser Rendering)
 
 ## 🚀 部署
 
@@ -90,6 +97,7 @@ main push 另触发 changelog workflow 自动更新 [CHANGELOG.md](CHANGELOG.md)
 - [`docs/GOAL.md`](docs/GOAL.md) — 验收契约(A1–A14,FR/AC/Milestones)
 - [`docs/INTERFACES.md`](docs/INTERFACES.md) — 命令 / HTTP 端点 / KV 键全表
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — 开发计划与进度
+- [`docs/guide/`](docs/guide/README.md) — 用户手册(自动生成)
 - [`docs/diagrams/`](docs/diagrams/) — 架构 / 时序 / 数据流图(mmd+png+svg)
 
 ## 🗺️ 路线
@@ -100,5 +108,5 @@ main push 另触发 changelog workflow 自动更新 [CHANGELOG.md](CHANGELOG.md)
 ---
 
 <p align="center">
-  <sub>Cloudflare Workers 免费层 · 无 DB · KV only · 139 tests · CI 自动部署 · changelog 自动生成</sub>
+  <sub>Cloudflare Workers 免费层 · 无 DB · KV only · 519+ tests · CI 自动部署 · changelog 自动生成 · 用户手册自动生成</sub>
 </p>

@@ -24,8 +24,10 @@ sequenceDiagram
     W->>KV: put digest:<date> (chunks+repos)
     W->>TG: createPage (Telegraph 备份)
     TG-->>W: page_url → put archive:tg:<date>
-    W->>+GH: PUT archive/<YYYY>/<YYYY-MM-DD>.md
-    GH-->>-W: commit
+    W->>KV: pend:arc:* 存档缓冲 (md + og 图)
+    W->>KV: flushArchivedPending → Git Data API
+    KV->>+GH: 一个 batch commit (ref→blobs→tree→commit→ref)
+    GH-->>-W: archive/<YYYY>/<YYYY-MM-DD>.md 入库
     end
 
     rect rgb(240,255,240)
@@ -52,8 +54,9 @@ sequenceDiagram
     W->>+CHAIN: lookupRepo (描述已缓存走 lookup:desc)
     CHAIN-->>-W: 描述 → renderMessage → sendPerRepoMessages(OG 图)
     W->>KV: put archive:idx:<repo>
-    W->>+GH: PUT archive/<YYYY>/<date>.md
-    GH-->>-W: commit
+    W->>KV: pend:arc:* 存档缓冲 (≥20 条或 cron 时批量 flush)
+    KV->>+GH: batch commit → archive/<YYYY>/<date>.md
+    GH-->>-W: 入库 (GitHub md 链接最终一致)
     W->>TA: 📁 三链: Telegraph · 互联网档案馆 · GitHub md
     TA-->>U: 存档卡 (OG 图 + 三链)
     end

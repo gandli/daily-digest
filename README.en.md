@@ -16,19 +16,24 @@
 
 GitHub Trending → **Telegram daily Chinese digest bot**. Single project on the Cloudflare Workers free tier.
 
-Every day at **08:30 (UTC+8)** it pushes the top 10 repos — one message per repo: OG card image + stars/language/**Chinese description**/deepwiki·zread links/topic tags; data is also committed to this repo's [archive branch](https://github.com/gandli/daily-digest/tree/archive).
+Every day at **08:30 (UTC+8)** it pushes the top 10 repos — one message per repo: OG card image + stars/language/**Chinese description**/deepwiki·zread links/topic tags; data is batch-committed to this repo's [archive branch](https://github.com/gandli/daily-digest/tree/archive) (merged into **a single commit** by the daily cron or when the buffer reaches 20 entries — see [Archive triple-link](#archive-triple-link)).
+
+📖 **[User manual](docs/guide/README.md)** — step-by-step guides for 10 core transactions (annotated chat screenshots), auto-generated from e2e scenarios and kept in sync by CI (pipeline in [scripts/manual/](scripts/manual/) + `.github/workflows/manual.yml`).
 
 ## 📱 Commands
 
 | Input | Behavior |
 |---|---|
 | `/trending` | Today's chart (already fetched by cron; served instantly from the `digest:<date>` cache; trending is fixed for the day, never re-fetched) |
+| `/product` | Today's HN cool products: reads `product/<date>.json` from the archive branch for an instant card; if missing, auto-triggers GitHub Actions and pushes when done |
 | `/search <keyword>` | Full-index search across 6000+ entries (stars/bookmarks/archives); on-page English descriptions translated in batch; paginated with inline-keyboard paging/jump |
 | `/archive [page]` | Paginated history list; each entry shows the **archive triple-link** (Telegraph → Internet Archive web.archive.org → GitHub md) |
 | `/start` `/help` anything else | Usage hints + command-menu registration |
-| Message containing a GitHub repo link | Single-repo lookup + Chinese description → OG card; already seen today → archive triple-link card; archived to archive branch |
-| Message containing an X/Twitter post link | FxEmbed fetch → **Chinese summary + triple archive** (Telegraph / Internet Archive / GitHub md) |
+| Message containing a GitHub repo link | Single-repo lookup + Chinese description → OG card (no counter on single cards); already seen today → archive triple-link card |
+| Message containing an X/Twitter post link | FxEmbed fetch → **Chinese summary + triple archive** (Telegraph / Internet Archive / GitHub md); X article posts use the embedded title directly; multiple repos in one post fan out as numbered cards (`N/M`) |
 | Message containing any other web link | Three-tier markdown chain → **Chinese summary (summarizeZh)** → triple archive; re-send of a done URL returns the archive link, not "already processed" |
+
+The `N/M` counter only appears for multi-item batches (trending/product pushes, multi-repo fan-out); single cards carry no counter.
 
 ## 🔗 Description chain
 
@@ -44,9 +49,9 @@ deepwiki overview (template boilerplate stripped)
 ## 📦 Archive triple-link
 
 Every archived link (web page / X post / repo) returns a **three-tier archive**, shown by priority:
-1. **Telegraph** — long-form backup page (one per daily digest and per X post)
-2. **Internet Archive** `web.archive.org` — fallback snapshot (`web/2/<url>` auto-locates the latest version)
-3. **GitHub md** — the original markdown on the archive branch
+1. **Telegraph** — long-form backup page (one per daily digest and per X post, effective immediately)
+2. **Internet Archive** `web.archive.org` — fallback snapshot (`web/2/<url>` auto-locates the latest version, effective immediately)
+3. **GitHub md** — the original markdown on the archive branch (**batched**: entries first land in a KV buffer, then the daily cron — or a 20-entry threshold — merges and pushes them as **one commit** via the Git Data API, so this link may lag until the next flush)
 
 ## 🏗️ Architecture
 
@@ -54,10 +59,11 @@ Every archived link (web page / X post / repo) returns a **three-tier archive**,
 - `src/zread.ts` / `src/deepwiki.ts` RSC payload overview extraction
 - `src/translate.ts` four-level translation fallback + isChinese guard + CF Summarization digests
 - `src/render.ts` three renderers: Telegram HTML / GitHub markdown / Telegraph nodes
-- `src/archive.ts` idempotent archiving via GitHub Contents API (archive branch) + Telegraph createPage + chunked base64
+- `src/archive.ts` batched archiving: KV pending buffer (`pend:arc:*`) → Git Data API merges and pushes as one commit (daily cron + ≥20 threshold; falls back to direct Contents API PUT if KV fails) + Telegraph createPage + chunked base64
 - `src/lookup.ts` single-repo pipeline (URL archiving / four-level image chain / repo fan-out / dedup)
 - `src/urlmd.ts` any URL→markdown via three-tier free chain (Markdown for Agents → AI.toMarkdown → Browser Rendering)
-- `src/fxtweet.ts` X/Twitter post archiving (FxEmbed public API)
+- `src/fxtweet.ts` X/Twitter post archiving (FxEmbed public API, article posts use the embedded title)
+- `scripts/manual/` user-manual pipeline: e2e scenarios drive the real worker → annotated chat screenshots → AI-written step-by-step docs → `.github/workflows/manual.yml` regenerates [docs/guide/](docs/guide/) on code changes
 - KV caches today's cron result; webhook signature timingSafeEqual + chat allowlist; /search backed by a single-key compressed index
 
 See [`docs/GOAL.md`](docs/GOAL.md) (acceptance criteria A1–A14), [`docs/INTERFACES.md`](docs/INTERFACES.md) (commands / HTTP endpoints / KV keys), [`docs/ROADMAP.md`](docs/ROADMAP.md) (progress), and [`docs/diagrams/`](docs/diagrams/) (architecture / sequence / data-flow diagrams).
@@ -69,13 +75,16 @@ npm install
 npm run dev        # wrangler dev --test-scheduled
 curl http://localhost:8787/__scheduled   # trigger cron pipeline manually
 npx tsc --noEmit   # type check
-npm test           # vitest, 139 tests (coverage ≥45%)
+npm test           # vitest, 519+ tests (44 files)
 npm test -- --coverage   # coverage report
+npm run manual     # user-manual full pipeline: e2e scenarios → annotated screenshots → AI docs (template fallback without a key)
 ```
 
 ## 🔑 Secrets (wrangler secret put)
 
 BOT_TOKEN · CHAT_ID · WEBHOOK_SECRET · GH_TOKEN · TELEGRAPH_TOKEN (optional)
+
+Optional: OPENROUTER_API_KEY (/product deep summaries + manual AI docs; free model pool/template without it) · JINA_API_KEY / GENEDAI_API_KEY (URL→markdown fallbacks) · CF_ACCOUNT_ID / CF_API_TOKEN (Browser Rendering)
 
 ## 🚀 Deploy
 
@@ -88,6 +97,7 @@ Pushing to main also triggers a changelog workflow that auto-updates [CHANGELOG.
 - [`docs/GOAL.md`](docs/GOAL.md) — acceptance contract (A1–A14, FR/AC/Milestones)
 - [`docs/INTERFACES.md`](docs/INTERFACES.md) — commands / HTTP endpoints / KV key table
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — development plan and progress
+- [`docs/guide/`](docs/guide/README.md) — user manual (auto-generated)
 - [`docs/diagrams/`](docs/diagrams/) — architecture / sequence / data-flow diagrams (mmd+png+svg)
 
 ## 🗺️ Roadmap
@@ -98,5 +108,5 @@ Pushing to main also triggers a changelog workflow that auto-updates [CHANGELOG.
 ---
 
 <p align="center">
-  <sub>Cloudflare Workers free tier · no DB · KV only · 139 tests · CI auto-deploy · auto changelog</sub>
+  <sub>Cloudflare Workers free tier · no DB · KV only · 519+ tests · CI auto-deploy · auto changelog · auto-generated user manual</sub>
 </p>
