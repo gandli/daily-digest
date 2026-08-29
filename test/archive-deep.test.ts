@@ -79,24 +79,41 @@ describe('archiveOgImage 边界', () => {
 });
 
 describe('GH_TOKEN 缺失 + 网络错', () => {
-  it('GH_TOKEN 缺失 → 静默失败不抛(发空 token 请求, API 401/403 不 crash)', async () => {
-    // archiveToGitHub 不读 process.env, 看 env.GH_TOKEN。缺失时 PUT 401 → console.error 但不 throw。
-    mockFetch(() => new Response('Unauthorized', { status: 401 }));
-    await expect(archiveToGitHub({} as never, '2026-08-28', '# m')).resolves.toBeUndefined();
-    expect(calls.some((c) => c.method === 'PUT')).toBe(true);
+  function memKv() {
+    const store = new Map<string, string>();
+    return {
+      list: async ({ prefix }: { prefix: string }) => ({ keys: [...store.keys()].filter((k) => k.startsWith(prefix)).map((name) => ({ name })), list_complete: true }),
+      get: async (k: string) => store.get(k) ?? null,
+      put: async (k: string, v: string) => { store.set(k, v); },
+      delete: async (k: string) => { store.delete(k); },
+      get store() { return store; },
+    } as any;
+  }
+  const pendKeys = (kv: any) => [...kv.store.keys()].filter((k: string) => k.startsWith('pend:arc:'));
+
+  it('GH_TOKEN 缺失 → 缓冲不依赖 token, 写 pend 键且零外呼(刷写时才需凭证)', async () => {
+    const kv = memKv();
+    mockFetch(() => { throw new Error('any external call is unexpected'); });
+    await expect(archiveToGitHub({ CACHE: kv } as never, '2026-08-28', '# m')).resolves.toBeUndefined();
+    expect(pendKeys(kv).length).toBe(1);
+    expect(calls.length).toBe(0);
   });
 
-  it('archiveToGitHub 网络抛错(GET 与 PUT 都失败)→ 不 crash', async () => {
+  it('archiveToGitHub 网络全断 → 缓冲照常落 KV, 不 crash 不外呼', async () => {
     globalThis.fetch = (async () => { throw new TypeError('ENOTFOUND'); }) as typeof fetch;
-    await expect(archiveToGitHub({ GH_TOKEN: 't', GH_ARCHIVE_REPO: 'g/d' } as never, '2026-08-28', '# m')).resolves.toBeUndefined();
+    const kv = memKv();
+    await expect(archiveToGitHub({ GH_TOKEN: 't', GH_ARCHIVE_REPO: 'g/d', CACHE: kv } as never, '2026-08-28', '# m')).resolves.toBeUndefined();
+    expect(pendKeys(kv).length).toBe(1);
   });
 
   it('archiveDatedToGitHub 网络抛错 → 不 crash 不中断', async () => {
     globalThis.fetch = (async () => { throw new TypeError('network down'); }) as typeof fetch;
-    await expect(archiveDatedToGitHub({ GH_TOKEN: 't', GH_ARCHIVE_REPO: 'g/d' } as never, '2026-08-28-120000', '# x')).resolves.toBeUndefined();
+    const kv = memKv();
+    await expect(archiveDatedToGitHub({ GH_TOKEN: 't', GH_ARCHIVE_REPO: 'g/d', CACHE: kv } as never, '2026-08-28-120000', '# x')).resolves.toBeUndefined();
+    expect(pendKeys(kv).length).toBe(1);
   });
 
-  it('GET 网络错但 PUT 成功 → 带 sha 缺失直接创建(不 crash)', async () => {
+  it('无 CACHE(KV 不可用) → 回落即时 PUT 兜底, GET 抛错仍创建(不 crash)', async () => {
     mockFetch((u) => {
       if (u.includes('?ref=archive')) throw new TypeError('GET blow up');
       return new Response(JSON.stringify({ content: {} }), { status: 201 });
