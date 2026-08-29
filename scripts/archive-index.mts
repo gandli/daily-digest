@@ -22,7 +22,7 @@ try {
   const snippet = (body: string): string => {
     for (const line of body.split('\n').slice(1)) {
       let t = clean(line);
-      if (!t || t.startsWith('- ') || t.startsWith('#') || t.includes('http')) continue;
+      if (!t || t.startsWith('- ') || t.startsWith('* ') || t.startsWith('•') || t.startsWith('#') || t.includes('http')) continue;
       t = t.replace(/^(title|description|url)\s*:\s*/i, '').replace(/^(title|description|url)\s*:\s*/i, '').trim();
       if (/^(跳至主要内容|跳到内容|skip to content|menu|导航|首页)/i.test(t)) continue;
       if (t.length > 4) return t.slice(0, 60) + (t.length > 60 ? '…' : '');
