@@ -446,8 +446,8 @@ export async function runProductThin(env: Env, chatId: string, ctx?: ExecutionCo
     signal: AbortSignal.timeout(8000),
   }).then((r) => r.ok).catch(() => false);
   await sendTelegram(env.BOT_TOKEN, chatId, dispatched
-    ? '⏳ 今日 HN 酷产品生成中(约 2-5 分钟), 完成后自动推送。'
-    : '⚠️ 今日酷产品尚未生成且触发失败, 请稍后再试。');
+    ? '⏳ 今日 Hacker News 酷产品生成中(约 2-5 分钟), 完成后自动推送。'
+    : '⚠️ 今日 Hacker News 酷产品尚未生成且触发失败, 请稍后再试。');
   console.log('product thin miss', dateStr, `dispatched=${dispatched}`);
   return 0;
 }
@@ -681,9 +681,9 @@ export default {
         (async () => {
           // 缓存 miss 才发占位提示(命中会被卡片秒回覆盖, 避免"提示+卡片"两条)
           const cached = await env.CACHE.get(`digest:${shanghaiDate()}`).catch(() => null);
-          if (!cached) await sendTelegram(env.BOT_TOKEN, chatId, '⏳ Trending 生成中(10-30 秒), 完成后自动推送。');
+          if (!cached) await sendTelegram(env.BOT_TOKEN, chatId, '⏳ GitHub Trending 生成中(10-30 秒), 完成后自动推送。');
           const n = await runDigest(env, true);
-          if (n < 0) await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ Trending 抓取失败, 请稍后再试。');
+          if (n < 0) await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ GitHub Trending 抓取失败, 请稍后再试。');
         })(),
       );
     } else if (text.startsWith('/hn')) {
