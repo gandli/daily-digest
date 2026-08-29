@@ -8,6 +8,8 @@ import { extractRepo, extractRepoRefs, today, lookupRepo, seenToday, refreshLook
 import { extractUrl, urlToMarkdown } from './urlmd';
 import { extractTweet, fetchTweet, renderTweetHtml, articleToText, articleRefFixup, type FxTweet } from './fxtweet';
 import { matchEntries, type SearchEntry } from './search-index';
+import { d1ArchivePage } from './d1';
+import { vecSearch } from './vec';
 import { runProductHunt } from './ph';
 import { summarizeZh, summarizeZhDeep, translateTextZh, translateBatch, isChinese, isZhDominant, generateTitleZh, generateTagsZh } from './translate';
 
@@ -71,9 +73,19 @@ export async function searchArchive(env: Env, chatId: string, query: string, pag
     const entries = JSON.parse(raw) as SearchEntry[];
     const q = query.toLowerCase();
     // 词 AND 匹配 + 相关度排序(见 matchEntries)
-    type Hit = { src: string; name: string; url: string; desc?: string };
-    const hits: Hit[] = matchEntries(entries, q).map(([src, name, url, , desc]) => ({ src, name, url, desc }));
-    // 分页渲染 + inline keyboard 翻页(复用 archive 同款模式: answerCallbackQuery 放 finally)
+    type Hit = { src: string; name: string; url: string; desc?: string; sem?: boolean };
+    let hits: Hit[] = matchEntries(entries, q).map(([src, name, url, , desc]) => ({ src, name, url, desc }));
+    // 混合检索: 子串命中不足一页时, Vectorize 语义检索补页(1 AI 嵌入 + 1 VEC 查询; 失败/未绑定静默跳过)
+    if (hits.length < SEARCH_PAGE) {
+      const have = new Set(hits.map((h) => h.name.toLowerCase()));
+      const sem = await vecSearch(env, query, 30);
+      hits = hits.concat(
+        sem
+          .filter((s) => s.name && !have.has(s.name.toLowerCase()))
+          .slice(0, SEARCH_PAGE - hits.length)
+          .map((s) => ({ src: 'arch', name: s.name, url: s.url, sem: true })),
+      );
+    }
     const total = hits.length;
     const maxPage = Math.max(1, Math.ceil(total / SEARCH_PAGE));
     const p = Math.min(Math.max(0, page), maxPage - 1);
@@ -105,6 +117,7 @@ export async function searchArchive(env: Env, chatId: string, query: string, pag
       // lookup:desc 优先(backfill 补的中文), 否则 search:index desc 原文/当页翻译
       const ld = lookupDescMap.get(h.name) || '';
       const d = ld || (h.desc ? (zhMap.get(h.desc) || h.desc) : '');
+      if (h.sem) return `✨ <a href="${esc(h.url || `https://github.com/${esc(h.name)}`)}">${esc(h.name)}</a>${d ? `\n   ${esc(d)}` : ''}`;
       if (h.src === 'arch') {
         const date = h.url; // url 槽存 date
         const link = `https://github.com/${repo}/blob/archive/archive/${yearOf(date)}/${date}.md`;
@@ -511,6 +524,31 @@ const ARCHIVE_PAGE = 10; // 每页条数
 
 // 渲染一页存档: 返回 {text, kb, total, notFound?}。纯函数便于复用(/archive N 与 callback_query 翻页共用)。
 async function renderArchivePage(env: Env, page: number): Promise<{ text: string; kb: InlineKB; total: number; err?: string }> {
+  // D1 优先: 一条 SQL 恒定成本, 替代 KV list 全量遍历 + 逐键 get。不可用/空库(旧数据未回填)回落 KV。
+  const d1 = await d1ArchivePage(env, ARCHIVE_PAGE, page * ARCHIVE_PAGE);
+  if (d1) {
+    const maxPage = Math.ceil(d1.total / ARCHIVE_PAGE);
+    if (page * ARCHIVE_PAGE >= d1.total) return { text: '📂 已到最后一页', kb: { inline_keyboard: [] }, total: d1.total };
+    const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
+    const lines: string[] = [];
+    for (const it of d1.rows) {
+      const date = it.date;
+      const link = `https://github.com/${repo}/blob/archive/archive/${yearOf(date)}/${date}.md`;
+      const tgUrl = (await env.CACHE.get(`archive:tg:${date}`)) || '';
+      const d = (it.summaryZh ?? it.summary ?? '').trim();
+      const topics = it.topics ? it.topics.split(',') : [];
+      const links = archiveLinks(it.url || `https://github.com/${it.repo}`, tgUrl || undefined, link);
+      const block = [
+        `<b><a href="${esc(it.url || `https://github.com/${esc(it.repo)}`)}">${esc(it.repo)}</a></b> · ${date}`,
+      ];
+      if (d) block.push(`　📝 ${esc(d).slice(0, 120)}`);
+      if (topics.length) block.push(`　🏷 ${topics.map((t) => `#${t}`).join(' ')}`);
+      block.push(`　${links}`);
+      lines.push(block.join('\n'));
+    }
+    const text = `📂 历史存档 (第 ${page + 1}/${maxPage} 页, 共 ${d1.total} 条)\n\n${lines.join('\n\n')}`;
+    return { text, kb: buildArchiveKeyboard(page, maxPage), total: d1.total };
+  }
   const keys = await listAll(env, 'archive:idx:');
   if (!keys.keys.length) return { text: '📂 暂无存档记录', kb: { inline_keyboard: [] }, total: 0 };
   const sorted = keys.keys.sort((a, b) => b.name.localeCompare(a.name));
@@ -641,6 +679,18 @@ export default {
 
     // c) 白名单外:不响应任何动作
     if (!chatId || chatId !== env.CHAT_ID) return new Response('ok');
+
+    // c0) 速率限制: 同 chat 每分钟 20 次更新(命令+翻页), 超限静默丢弃(必须回 200, 否则 Telegram 会重试)。
+    // 限流器故障放行(可用性优先); 未绑定不限流。
+    if (env.RATE_LIMITER) {
+      try {
+        const { success } = await env.RATE_LIMITER.limit({ key: chatId });
+        if (!success) {
+          console.log('rate limited', chatId);
+          return new Response('ok');
+        }
+      } catch { /* 限流器异常放行 */ }
+    }
 
     // c2) callback_query: inline keyboard 翻页(arch:pg:N) —— 同一条消息原地更新; 答回收必须放 finally(编辑抛错也消转圈)
     if (update.callback_query?.data?.startsWith('arch:pg:')) {

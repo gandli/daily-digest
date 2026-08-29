@@ -47,9 +47,30 @@ function buildEnv(): Env {
   };
 }
 
+/** SSRF 守卫: HN feed 的外部 URL 不可信——仅 http/https, 拒绝 localhost/环回/私有/保留地址与非常规端口主机。 */
+function isPublicHttpUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+    const host = u.hostname.toLowerCase();
+    if (!host || host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) return false;
+    // 括号内为 IPv6 字面量([::1])
+    const literal = host.startsWith('[') ? host.slice(1, -1) : host;
+    if (literal === '::1' || literal.startsWith('fe80:') || literal.startsWith('fc') || literal.startsWith('fd') || literal.startsWith('169.254.')) return false;
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(literal)) {
+      const [a, b] = literal.split('.').map(Number);
+      if (a === 0 || a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function main() {
   const env = buildEnv();
   const dateStr = process.argv[2] ?? shanghaiDate();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) throw new Error(`bad dateStr: ${dateStr}`); // argv 直拼 GitHub URL, 先锁格式
   const limit = Number(process.env.PRODUCT_LIMIT ?? 10);
 
   // 1. 抓 HN Show HN
@@ -58,7 +79,8 @@ async function main() {
   if (!items.length) throw new Error('no HN items');
 
   // 2. urlToMarkdown(有 url 的) — 无 30s 墙,串行逐篇,每篇内部 Jina/Genedai/..链
-  const withUrl = items.filter((it) => !it.desc && it.url && /^https?:\/\//.test(it.url));
+  // SSRF 守卫: feed URL 一律过 isPublicHttpUrl, 不过的丢弃 url(降级为无链接条目, 不外呼)
+  const withUrl = items.filter((it) => !it.desc && it.url && isPublicHttpUrl(it.url));
   for (const it of withUrl) {
     const md = await urlToMarkdown(env, it.url, {}).catch(() => '');
     const body = md.replace(/[#*>`|!-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 6000);

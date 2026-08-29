@@ -1,4 +1,5 @@
 import type { Env } from './types';
+import { d1PutArchiveFiles } from './d1';
 
 /**
  * 二进制 → base64。分块 String.fromCharCode 规避 spread 栈上限
@@ -215,6 +216,13 @@ export async function flushArchivedPending(env: Env): Promise<number> {
           body: JSON.stringify({ sha: commitSha, force: false }),
         });
         if (refRes.ok) {
+          // D1 内容冗余(utf-8 markdown, 图片不存): 失败静默, 不影响 GitHub 正本与删键
+          await d1PutArchiveFiles(
+            env,
+            batch
+              .filter(({ item }) => item.encoding === 'utf-8')
+              .map(({ item }) => ({ path: item.path, content: decodeBase64Text(item.content), message: item.message })),
+          );
           await Promise.all(batch.flatMap(({ keys }) => keys.map((key) => env.CACHE.delete(key).catch(() => { /* 删除失败: 下次 flush 重放同内容(blob sha 相同, 幂等) */ }))));
           return batch.length;
         }

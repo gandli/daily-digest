@@ -4,6 +4,8 @@ import { fetchDeepwikiOverview } from './deepwiki';
 import { renderMessage, renderMarkdown, renderTelegraphNodes, esc } from './render';
 import { sendPerRepoMessages, sendTelegram } from './notify';
 import { archiveToGitHub, archiveOgImage, createTelegraphAccount, createTelegraphPage } from './archive';
+import { d1UpsertArchiveIdx } from './d1';
+import { vecUpsertItems } from './vec';
 import { urlToMarkdown, extractOgImage } from './urlmd';
 
 // 北京时间日期串(与 index.ts 一致; 独立内联避免循环依赖)
@@ -156,14 +158,18 @@ export async function indexArchivedItems(env: Env, items: SourceItem[], dateStr:
       /* 索引失败不影响主流程 */
     }
   }
+  await d1UpsertArchiveIdx(env, items.map((it) => ({ ...it, topics: it.topics?.slice(0, 4) })), dateStr); // D1 镜像, 失败静默
+  await vecUpsertItems(env, items); // Vectorize 语义索引镜像, 失败静默
   // 增量追加 search:index(单键 RMW; 个人 bot 并发极低, 丢条目概率近零)
   if (!items.length) return;
   try {
     const raw = await env.CACHE.get('search:index');
     const entries: unknown[][] = raw ? JSON.parse(raw) : [];
-    const haySet = new Set(entries.map((e) => String(e[1]))); // 去重: 全量 name 集合
+    // 去重键小写化, 与 archive:idx:<repo 小写> 键对齐——同 repo 两次以不同大小写入库时,
+    // 存档键覆盖同一键, search:index 若按原始大小写去重会追加两条重复条目
+    const haySet = new Set(entries.map((e) => String(e[1]).toLowerCase()));
     for (const it of items) {
-      if (haySet.has(it.title)) continue; // 幂等: 已存在跳过
+      if (haySet.has(it.title.toLowerCase())) continue; // 幂等: 已存在跳过
       const name = it.title;
       const hay = `${name} ${it.desc ?? ''} ${it.descZh ?? ''} ${dateStr}`.toLowerCase();
       entries.push(['x', name, it.url ?? '', hay, (it.descZh ?? it.desc ?? '').slice(0, 120)]);
