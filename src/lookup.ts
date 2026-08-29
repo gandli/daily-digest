@@ -138,7 +138,8 @@ export async function indexArchivedItems(env: Env, items: SourceItem[], dateStr:
     try {
       await env.CACHE.put(
         `archive:idx:${it.title.toLowerCase()}`,
-        JSON.stringify({ repo: it.title, date: dateStr, desc: it.desc || undefined, descZh: isChinese(it.descZh) ? it.descZh : undefined, topics: it.topics?.slice(0, 4) }),
+        // url = 真实源 URL(X 帖链接/网页 URL/repo 主页)——replyArchived 拼 Wayback 链接用; 空串不写(读侧回落 github.com/<repo>)
+        JSON.stringify({ repo: it.title, date: dateStr, url: it.url || undefined, desc: it.desc || undefined, descZh: isChinese(it.descZh) ? it.descZh : undefined, topics: it.topics?.slice(0, 4) }),
       );
     } catch {
       /* 索引失败不影响主流程 */
