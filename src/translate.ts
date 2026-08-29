@@ -2,11 +2,13 @@ import type { Env, SourceItem } from './types';
 import { fetchZreadBatch } from './zread';
 import { fetchDeepwikiBatch } from './deepwiki';
 
-/** 中文判定: CJK 字符 ≥5 且占比 >30% —— 100% 中文守卫的校验器 */
+/** 中文判定: CJK 字符 ≥4 且占比 >30% —— 100% 中文守卫的校验器。
+ *  ≥4 而非 ≥5: 4 字纯中文串(如"你好世界")是合法 LLM 输出, ≥5 会全拒(2026-08 修复);
+ *  2-3 字仍拒(过短易误判), 占比条件防 URL/代码稀释。 */
 export function isChinese(s?: string | null): boolean {
   if (!s) return false;
   const cjk = (s.match(/[\u4e00-\u9fff]/g) ?? []).length;
-  return cjk >= 5 && cjk > s.length * 0.3;
+  return cjk >= 4 && cjk > s.length * 0.3;
 }
 
 /** 中文主导判定(供"是否需要翻译"决策): 中文字符数 > 英文字母数 且 ≥20 个。

@@ -10,33 +10,27 @@ const mockDw = vi.fn();
 vi.mock('../src/zread', () => ({ fetchZreadBatch: (...a: unknown[]) => mockZread(...a) }));
 vi.mock('../src/deepwiki', () => ({ fetchDeepwikiBatch: (...a: unknown[]) => mockDw(...a) }));
 
-// ---------- isChinese: CJK≥5 且占比>30% ----------
+// ---------- isChinese: CJK≥4 且占比>30% ----------
 describe('isChinese: CJK 判定边界', () => {
-  // 已知 bug(只报告不修): cjk>=5 门槛把 4 个汉字的纯中文串全部拒掉。
-  // 规格期望 你好世界/测试测试 → true(两者都是 4 个 CJK), 与 CJK>=4 的门槛自洽;
-  // 当前实现返回 false。it.fails: 修好门槛后此测试自动变红, 提示升级为常规断言。
-  it.fails('已知 bug: 纯中文"你好世界"(4 CJK) → 期望 true, 实际 false', () => {
+  it('纯中文"你好世界"(4 CJK) → true(门槛 ≥4, 2026-08 修复)', () => {
     expect(isChinese('你好世界')).toBe(true);
   });
-  it.fails('已知 bug: 纯中文"测试测试"(4 CJK) → 期望 true, 实际 false', () => {
+  it('纯中文"测试测试"(4 CJK) → true', () => {
     expect(isChinese('测试测试')).toBe(true);
   });
   it('纯英文 → false', () => {
     expect(isChinese('hello world')).toBe(false);
   });
   it('混合: Hello 你好 world → 依规则判定', () => {
-    // CJK=2(<5) → false
+    // CJK=2(<4) → false
     expect(isChinese('Hello 你好 world')).toBe(false);
   });
-  it('CJK<5 边界 → false("测试" CJK=2)', () => {
+  it('CJK<4 边界 → false("测试" CJK=2, 过短防误判)', () => {
     expect(isChinese('测试')).toBe(false);
-  });
-  it.fails('已知 bug: 纯中文"测试测试"(4 CJK) → 期望 true, 实际 false', () => {
-    expect(isChinese('测试测试')).toBe(true);
   });
   it('URL 稀释: 5个CJK被4个URL稀释占比 → false(已知坑)', () => {
     const s = '项目是好的 → http://github.com/a/b → http://github.com/c/d → http://github.com/e/f → http://github.com/g/h';
-    // 5 个汉字(项,目,是,好,的) 虽过 cjk>=5, 但占比被 URL 稀释 <30% → false
+    // 5 个汉字(项,目,是,好,的) 虽过 cjk>=4, 但占比被 URL 稀释 <30% → false
     expect(isChinese(s)).toBe(false);
   });
   it('空字符串 → false', () => {

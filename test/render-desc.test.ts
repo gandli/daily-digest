@@ -46,6 +46,13 @@ describe('渲染: 描述层诚实降级', () => {
     expect(m).toContain('Archive');
     expect(m).not.toContain('Telegraph');
   });
+  it('超长消息 >4000 → 截断到 ≤4000 且以 … 结尾', () => {
+    const longZh = '很长的中文描述句子。'.repeat(600); // 10 字 × 600 = 6000 字符
+    const [msg] = renderMessage('2026-08-24', [mk('c/cc', longZh)]);
+    expect(msg.length).toBeLessThanOrEqual(4000);
+    expect(msg.endsWith('…')).toBe(true);
+    expect(msg).toContain('c/cc');
+  });
   it('序号: 单条卡无 1/1 头; 多条批量每条带 N/M 头', () => {
     const [single] = renderMessage('2026-08-24', [mk('a/aa', ZH)]);
     expect(single).not.toMatch(/<b>\d+\/\d+<\/b>/); // 单条不编号

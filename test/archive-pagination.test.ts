@@ -189,3 +189,16 @@ describe('archiveList 条目渲染', () => {
     expect(t).toContain('&gt;');
   });
 });
+
+describe('archiveList 越界页', () => {
+  beforeEach(() => { calls.length = 0; });
+
+  it('页码超尾(/archive 5, 仅 3 条) → 「📂 已到最后一页」, 无 keyboard', async () => {
+    await cmd('/archive 5', memKv([arch(1), arch(2), arch(3)]));
+    const send = sendMessage();
+    expect(send).toBeTruthy();
+    expect(String(send!.body.text)).toBe('📂 已到最后一页');
+    expect(send!.body.reply_markup).toBeUndefined();
+    expect(editMessage()).toBeFalsy();
+  });
+});
