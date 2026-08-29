@@ -17,7 +17,7 @@
 | `/help` / 空 | 使用说明 + 注册命令菜单 | 幂等 setMyCommands |
 | 任意 GitHub repo 链接 | 首次 → `lookupRepo` 单查+存档； 当日已查 → `replyArchived` 回存档三链 | `seenToday` 去重 (TTL 48h)； 单仓卡无 `N/M` 序号 |
 | ≥2 个 GitHub repo 链接(一条消息) | `fanoutRepoRefs` 逐仓发卡(多仓带 `N/M`)； 全部当日已存档 → 回一句话防静默 | 复用 X 帖联动管线(去重/分批防 50 子请求) |
-| X 帖链接 (`x.com/<h>/status/<id>`) | `archiveTweet`: FxEmbed 拉元数据 → 摘要 → 存档 | article 长文帖直用内嵌标题； **article 引用帖(text 为 `x.com/i/article` 裸链) → 转 fixupx 公开页提取正文并改用 fixupx 展示链接**； 多图 mosaic； 帖内多 repo → `fanoutRepoRefs` 逐仓发卡 (多仓带 `N/M`) |
+| X 帖链接 (`x.com/<h>/status/<id>`) | `archiveTweet`: FxEmbed 拉元数据 → 摘要 → 存档 | article 长文帖直用内嵌标题； **article 引用帖(text 为 `x.com/i/article` 裸链) → 转 fixupx 公开页提取正文(失败落 fxtwitter.com 同源兜底)并改用 fixupx 展示链接**； 多图 mosaic； 帖内多 repo → `fanoutRepoRefs` 逐仓发卡 (多仓带 `N/M`) |
 | 任意网页 URL | `archiveUrl`: markdown 三级链 → 中文摘要 → 存档 | 重发语义: first/retry/done |
 | 其余输入 | 帮助提示 | |
 

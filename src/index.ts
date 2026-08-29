@@ -185,11 +185,16 @@ export async function archiveTweet(
   // LLM 喂裸 URL 会输出"无法访问"拒绝语(中文过守卫变标题)——title/body 优先用 article 内容。
   const artText = articleToText(tweet);
   const isArticle = !!artText || !!tweet.article?.title;
-  // article 引用帖: v2 API 对部分 article 帖不内嵌 article 对象(text 只是 x.com/i/article 裸链)。
-  // fixupx 公开页服务端渲染全文 → urlToMarkdown 提取正文; 展示链接也转 fixupx(免登录墙, Wayback 可存)。
   const fixup = isArticle ? null : articleRefFixup(tweet, handle);
-  const refText = fixup ? await urlToMarkdown(env, fixup, {}).catch(() => null) : null;
-  const refTitle = refText?.match(/^#\s+(.+)$/m)?.[1] ?? null; // fixupx 页首标题 = 文章题
+  // 提取源双域名兜底: fixupx → fxtwitter(同一服务)。urlToMarkdown 全链失败返回空串(非 null), 须按空判。
+  const mdOf = async (u: string): Promise<string | null> => {
+    const m = await urlToMarkdown(env, u, {}).catch(() => null);
+    return m && m.trim() ? m : null;
+  };
+  const refText = fixup
+    ? (await mdOf(fixup)) ?? (await mdOf(`https://fxtwitter.com/${handle}/status/${tweet.id}`))
+    : null;
+  const refTitle = refText?.match(/^#\s+(.+)$/m)?.[1] ?? null; // 页首标题 = 文章题
   const isArticlePost = isArticle || (!!fixup && !!refText);
   // 正文: article 帖用 preview_text + blocks 截段; fixupx 引用帖用提取正文; 普通帖用 tweet.text
   const bodyText = isArticle

@@ -1,6 +1,6 @@
 // archiveTweet 回归锁: FxEmbed 成功发卡+Telegraph+存档 / tweet 空落通用链 / 发送失败发⚠️。
 // 依赖: mock global fetch(FxEmbed/TG/GitHub/Telegraph) + KV 内存 stub + ctx.waitUntil。
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { archiveTweet } from '../src/index';
 
 type Mode = 'ok' | 'tweet-empty' | 'fail-send' | 'fail-dispatch' | 'article-ref';
@@ -101,6 +101,32 @@ describe('archiveTweet', () => {
     expect(text).toContain('https://fixupx.com/fe2o3/status/125');
     expect(text).toContain('钓鱼邮件分析报告'); // 正文与标题来自 fixupx 提取
     expect(text).not.toContain('x.com/i/article/'); // 裸引用链不再出现
+  });
+
+  it('article 引用帖(fixupx 提取失败) → fxtwitter.com 同源兜底, 展示链接仍 fixupx', async () => {
+    mode = 'article-ref';
+    const env = { ...mkEnv(), JINA_API_KEY: 'j' };
+    const saves: string[] = [];
+    try {
+      vi.stubGlobal('fetch', vi.fn(async (url: string | URL, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes('api.fxtwitter.com')) return new Response(JSON.stringify(TWEET_ARTICLE_REF), { status: 200, headers: { 'content-type': 'application/json' } });
+        if (u.startsWith('https://web.archive.org/save/')) { saves.push(u); return new Response('ok', { status: 200 }); }
+        if (u.includes('api.telegram.org')) { calls.push({ url: u, body: JSON.parse(String(init?.body ?? '{}')) }); return new Response(JSON.stringify({ ok: true }), { status: 200 }); }
+        if (u.includes('api.telegra.ph')) return new Response(JSON.stringify({ ok: true, result: { url: 'https://telegra.ph/x-post-1' } }), { status: 200 });
+        if (u.includes('r.jina.ai') && u.includes('fixupx.com')) return new Response('nope', { status: 404 });
+        if (u.includes('fxtwitter.com/fe2o3/status/125')) return new Response('# 备用域提取的文章标题\n\n' + '正文内容段落。'.repeat(12), { status: 200 });
+        throw new Error(`unexpected ${u}`);
+      }) as typeof fetch);
+      await archiveTweet(env, '944783507', 'fe2o3', '125', ctx);
+      await Promise.allSettled(pending);
+      const card = sendMessages().find((c) => String(c.body.text ?? '').includes('fixupx.com'));
+      expect(card).toBeTruthy();
+      expect(String(card!.body.text ?? '')).toContain('备用域提取的文章标题'); // 正文来自 fxtwitter 兜底
+      expect(saves.length).toBe(1); // Wayback save 指向 fixupx 展示链接
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('tweet 为空(FxEmbed 404) → 落 archiveUrl 通用链, 不抛错且发 TG', async () => {
