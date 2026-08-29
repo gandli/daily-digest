@@ -27,7 +27,7 @@ Every day at **08:30 (UTC+8)** it pushes the top 10 repos — one message per re
 | `/gt` | Today's chart (already fetched by cron; served instantly from the `digest:<date>` cache; trending is fixed for the day, never re-fetched) |
 | `/hn` | Today's HN cool products: reads `product/<date>.json` from the archive branch for an instant card; if missing, auto-triggers GitHub Actions and pushes when done |
 | `/ph` | **Product Hunt daily popular**: key-free official feed, top 10 with Chinese summaries as product cards (ogUrl preview); same-day cache; digest archived as `ph-<date>.md` |
-| `/search <keyword>` | Full-index search across 6000+ entries (stars/bookmarks/archives); on-page English descriptions translated in batch; paginated with inline-keyboard paging/jump |
+| `/search <keyword>` | **Hybrid search**: substring AND matching + Vectorize semantic supplements (✨ marked), covering 6000+ entries (stars/bookmarks/archives); on-page English descriptions translated in batch; paginated with inline-keyboard paging/jump |
 | `/archive [page]` | Paginated history list; each entry shows the **archive triple-link** (Telegraph → Internet Archive web.archive.org → GitHub md) |
 | `/start` `/help` anything else | Usage hints + command-menu registration |
 | Message containing a GitHub repo link | Single-repo lookup + Chinese description → OG card (no counter on single cards); already seen today → archive triple-link card |
@@ -56,16 +56,22 @@ Every archived link (web page / X post / repo) returns a **three-tier archive**,
 
 ## 🏗️ Architecture
 
+<p align="center">
+  <img src="./assets/readme/stack.svg" width="100%" alt="daily-digest service stack: inputs (cron and signature-verified rate-limited webhook) feed the Workers pipeline writing to KV/D1/Vectorize, with Telegram pushes and single-commit archive branch as outputs — all on the Cloudflare free tier">
+</p>
+
 - `src/sources/` source registry (an array is the registry; new source = new file + one line)
 - `src/zread.ts` / `src/deepwiki.ts` RSC payload overview extraction
 - `src/translate.ts` four-level translation fallback + isChinese guard + CF Summarization digests
 - `src/render.ts` three renderers: Telegram HTML / GitHub markdown / Telegraph nodes
 - `src/archive.ts` batched archiving: KV pending buffer (`pend:arc:*`) → Git Data API merges and pushes as one commit (daily cron + ≥20 threshold; falls back to direct Contents API PUT if KV fails) + Telegraph createPage + chunked base64
 - `src/lookup.ts` single-repo pipeline (URL archiving / four-level image chain / repo fan-out / dedup)
+- `src/d1.ts` D1 archive mirror: metadata upsert + markdown redundancy after flush; /archive queries D1 first with KV fallback (exactly 1 subrequest per call)
+- `src/vec.ts` Vectorize semantic index mirror (bge-m3, 1024-dim): source of /search hybrid-search supplements, queried only when substring hits fall short of a page
 - `src/urlmd.ts` any URL→markdown via three-tier free chain (Markdown for Agents → AI.toMarkdown → Browser Rendering)
 - `src/fxtweet.ts` X/Twitter post archiving (FxEmbed public API, article posts use the embedded title)
 - `scripts/manual/` user-manual pipeline: e2e scenarios drive the real worker → annotated chat screenshots → AI-written step-by-step docs → `.github/workflows/manual.yml` regenerates [docs/guide/](docs/guide/) on code changes
-- KV caches today's cron result; webhook signature timingSafeEqual + chat allowlist; /search backed by a single-key compressed index
+- KV caches today's cron result; webhook signature timingSafeEqual + chat allowlist + Rate Limiting (20/min); /search backed by a single-key compressed index + hybrid semantic search
 
 See [`docs/GOAL.md`](docs/GOAL.md) (acceptance criteria A1–A14), [`docs/INTERFACES.md`](docs/INTERFACES.md) (commands / HTTP endpoints / KV keys), [`docs/ROADMAP.md`](docs/ROADMAP.md) (progress), and [`docs/diagrams/`](docs/diagrams/) (architecture / sequence / data-flow diagrams).
 
@@ -76,7 +82,7 @@ npm install
 npm run dev        # wrangler dev --test-scheduled
 curl http://localhost:8787/__scheduled   # trigger cron pipeline manually
 npx tsc --noEmit   # type check
-npm test           # vitest, 550+ tests (44 files)
+npm test           # vitest, 697 tests (51 files)
 npm test -- --coverage   # coverage report
 npm run manual     # user-manual full pipeline: e2e scenarios → annotated screenshots → AI docs (template fallback without a key)
 ```
@@ -109,5 +115,5 @@ Pushing to main also triggers a changelog workflow that auto-updates [CHANGELOG.
 ---
 
 <p align="center">
-  <sub>Cloudflare Workers free tier · no DB · KV only · 550+ tests · CI auto-deploy · auto changelog · auto-generated user manual</sub>
+  <sub>Cloudflare free-tier suite: Workers · KV · D1 · Vectorize · AI · 697 tests · CI auto-deploy · auto changelog · auto-generated user manual</sub>
 </p>

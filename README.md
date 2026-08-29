@@ -27,7 +27,7 @@ GitHub Trending → **Telegram 每日中文摘要 bot**。Cloudflare Workers 免
 | `/gt` | 当日榜单(cron 已抓取,读 `digest:<date>` 缓存秒回;当天 trending 固定不重抓) |
 | `/hn` | 今日 HN 酷产品:读 archive 分支 `product/<date>.json` 秒回产品卡;未生成时自动触发 GitHub Actions,完成后推送 |
 | `/ph` | **Product Hunt 每日热门**:官方 feed 免 key 直拉 top10,中文摘要 + 产品卡(ogUrl 预览),当日缓存秒回;榜单存档 `ph-<日期>.md` |
-| `/search <关键词>` | 全索引搜索(星标/书签/存档 6000+ 条),结果当页英文描述批量译中,分页 + inline keyboard 翻页/跳转 |
+| `/search <关键词>` | **混合检索**:子串 AND 匹配 + Vectorize 语义补页(✨ 标记),覆盖星标/书签/存档 6000+ 条;结果当页英文描述批量译中,分页 + inline keyboard 翻页/跳转 |
 | `/archive [页码]` | 历史存档分页列表,每条约**存档三链**(Telegraph → 互联网档案馆 web.archive.org → GitHub md) |
 | `/start` `/help` 其他 | 使用提示 + 命令菜单注册 |
 | 含 GitHub 仓库链接 | 单仓 → 查询卡(无序号);**多个 repo 链接 → 逐仓联动卡(N/M 序号)**,全部已存档回一句话;当日已查回存档三链卡 |
@@ -56,16 +56,22 @@ deepwiki 概述(剥模板开场白)
 
 ## 🏗️ 架构
 
+<p align="center">
+  <img src="./assets/readme/stack.svg" width="100%" alt="daily-digest 服务栈:输入(cron 与 webhook 验签限流)经 Workers 管线写入 KV/D1/Vectorize,输出 Telegram 推送与 archive 分支单 commit,全部 Cloudflare 免费层">
+</p>
+
 - `src/sources/` 数据源注册表(数组即注册表;新增源=新文件+一行)
 - `src/zread.ts` / `src/deepwiki.ts` RSC payload 概述提取
 - `src/translate.ts` 四级翻译回退 + isChinese 守卫 + CF Summarization 摘要
 - `src/render.ts` Telegram HTML / GitHub markdown / Telegraph nodes 三种渲染
 - `src/archive.ts` 存档批量化:KV pending 缓冲(`pend:arc:*`) → Git Data API 合并 push 为一个 commit(每日 cron + 缓冲 ≥20 触发;KV 故障回落 Contents API 直推) + Telegraph createPage + 分块 base64 编码
 - `src/lookup.ts` 单仓库查询管线(URL 存档/OG 四级图链/repo 联动/去重)
+- `src/d1.ts` D1 存档镜像:元数据 upsert + flush 后 markdown 冗余;/archive 查询 D1 优先、KV 兜底(每次调用恒 1 子请求)
+- `src/vec.ts` Vectorize 语义索引镜像(bge-m3 1024 维):/search 混合检索的补页来源,子串命中不足一页才查询省子请求
 - `src/urlmd.ts` 任意 URL→markdown 三级免费链(Markdown for Agents → AI.toMarkdown → Browser Rendering)
 - `src/fxtweet.ts` X/Twitter 帖子存档(FxEmbed 公共 API,article 长文直用内嵌标题)
 - `scripts/manual/` 用户手册自动化管线:e2e 场景驱动真实 worker → 合成聊天截图(带标注) → AI 生成逐步说明 → `.github/workflows/manual.yml` 随代码变更重生成 [docs/guide/](docs/guide/)
-- KV 缓存当日 cron 结果;webhook 验签 timingSafeEqual + chat 白名单;/search 用 KV 存档索引
+- KV 缓存当日 cron 结果;webhook 验签 timingSafeEqual + chat 白名单 + Rate Limiting(20 次/分);/search 用 KV 单键压缩索引 + 语义混合检索
 
 详见 [`docs/GOAL.md`](docs/GOAL.md)(验收标准 A1–A14)。接口/命令/KV 键详表见 [`docs/INTERFACES.md`](docs/INTERFACES.md)， 开发进度见 [`docs/ROADMAP.md`](docs/ROADMAP.md)， 架构/数据流/时序图见 [`docs/diagrams/*.mmd`](docs/diagrams/)。
 
@@ -76,7 +82,7 @@ npm install
 npm run dev        # wrangler dev --test-scheduled
 curl http://localhost:8787/__scheduled   # 手动触发 cron 管线
 npx tsc --noEmit   # 类型检查
-npm test           # vitest 550+ 用例(45 文件)
+npm test           # vitest 697 用例(51 文件)
 npm test -- --coverage  # 覆盖率报告
 npm run manual     # 用户手册全管线: e2e 场景 → 标注截图 → AI 正文(无 key 自动模板兜底)
 ```
@@ -109,5 +115,5 @@ main push 另触发 changelog workflow 自动更新 [CHANGELOG.md](CHANGELOG.md)
 ---
 
 <p align="center">
-  <sub>Cloudflare Workers 免费层 · 无 DB · KV only · 550+ tests · CI 自动部署 · changelog 自动生成 · 用户手册自动生成</sub>
+  <sub>Cloudflare 免费层全家桶:Workers · KV · D1 · Vectorize · AI · 697 tests · CI 自动部署 · changelog 自动生成 · 用户手册自动生成</sub>
 </p>
