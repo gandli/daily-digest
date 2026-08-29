@@ -14,7 +14,7 @@
       },
       {
         "actor": "bot",
-        "text": "📊 daily-digest 使用\n\n<b>命令</b>\n/gt — 今日 GitHub Trending\n/hn — 今日 HN 酷产品\n/ph — Product Hunt 每日热门\n/search 关键词 — 搜索历史存档\n/archive — 历史存档(分页+三链)\n\n<b>链接</b>\nGitHub 仓库链接 → 单仓查询存档\nX/Twitter 链接 → 帖子存档\n任意网页链接 → markdown 存档\n\n每天 08:30(北京时间)自动推送。",
+        "text": "📊 daily-digest 使用\n\n<b>命令</b>\n/gt — 查询今日 GitHub Trending\n/hn — 查询今日 Hacker News 酷产品\n/ph — 查询今日 Product Hunt 热门产品\n/search 关键词 — 搜索历史存档\n/archive — 历史存档(分页+三链)\n\n<b>链接</b>\nGitHub 仓库链接 → 单仓查询存档\nX/Twitter 链接 → 帖子存档\n任意网页链接 → markdown 存档\n\n每天 08:30(北京时间)自动推送。",
         "note": "先显示「正在输入…」"
       }
     ]
@@ -39,12 +39,12 @@
       },
       {
         "actor": "bot",
-        "text": "<b>1/2</b> <b><a href=\"https://github.com/antirez/kilo\">antirez/kilo</a></b> ⭐ 3.2k\n\n👤 antirez\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending #c #editor\n\n🗂 <a href=\"https://deepwiki.com/antirez/kilo\">deepwiki</a> · <a href=\"https://zread.ai/antirez/kilo\">zread</a> · <a href=\"https://codewiki.google/github.com/antirez/kilo\">codewiki</a>\n📁 <a href=\"https://web.archive.org/web/2/https://github.com/antirez/kilo\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29.md\">Archive</a>",
+        "text": "<b>1/2</b> <b><a href=\"https://github.com/antirez/kilo\">antirez/kilo</a></b> ⭐ 3.2k\n\n👤 antirez\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending #c #editor\n\n🗂 <a href=\"https://deepwiki.com/antirez/kilo\">deepwiki</a> · <a href=\"https://zread.ai/antirez/kilo\">zread</a> · <a href=\"https://codewiki.google/github.com/antirez/kilo\">codewiki</a>\n📁 <a href=\"https://web.archive.org/web/2/https://github.com/antirez/kilo\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30.md\">Archive</a>",
         "photo": "https://opengraph.githubassets.com/1/antirez/kilo"
       },
       {
         "actor": "bot",
-        "text": "<b>2/2</b> <b><a href=\"https://github.com/sharkdp/bat\">sharkdp/bat</a></b> ⭐ 50.0k\n\n👤 sharkdp\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending\n\n🗂 <a href=\"https://deepwiki.com/sharkdp/bat\">deepwiki</a> · <a href=\"https://zread.ai/sharkdp/bat\">zread</a> · <a href=\"https://codewiki.google/github.com/sharkdp/bat\">codewiki</a>\n📁 <a href=\"https://web.archive.org/web/2/https://github.com/sharkdp/bat\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29.md\">Archive</a>",
+        "text": "<b>2/2</b> <b><a href=\"https://github.com/sharkdp/bat\">sharkdp/bat</a></b> ⭐ 50.0k\n\n👤 sharkdp\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending\n\n🗂 <a href=\"https://deepwiki.com/sharkdp/bat\">deepwiki</a> · <a href=\"https://zread.ai/sharkdp/bat\">zread</a> · <a href=\"https://codewiki.google/github.com/sharkdp/bat\">codewiki</a>\n📁 <a href=\"https://web.archive.org/web/2/https://github.com/sharkdp/bat\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30.md\">Archive</a>",
         "photo": "https://opengraph.githubassets.com/1/sharkdp/bat"
       },
       {
@@ -53,12 +53,12 @@
       },
       {
         "actor": "bot",
-        "text": "<b>1/2</b> <b><a href=\"https://github.com/antirez/kilo\">antirez/kilo</a></b> ⭐ 3.2k\n\n👤 antirez\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending #c #editor\n\n🗂 <a href=\"https://deepwiki.com/antirez/kilo\">deepwiki</a> · <a href=\"https://zread.ai/antirez/kilo\">zread</a> · <a href=\"https://codewiki.google/github.com/antirez/kilo\">codewiki</a>\n📁 <a href=\"https://web.archive.org/web/2/https://github.com/antirez/kilo\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29.md\">Archive</a>",
+        "text": "<b>1/2</b> <b><a href=\"https://github.com/antirez/kilo\">antirez/kilo</a></b> ⭐ 3.2k\n\n👤 antirez\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending #c #editor\n\n🗂 <a href=\"https://deepwiki.com/antirez/kilo\">deepwiki</a> · <a href=\"https://zread.ai/antirez/kilo\">zread</a> · <a href=\"https://codewiki.google/github.com/antirez/kilo\">codewiki</a>\n📁 <a href=\"https://web.archive.org/web/2/https://github.com/antirez/kilo\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30.md\">Archive</a>",
         "note": "先显示「正在输入…」"
       },
       {
         "actor": "bot",
-        "text": "<b>2/2</b> <b><a href=\"https://github.com/sharkdp/bat\">sharkdp/bat</a></b> ⭐ 50.0k\n\n👤 sharkdp\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending\n\n🗂 <a href=\"https://deepwiki.com/sharkdp/bat\">deepwiki</a> · <a href=\"https://zread.ai/sharkdp/bat\">zread</a> · <a href=\"https://codewiki.google/github.com/sharkdp/bat\">codewiki</a>\n📁 <a href=\"https://web.archive.org/web/2/https://github.com/sharkdp/bat\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29.md\">Archive</a>"
+        "text": "<b>2/2</b> <b><a href=\"https://github.com/sharkdp/bat\">sharkdp/bat</a></b> ⭐ 50.0k\n\n👤 sharkdp\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending\n\n🗂 <a href=\"https://deepwiki.com/sharkdp/bat\">deepwiki</a> · <a href=\"https://zread.ai/sharkdp/bat\">zread</a> · <a href=\"https://codewiki.google/github.com/sharkdp/bat\">codewiki</a>\n📁 <a href=\"https://web.archive.org/web/2/https://github.com/sharkdp/bat\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30.md\">Archive</a>"
       }
     ]
   },
@@ -86,7 +86,7 @@
       },
       {
         "actor": "bot",
-        "text": "🚀 <b>2026-08-29</b>\n\n<b><a href=\"https://linear.app\">Linear — 快得离谱的项目管理工具</a></b>\n👤 by karpathy · about 3 hours ago\n\n📝 一款以速度著称的产品规划与 issue 跟踪工具。\n\n💬 \"Linear is a better way to build products\"\n #product #saas #planning\n\n📁 <a href=\"https://telegra.ph/product-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://linear.app\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29.md\">Archive</a>",
+        "text": "🚀 <b>2026-08-30</b>\n\n<b><a href=\"https://linear.app\">Linear — 快得离谱的项目管理工具</a></b>\n👤 by karpathy · about 3 hours ago\n\n📝 一款以速度著称的产品规划与 issue 跟踪工具。\n\n💬 \"Linear is a better way to build products\"\n #product #saas #planning\n\n📁 <a href=\"https://telegra.ph/product-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://linear.app\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30.md\">Archive</a>",
         "photo": "https://opengraph.githubassets.com/1/antirez/kilo",
         "note": "先显示「正在输入…」",
         "annotate": {
@@ -111,7 +111,7 @@
       },
       {
         "actor": "bot",
-        "text": "📂 历史存档 (第 1/2 页, 共 14 条)\n\n<b><a href=\"https://github.com/sharkdp/bat\">sharkdp/bat</a></b> · 2026-08-29\n　📝 这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n　<a href=\"https://web.archive.org/web/2/https://github.com/sharkdp/bat\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29.md\">Archive</a>\n\n<b><a href=\"https://github.com/demo/repo-11\">demo/repo-11</a></b> · 2026-08-29T083000\n　📝 demo/repo-11 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-11\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29T083000.md\">Archive</a>\n\n<b><a href=\"https://github.com/demo/repo-10\">demo/repo-10</a></b> · 2026-08-29T083000\n　📝 demo/repo-10 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-10\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29T083000.md\">Archive</a>\n\n<b><a href=\"https://github.com/demo/repo-09\">demo/repo-09</a></b> · 2026-08-29T083000\n　📝 demo/repo-09 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-09\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29T083000.md\">Archive</a>\n\n<b><a href=\"https://github.com/demo/repo-08\">demo/repo-08</a></b> · 2026-08-29T083000\n　📝 demo/repo-08 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-08\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29T083000.md\">Archive</a>\n\n<b><a href=\"https://github.com/demo/repo-07\">demo/repo-07</a></b> · 2026-08-29T083000\n　📝 demo/repo-07 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-07\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29T083000.md\">Archive</a>\n\n<b><a href=\"https://github.com/demo/repo-06\">demo/repo-06</a></b> · 2026-08-29T083000\n　📝 demo/repo-06 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-06\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29T083000.md\">Archive</a>\n\n<b><a href=\"https://github.com/demo/repo-05\">demo/repo-05</a></b> · 2026-08-29T083000\n　📝 demo/repo-05 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-05\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29T083000.md\">Archive</a>\n\n<b><a href=\"https://github.com/demo/repo-04\">demo/repo-04</a></b> · 2026-08-29T083000\n　📝 demo/repo-04 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-04\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29T083000.md\">Archive</a>\n\n<b><a href=\"https://github.com/demo/repo-03\">demo/repo-03</a></b> · 2026-08-29T083000\n　📝 demo/repo-03 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-03\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29T083000.md\">Archive</a>",
+        "text": "📂 历史存档 (第 1/2 页, 共 14 条)\n\n<b><a href=\"https://github.com/sharkdp/bat\">sharkdp/bat</a></b> · 2026-08-30\n　📝 这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n　<a href=\"https://web.archive.org/web/2/https://github.com/sharkdp/bat\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30.md\">Archive</a>\n\n<b><a href=\"https://github.com/demo/repo-11\">demo/repo-11</a></b> · 2026-08-30T083000\n　📝 demo/repo-11 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-11\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30T083000.md\">Archive</a>\n\n<b><a href=\"https://github.com/demo/repo-10\">demo/repo-10</a></b> · 2026-08-30T083000\n　📝 demo/repo-10 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-10\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30T083000.md\">Archive</a>\n\n<b><a href=\"https://github.com/demo/repo-09\">demo/repo-09</a></b> · 2026-08-30T083000\n　📝 demo/repo-09 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-09\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30T083000.md\">Archive</a>\n\n<b><a href=\"https://github.com/demo/repo-08\">demo/repo-08</a></b> · 2026-08-30T083000\n　📝 demo/repo-08 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-08\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30T083000.md\">Archive</a>\n\n<b><a href=\"https://github.com/demo/repo-07\">demo/repo-07</a></b> · 2026-08-30T083000\n　📝 demo/repo-07 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-07\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30T083000.md\">Archive</a>\n\n<b><a href=\"https://github.com/demo/repo-06\">demo/repo-06</a></b> · 2026-08-30T083000\n　📝 demo/repo-06 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-06\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30T083000.md\">Archive</a>\n\n<b><a href=\"https://github.com/demo/repo-05\">demo/repo-05</a></b> · 2026-08-30T083000\n　📝 demo/repo-05 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-05\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30T083000.md\">Archive</a>\n\n<b><a href=\"https://github.com/demo/repo-04\">demo/repo-04</a></b> · 2026-08-30T083000\n　📝 demo/repo-04 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-04\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30T083000.md\">Archive</a>\n\n<b><a href=\"https://github.com/demo/repo-03\">demo/repo-03</a></b> · 2026-08-30T083000\n　📝 demo/repo-03 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-03\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30T083000.md\">Archive</a>",
         "buttons": {
           "inline_keyboard": [
             [
@@ -139,7 +139,7 @@
       },
       {
         "actor": "bot",
-        "text": "📂 历史存档 (第 2/2 页, 共 14 条)\n\n<b><a href=\"https://github.com/demo/repo-02\">demo/repo-02</a></b> · 2026-08-29T083000\n　📝 demo/repo-02 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-02\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29T083000.md\">Archive</a>\n\n<b><a href=\"https://github.com/demo/repo-01\">demo/repo-01</a></b> · 2026-08-29T083000\n　📝 demo/repo-01 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-01\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29T083000.md\">Archive</a>\n\n<b><a href=\"https://github.com/demo/repo-00\">demo/repo-00</a></b> · 2026-08-29T083000\n　📝 demo/repo-00 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-00\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29T083000.md\">Archive</a>\n\n<b><a href=\"https://github.com/antirez/kilo\">antirez/kilo</a></b> · 2026-08-29\n　📝 这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n　🏷 #c #editor\n　<a href=\"https://web.archive.org/web/2/https://github.com/antirez/kilo\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29.md\">Archive</a>",
+        "text": "📂 历史存档 (第 2/2 页, 共 14 条)\n\n<b><a href=\"https://github.com/demo/repo-02\">demo/repo-02</a></b> · 2026-08-30T083000\n　📝 demo/repo-02 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-02\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30T083000.md\">Archive</a>\n\n<b><a href=\"https://github.com/demo/repo-01\">demo/repo-01</a></b> · 2026-08-30T083000\n　📝 demo/repo-01 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-01\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30T083000.md\">Archive</a>\n\n<b><a href=\"https://github.com/demo/repo-00\">demo/repo-00</a></b> · 2026-08-30T083000\n　📝 demo/repo-00 的中文摘要示例。\n　🏷 #demo\n　<a href=\"https://telegra.ph/bat-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://github.com/demo/repo-00\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30T083000.md\">Archive</a>\n\n<b><a href=\"https://github.com/antirez/kilo\">antirez/kilo</a></b> · 2026-08-30\n　📝 这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n　🏷 #c #editor\n　<a href=\"https://web.archive.org/web/2/https://github.com/antirez/kilo\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30.md\">Archive</a>",
         "buttons": {
           "inline_keyboard": [
             [
@@ -221,7 +221,7 @@
       },
       {
         "actor": "bot",
-        "text": "<b><a href=\"https://github.com/antirez/kilo\">antirez/kilo</a></b> ⭐ 3.2k · #C\n\n👤 antirez\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending #c #editor\n\n🗂 <a href=\"https://deepwiki.com/antirez/kilo\">deepwiki</a> · <a href=\"https://zread.ai/antirez/kilo\">zread</a> · <a href=\"https://codewiki.google/github.com/antirez/kilo\">codewiki</a>\n📁 <a href=\"https://web.archive.org/web/2/https://github.com/antirez/kilo\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29.md\">Archive</a>",
+        "text": "<b><a href=\"https://github.com/antirez/kilo\">antirez/kilo</a></b> ⭐ 3.2k · #C\n\n👤 antirez\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending #c #editor\n\n🗂 <a href=\"https://deepwiki.com/antirez/kilo\">deepwiki</a> · <a href=\"https://zread.ai/antirez/kilo\">zread</a> · <a href=\"https://codewiki.google/github.com/antirez/kilo\">codewiki</a>\n📁 <a href=\"https://web.archive.org/web/2/https://github.com/antirez/kilo\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30.md\">Archive</a>",
         "photo": "https://opengraph.githubassets.com/1/antirez/kilo",
         "note": "先显示「正在输入…」",
         "annotate": {
@@ -246,7 +246,7 @@
       },
       {
         "actor": "bot",
-        "text": "<b><a href=\"https://x.com/Smartpigai/status/2093191865193677285\">小而美命令行工具</a></b>\n\n刚刚发布了一个用于摘要整理的新命令行工具！\n\n#archive #开发工具 #命令行\n\n📁 <a href=\"https://web.archive.org/web/2/https://x.com/Smartpigai/status/2093191865193677285\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29-<stamp>.md\">Archive</a>",
+        "text": "<b><a href=\"https://x.com/Smartpigai/status/2093191865193677285\">小而美命令行工具</a></b>\n\n刚刚发布了一个用于摘要整理的新命令行工具！\n\n#archive #开发工具 #命令行\n\n📁 <a href=\"https://web.archive.org/web/2/https://x.com/Smartpigai/status/2093191865193677285\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30-<stamp>.md\">Archive</a>",
         "photo": "https://opengraph.githubassets.com/1/antirez/kilo",
         "note": "先显示「正在输入…」"
       },
@@ -256,7 +256,7 @@
       },
       {
         "actor": "bot",
-        "text": "<b><a href=\"https://x.com/Smartpigai/status/2093191865193677286\">小而美命令行工具</a></b>\n\n新仪表盘的截图 —— 一条帖子里的四个视图。\n\n#archive #开发工具 #命令行\n\n📁 <a href=\"https://web.archive.org/web/2/https://x.com/Smartpigai/status/2093191865193677286\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29-<stamp>.md\">Archive</a>",
+        "text": "<b><a href=\"https://x.com/Smartpigai/status/2093191865193677286\">小而美命令行工具</a></b>\n\n新仪表盘的截图 —— 一条帖子里的四个视图。\n\n#archive #开发工具 #命令行\n\n📁 <a href=\"https://web.archive.org/web/2/https://x.com/Smartpigai/status/2093191865193677286\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30-<stamp>.md\">Archive</a>",
         "photo": "https://opengraph.githubassets.com/1/antirez/kilo",
         "note": "先显示「正在输入…」",
         "annotate": {
@@ -281,7 +281,7 @@
       },
       {
         "actor": "bot",
-        "text": "<b><a href=\"https://example.com/blog/demo-post\">小而美命令行工具</a></b>\n\n📝 这是一段用于手册演示的中文摘要, 说明该内容的核心要点。\n\n#archive #开发工具 #命令行\n\n📁 <a href=\"https://web.archive.org/web/2/https://example.com/blog/demo-post\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29-<stamp>.md\">Archive</a>",
+        "text": "<b><a href=\"https://example.com/blog/demo-post\">小而美命令行工具</a></b>\n\n📝 这是一段用于手册演示的中文摘要, 说明该内容的核心要点。\n\n#archive #开发工具 #命令行\n\n📁 <a href=\"https://web.archive.org/web/2/https://example.com/blog/demo-post\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30-<stamp>.md\">Archive</a>",
         "photo": "https://www.google.com/s2/favicons?domain=example.com&sz=64",
         "note": "先显示「正在输入…」",
         "annotate": {
@@ -306,7 +306,7 @@
       },
       {
         "actor": "bot",
-        "text": "♻️ <b><a href=\"https://example.com/blog/demo-post\">示例博文: 演示页</a></b>\n\n📝 这是一篇用于演示重发语义的示例文章摘要。\n\n📁 <a href=\"https://telegra.ph/demo-page-08-28\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://example.com/blog/demo-post\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29T090000.md\">Archive</a>",
+        "text": "♻️ <b><a href=\"https://example.com/blog/demo-post\">示例博文: 演示页</a></b>\n\n📝 这是一篇用于演示重发语义的示例文章摘要。\n\n📁 <a href=\"https://telegra.ph/demo-page-08-28\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://example.com/blog/demo-post\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30T090000.md\">Archive</a>",
         "note": "先显示「正在输入…」",
         "annotate": {
           "target": "bubble",
@@ -328,12 +328,12 @@
       },
       {
         "actor": "bot",
-        "text": "<b>1/2</b> <b><a href=\"https://github.com/antirez/kilo\">antirez/kilo</a></b> ⭐ 3.2k\n\n👤 antirez\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending #c #editor\n\n🗂 <a href=\"https://deepwiki.com/antirez/kilo\">deepwiki</a> · <a href=\"https://zread.ai/antirez/kilo\">zread</a> · <a href=\"https://codewiki.google/github.com/antirez/kilo\">codewiki</a>\n📁 <a href=\"https://web.archive.org/web/2/https://github.com/antirez/kilo\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29.md\">Archive</a>",
+        "text": "<b>1/2</b> <b><a href=\"https://github.com/antirez/kilo\">antirez/kilo</a></b> ⭐ 3.2k\n\n👤 antirez\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending #c #editor\n\n🗂 <a href=\"https://deepwiki.com/antirez/kilo\">deepwiki</a> · <a href=\"https://zread.ai/antirez/kilo\">zread</a> · <a href=\"https://codewiki.google/github.com/antirez/kilo\">codewiki</a>\n📁 <a href=\"https://web.archive.org/web/2/https://github.com/antirez/kilo\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30.md\">Archive</a>",
         "photo": "https://opengraph.githubassets.com/1/antirez/kilo"
       },
       {
         "actor": "bot",
-        "text": "<b>2/2</b> <b><a href=\"https://github.com/sharkdp/bat\">sharkdp/bat</a></b> ⭐ 50.0k\n\n👤 sharkdp\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending\n\n🗂 <a href=\"https://deepwiki.com/sharkdp/bat\">deepwiki</a> · <a href=\"https://zread.ai/sharkdp/bat\">zread</a> · <a href=\"https://codewiki.google/github.com/sharkdp/bat\">codewiki</a>\n📁 <a href=\"https://web.archive.org/web/2/https://github.com/sharkdp/bat\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29.md\">Archive</a>",
+        "text": "<b>2/2</b> <b><a href=\"https://github.com/sharkdp/bat\">sharkdp/bat</a></b> ⭐ 50.0k\n\n👤 sharkdp\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending\n\n🗂 <a href=\"https://deepwiki.com/sharkdp/bat\">deepwiki</a> · <a href=\"https://zread.ai/sharkdp/bat\">zread</a> · <a href=\"https://codewiki.google/github.com/sharkdp/bat\">codewiki</a>\n📁 <a href=\"https://web.archive.org/web/2/https://github.com/sharkdp/bat\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30.md\">Archive</a>",
         "photo": "https://opengraph.githubassets.com/1/sharkdp/bat",
         "annotate": {
           "target": "bubble",
