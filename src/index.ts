@@ -1,7 +1,7 @@
 import type { Env, SourceItem } from './types';
 import { fetchTrending } from './sources/trending';
 import { resolveDescriptions } from './translate';
-import { renderMessage, renderMarkdown, renderTelegraphNodes, renderProductMessage, esc } from './render';
+import { renderMessage, renderMarkdown, renderTelegraphNodes, renderProductMessage, esc, yearOf } from './render';
 import { sendPerRepoMessages, sendTelegram, sendChatAction, sendPhotoOrText, registerCommands, safeEqual, sendTelegramKbd, answerCallbackQuery, editMessageKbd, type InlineKB } from './notify';
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage, createTelegraphAccount, flushArchivedPending } from './archive';
 import { extractRepo, extractRepoRefs, today, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, archiveLinks, backfillDescriptions, saveToWayback } from './lookup';
@@ -105,7 +105,7 @@ export async function searchArchive(env: Env, chatId: string, query: string, pag
       const d = ld || (h.desc ? (zhMap.get(h.desc) || h.desc) : '');
       if (h.src === 'arch') {
         const date = h.url; // url 槽存 date
-        const link = `https://github.com/${repo}/blob/archive/archive/${date.slice(0, 4)}/${date}.md`;
+        const link = `https://github.com/${repo}/blob/archive/archive/${yearOf(date)}/${date}.md`;
         return `📄 <a href="${link}">${esc(h.name)} · ${date}</a>${d ? `\n   ${esc(d)}` : ''}`;
       }
       return `${h.src === 'star' ? '⭐' : '📑'} <a href="${h.url}">${esc(h.name)}</a>${d ? `\n   ${esc(d)}` : ''}`;
@@ -468,7 +468,7 @@ async function replyArchived(env: Env, chatId: string, repo: string): Promise<vo
     return;
   }
   const archiveRepo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
-  const link = `https://github.com/${archiveRepo}/blob/archive/archive/${it.date.slice(0, 4)}/${it.date}.md`;
+  const link = `https://github.com/${archiveRepo}/blob/archive/archive/${yearOf(it.date)}/${it.date}.md`;
     const d = (it.descZh ?? it.desc ?? '').trim();
     // 三链: Telegraph(当日有页) → web.archive(repo 源 URL) → GitHub md
     const tgUrl = (await env.CACHE.get(`archive:tg:${it.date}`).catch(() => null)) || '';
@@ -506,7 +506,7 @@ async function renderArchivePage(env: Env, page: number): Promise<{ text: string
     let it: { repo: string; date: string; desc?: string; descZh?: string; topics?: string[] };
     try { it = JSON.parse(raw); } catch { continue; }
     const date = it.date;
-        const link = `https://github.com/${repo}/blob/archive/archive/${date.slice(0, 4)}/${date}.md`;
+        const link = `https://github.com/${repo}/blob/archive/archive/${yearOf(date)}/${date}.md`;
         const tgUrl = (await env.CACHE.get(`archive:tg:${date}`)) || '';
         const d = (it.descZh ?? it.desc ?? '').trim();
         // 三链各给: repo 源 URL → web.archive, 当日 telegraph, github md
