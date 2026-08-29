@@ -395,11 +395,15 @@ export async function backfillDescriptions(env: Env, limit = 40): Promise<void> 
 export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: ExecutionContext): Promise<void> {
   // og:image 预取(与转换共用一次下载的代价可忽略; 失败静默——图是增强不是必需)
   let photo: string | undefined;
+  let ogTitle: string | null = null; // 标题首选源: 与 extractOgImage 同一次下载零额外代价
   try {
     const h = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(10000) });
     if (h.ok) {
       const head = (await h.text()).slice(0, 100_000); // meta 在头部
       photo = extractOgImage(head) ?? undefined;
+      ogTitle = head.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)?.[1]
+        ?? head.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i)?.[1]
+        ?? null;
       // OG 缺失兜底: apple-touch-icon / favicon(HEAD 探活省流量)
       if (!photo) {
         const origin = new URL(url).origin;
@@ -453,12 +457,23 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
   try {
     await archiveToGitHub(env, stamp, `# Web Archive · ${url}\n\n${clipped}\n\n---\n由 daily-digest bot 自动生成`);
     const host = new URL(url).hostname;
-    // 标题: md 首行非空非标点优先(页面标题), 否则原 URL 域名; 英文 → 中文
-    let title = md.split('\n').map((l) => l.trim()).find((l) => l && !/^[#*>\-|`]/.test(l) && !/^https?:\/\//i.test(l)) ?? host;
-    title = title.replace(/[#*>`[\]()!-]/g, '').trim().slice(0, 80);
+    // 标题优先级: og:title → md 首个 heading(页面 H1, 旧逻辑误排除) → md 首行非结构文本 → host
+    const heading = md.split('\n').map((l) => l.trim()).find((l) => /^#{1,3}\s+\S/.test(l))?.replace(/^#+\s*/, '');
+    let title = [ogTitle, heading].map((t) => t?.replace(/[#*>`[\]()]/g, '').trim()).find((t) => t && t.length > 4)
+      ?? md.split('\n').map((l) => l.trim()).find((l) => l && !/^[#*>\-|`]/.test(l) && !/^https?:\/\//i.test(l))
+      ?? host;
+    title = title.replace(/[#*>`[\]()]/g, '').trim().replace(/\s+/g, ' ').slice(0, 80);
+    // 不适合当标题(是 URL/域名/导航样板/纯日期数字) → 视同无标题, 走 LLM 生成
+    const junkTitle = !title || title === host || /^https?:\/\//.test(title)
+      || /^(跳至主要内容|跳到内容|skip to content|menu|导航|首页)/i.test(title)
+      || /^[\d\s,，:：.\-年月日]+$/.test(title);
     let titleZh = title;
-    if (!isChinese(titleZh) && env.OPENROUTER_API_KEY) {
-      titleZh = (await generateTitleZh(env, title).catch(() => null)) ?? (await translateTextZh(env, title).catch(() => null)) ?? title;
+    if ((!isChinese(titleZh) || junkTitle) && env.OPENROUTER_API_KEY) {
+      // 垃圾标题时喂正文前 600 字让 LLM 生成; 翻译兜底只对非垃圾原文有意义
+      const src = junkTitle ? clipped.slice(0, 600) : title;
+      titleZh = (await generateTitleZh(env, src).catch(() => null))
+        ?? (junkTitle ? null : await translateTextZh(env, title).catch(() => null))
+        ?? title;
     }
     // Telegraph 存档(单页; 失败静默——增强非必需)
     let tgPageUrl = '';
