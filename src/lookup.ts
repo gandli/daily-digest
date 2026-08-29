@@ -276,7 +276,8 @@ export async function lookupRepo(env: Env, chatId: string, repo: string): Promis
   await sendPerRepoMessages(env.BOT_TOKEN, chatId, chunks.map((html) => ({ html, photo: `https://opengraph.githubassets.com/1/${item.title}`, ogUrl: item.url })), env.GH_ARCHIVE_REPO || 'gandli/daily-digest', env.CACHE);
   saveToWayback(item.url); // lookupRepo 无 ctx(整体跑在外层 waitUntil 内), 浮动 promise——helper 注释见上
   // 索引独立写入, 不依赖 archive 成功(archive 抛错 → 索引仍落, 避免 seenToday 死循环)
-  const stamp = `${today()}-${Date.now() % 86400000}`; // 单次计算: 索引 date 必须等于实际文件名
+  // 文件名带 repo 标识(owner__repo-日期-ms), 否则纯日期名在 archive 分支无法辨识, 像丢了
+  const stamp = `${item.title.replace(/\//g, '__')}-${today()}-${Date.now() % 86400000}`; // 单次计算: 索引 date 必须等于实际文件名
   try {
     await indexArchivedItems(env, [item], stamp); // /search 索引
   } catch {
@@ -286,7 +287,7 @@ export async function lookupRepo(env: Env, chatId: string, repo: string): Promis
   try {
     const ogPath = await archiveOgImage(env, item.title);
     const md = renderMarkdown(today(), [item], undefined, ogPath ? new Map([[item.title, ogPath]]) : undefined);
-    await archiveToGitHub(env, stamp, md);
+    await archiveToGitHub(env, stamp, md, today().slice(0, 4)); // 目录取北京日期年份, 与文件名前缀(repo)解耦
   } catch {
     /* 存档失败静默 */
   }

@@ -88,14 +88,14 @@ async function putToArchiveBranchDirect(env: Env, path: string, contentB64: stri
 // GitHub 存档 + Telegraph 备份。两者失败都只记日志,不中断管线。
 // 存档并入主仓(gandli/daily-digest-archive 已合并, GH_ARCHIVE_REPO 覆写留作备用)。
 // 存档文件先进 KV 缓冲(scheduled / webhook 攒够阈值时批量刷写), 不再逐文件即时 PUT。
-export async function archiveToGitHub(env: Env, dateStr: string, markdown: string): Promise<void> {
-  const path = `archive/${dateStr.slice(0, 4)}/${dateStr}.md`;
+export async function archiveToGitHub(env: Env, dateStr: string, markdown: string, year?: string): Promise<void> {
+  const path = `archive/${year ?? dateStr.slice(0, 4)}/${dateStr}.md`;
   await pendArchive(env, path, markdown, `digest: ${dateStr}`, 'utf-8');
 }
 
 /** X 帖子等带完整时间戳文件名的存档(lookup.ts 同形态)。 */
-export async function archiveDatedToGitHub(env: Env, stamp: string, markdown: string): Promise<void> {
-  const path = `archive/${stamp.slice(0, 4)}/${stamp}.md`;
+export async function archiveDatedToGitHub(env: Env, stamp: string, markdown: string, year?: string): Promise<void> {
+  const path = `archive/${year ?? stamp.slice(0, 4)}/${stamp}.md`;
   await pendArchive(env, path, markdown, `archive: ${stamp}`, 'utf-8');
 }
 

@@ -38,7 +38,7 @@ vi.mock('../src/translate', () => ({
   generateTitleZh: async () => '测试标题',
 }));
 vi.mock('../src/archive', () => ({
-  archiveToGitHub: async () => {},
+  archiveToGitHub: vi.fn(async () => {}),
   archiveOgImage: async () => null,
   createTelegraphAccount: vi.fn(async () => 'mock-tg-token'), // 默认建号成功
   createTelegraphPage: vi.fn(async () => mockTgPageUrl()),
@@ -49,7 +49,7 @@ vi.mock('../src/urlmd', () => ({
 }));
 
 import { lookupRepo, fanoutRepoRefs, backfillDescriptions, archiveUrl, markProcessed, refreshLookupDescriptions } from '../src/lookup';
-import { createTelegraphPage } from '../src/archive';
+import { archiveToGitHub, createTelegraphPage } from '../src/archive';
 import { renderMessage } from '../src/render';
 
 // ---- 内存 KV stub(+list) ----
@@ -109,6 +109,16 @@ describe('fetchRepo: GitHub API 解析(私有, 经 lookupRepo)', () => {
     expect(createTelegraphPage).toHaveBeenCalledWith('tg', 'nousresearch/hermes-agent', expect.anything());
     expect(renderMessage).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'https://telegra.ph/repo-page-1');
     expect(saves).toEqual(['https://web.archive.org/save/https://github.com/nousresearch/hermes-agent']);
+  });
+
+  it('repo 存档文件名带 repo 标识, 年份目录取北京日期年', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ghResponse({ full_name: 'amap-cvlab/ABot-Recon', description: 'd', stargazers_count: 1, language: 'Rust', topics: [] })));
+    archiveToGitHub.mockClear();
+    await lookupRepo(makeEnv(), 'chat', 'amap-cvlab/ABot-Recon');
+    expect(archiveToGitHub).toHaveBeenCalledTimes(1);
+    const [, name, , year] = archiveToGitHub.mock.calls[0];
+    expect(name).toMatch(/^amap-cvlab__ABot-Recon-20\d{2}-\d{2}-\d{2}-\d+$/); // repo__名-日期-ms, 可辨识
+    expect(year).toMatch(/^20\d{2}$/);
   });
   it('404 → 找不到仓库提示(不发卡)', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ghResponse({ message: 'Not Found' }, 404)));

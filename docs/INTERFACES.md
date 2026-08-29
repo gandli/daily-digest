@@ -65,6 +65,8 @@ Binding `CACHE`。
 
 **存档批量化**: 三个存档函数 (`archiveToGitHub` / `archiveDatedToGitHub` / `archiveOgImage`) 不再逐文件 PUT， 而是写 KV `pend:arc:*` 缓冲； `flushArchivedPending()` 经 **Git Data API** (ref→blobs→tree→commit→ref) 把缓冲合并为**一个 commit** 推 archive 分支 (单批 ≤40 文件)。触发: 每日 `scheduled()` 末尾 + webhook 侧缓冲 ≥20 条机会性触发。成功才删键， 失败保留重试； ref 409 重取 base 重建； KV 故障回落 Contents API 直推。**因此 GitHub md 链接最长延迟到下次 flush 才生效**。
 
+**文件名**: digest `archive/<YYYY>/<date>.md` (同日覆盖)； X 帖/URL `archive/<YYYY>/<date>-<ms>.md`； **repo 查询 `archive/<YYYY>/<repo 以 __ 替换 / >-<date>-<ms>.md`**(内容头同含 repo 名, 分支上可直接辨识)。年份目录一律取北京日期年(旧纯日期与新前缀名兼容, `yearOf()` 统一推导)。
+
 ### 响应内容契约 (卡型 × 字段矩阵)
 
 统一三段式: 标题直链(中文优先) / 中文正文(📝 摘要) / 标签行 / 存档链。语义定案:

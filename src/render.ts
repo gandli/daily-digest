@@ -20,7 +20,7 @@ const relTime = (iso?: string): string => {
 // Telegram HTML 消息。一个项目一条消息(首条带头部), 标题/描述/wiki 分层, 带 topics 标签 + 存档三链。
 // archiveRepo: GitHub 存档仓库(用于拼 md 链接); 三链 = Telegraph(当日页,有则) → web.archive → GitHub md。
 export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl?: string, archiveRepo = 'gandli/daily-digest'): string[] {
-  const mdPath = `https://github.com/${archiveRepo}/blob/archive/archive/${dateStr.slice(0, 4)}/${dateStr}.md`;
+  const mdPath = `https://github.com/${archiveRepo}/blob/archive/archive/${yearOf(dateStr)}/${dateStr}.md`;
   const links = (it: SourceItem): string => {
     const l: string[] = [];
     if (telegraphUrl) l.push(`<a href="${esc(telegraphUrl)}">Telegraph</a>`);
@@ -85,8 +85,16 @@ export function renderProductMessage(dateStr: string, items: SourceItem[], teleg
   });
 }
 
+// 从文件名/stamp 取年份: 兼容旧纯日期(2026-08-29)与新 repo 前缀名(repo__name-2026-08-29-ms), 取最后一个日期段
+export const yearOf = (s: string): string => {
+  const m = [...s.matchAll(/(20\d{2})-\d{2}-\d{2}/g)];
+  return m.length ? m[m.length - 1][1] : s.slice(0, 4);
+};
+
 // GitHub 存档 markdown。ogPath 传入时用 og-images/ 相对路径(本地渲染), 否则回退远程 URL。
 export function renderMarkdown(dateStr: string, items: SourceItem[], telegraphUrl?: string, ogPaths?: Map<string, string>): string {
+  // 头部: 单条(repo 查询)带 repo 名 + 日期(archive 分支上可辨识); 多条(digest)保持纯日期头
+  const head = items.length === 1 && items[0]?.title ? `# ${items[0].title} · ${dateStr}` : `# ${dateStr}`;
   const rows = items
     .map(
       (it, i) =>
@@ -98,7 +106,7 @@ export function renderMarkdown(dateStr: string, items: SourceItem[], telegraphUr
     )
     .join('\n');
   return (
-    `# ${dateStr}\n\n` +
+    `${head}\n\n` +
     (telegraphUrl ? `Telegraph: ${telegraphUrl}\n\n` : '') +
     rows +
     `\n\n---\n由 daily-digest bot 自动生成\n`
