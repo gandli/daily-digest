@@ -170,12 +170,12 @@
 | 2026/2026-08-26-10526215.md | X 帖 | 最近在 GitHub 上发现一个超轻量的 macOS 菜单栏监视器：AirStats，内存只吃几 MB。 | GitHub_Daily |
 | 2026/2026-08-26-10532895.md | repo | byrencheema/airstats | byrencheema/airstats |
 | 2026/2026-08-26-10626363.md | X 帖 | 我发现主流的Git和Svn泄露利用工具存在极大的安全漏洞。 | drivertomtt |
-| 2026/2026-08-26-10646313.md | 网页 | 跳至主要内容 | https://drivertom.blogspot.com/2021/08/git.html?m=1 |
+| 2026/2026-08-26-10646313.md | 网页 | * 获取链接 | https://drivertom.blogspot.com/2021/08/git.html?m=1 |
 | 2026/2026-08-26-10651827.md | repo | lijiejie/GitHack | lijiejie/GitHack |
 | 2026/2026-08-26-10653978.md | repo | 0xHJK/dumpall | 0xHJK/dumpall |
-| 2026/2026-08-26-11839724.md | 网页 | 跳至主要内容 | https://drivertom.blogspot.com/2021/08/git.html |
+| 2026/2026-08-26-11839724.md | 网页 | * 获取链接 | https://drivertom.blogspot.com/2021/08/git.html |
 | 2026/2026-08-26-12830584.md | repo | ArchiveBox/ArchiveBox | ArchiveBox/ArchiveBox |
-| 2026/2026-08-26-13474442.md | 网页 | 跳至主要内容 | https://drivertom.blogspot.com/2021/08/git.html?m=1 |
+| 2026/2026-08-26-13474442.md | 网页 | * 获取链接 | https://drivertom.blogspot.com/2021/08/git.html?m=1 |
 | 2026/2026-08-26-13729376.md | repo | zedeus/nitter | zedeus/nitter |
 | 2026/2026-08-26-15806076.md | X 帖 | 做渗透测试的老鸟们，那些年手动挖洞的苦，懂的都懂。 | bkdgiffug |
 | 2026/2026-08-26-15811616.md | repo | usestrix/strix | usestrix/strix |
