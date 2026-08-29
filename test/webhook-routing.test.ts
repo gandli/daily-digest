@@ -14,6 +14,7 @@ vi.mock('../src/fxtweet', () => ({
   fetchTweet: vi.fn(),
   renderTweetHtml: (_t: any, _title: string, body: string, _zh: string, _links: string) => `<b>${_title || ''}</b> ${body.slice(0, 80)}`,
   articleToText: vi.fn().mockReturnValue(null),
+  articleRefFixup: vi.fn().mockReturnValue(null),
 }));
 
 import worker from '../src/index';

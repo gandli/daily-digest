@@ -39,6 +39,14 @@ export function articleToText(t: FxTweet): string | null {
   return txt.length ? txt : null;
 }
 
+/** article 引用帖: 正文只是 x.com/i/article/<id> 裸链(v2 API 对部分 article 帖不内嵌 article 对象,
+ *  text 也不含可读文本)。返回 fixupx 公开页链接(服务端渲染全文, 免登录墙), 供 urlToMarkdown 提取
+ *  正文并作为展示链接; 非 article 引用帖 → null。 */
+export function articleRefFixup(tweet: FxTweet, handle: string): string | null {
+  if (!tweet.id || !/x\.com\/i\/article\//.test(tweet.text ?? '')) return null;
+  return `https://fixupx.com/${handle}/status/${tweet.id}`;
+}
+
 /** 拉取帖子 JSON(v2 API /2/status/{id}?lang=zh-cn)。网络/解析失败返回 null(调用方落回 URL 链)。
  *  v2 相比 v1: 不用从 URL 提取 handle, translation 带 provider, 支持 search/trends 等新端点。 */
 export async function fetchTweet(handle: string, id: string): Promise<FxTweet | null> {
