@@ -10,8 +10,8 @@
 
 | 命令 | 行为 | 备注 |
 |------|------|------|
-| `/trending` | 用缓存 `digest:<date>` 秒回； 无缓存触发完整管线 `runDigest(env, true)` | 当天 trending 固定， 不重抓 |
-| `/product` | 读 archive 分支 `product/<date>.json` 秒回产品卡； miss → `repository_dispatch` 触发 Actions 生成并回占位提示 | Actions 完成后直发 TG， 不经 Worker 重管线 |
+| `/gt` `/trending` | 用缓存 `digest:<date>` 秒回； 无缓存触发完整管线 `runDigest(env, true)` | 当天 trending 固定， 不重抓 |
+| `/hn` `/product` | 读 archive 分支 `product/<date>.json` 秒回产品卡； miss → `repository_dispatch` 触发 Actions 生成并回占位提示 | Actions 完成后直发 TG， 不经 Worker 重管线 |
 | `/ph` | Product Hunt 每日热门: 官方 Atom feed 免 key 直拉 top10 → 译中 → 产品卡 (ogUrl 预览); 当日缓存 `ph:<date>` 秒回; 榜单存档 `ph-<date>.md` | 无 Actions, Worker 内完成; 拉取失败 ⚠️ 提示 |
 | `/search <关键词>` | 单键索引 `search:index` 内存过滤 → 分页 10 条 + inline keyboard 翻页/跳转 | 描述批量译中 (TranSmart/m2m100) |
 | `/archive [页码]` | `archive:idx:*` 遍历倒序 → 10 条/页 + 三链 (Telegraph/web.archive/GitHub md) | 分页 inline keyboard |

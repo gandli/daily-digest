@@ -129,6 +129,16 @@ describe('webhook 路由全分支', () => {
     expect(texts().some((t) => t.includes('cached-card'))).toBe(true);
     expect(vi.mocked(fetchTrending)).not.toHaveBeenCalled();
   });
+  it('短命令别名: /gt → trending 行为', async () => {
+    const dateStr = new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
+    await env.CACHE.put(`digest:${dateStr}`, JSON.stringify({ chunks: ['gt-alias-card'], repos: ['a/b'] }));
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: '/gt' } });
+    expect(texts().some((t) => t.includes('gt-alias-card'))).toBe(true);
+  });
+  it('短命令别名: /hn → product 行为(产品 JSON 命中出卡)', async () => {
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: '/hn' } });
+    expect(texts().some((t) => t.includes('Show HN: cool tool'))).toBe(true);
+  });
   it('/trending 无缓存 → 先发占位再发卡', async () => {
     await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: '/trending' } });
     expect(texts().some((t) => t.includes('Trending 生成中'))).toBe(true);
