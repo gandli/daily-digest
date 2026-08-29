@@ -1,13 +1,23 @@
 import type { Env, SourceItem } from './types';
 import { resolveDescriptions, translateBatch, translateTextZh, isChinese, summarizeZh, generateTagsZh, generateTitleZh } from './translate';
 import { fetchDeepwikiOverview } from './deepwiki';
-import { renderMessage, renderMarkdown, esc } from './render';
+import { renderMessage, renderMarkdown, renderTelegraphNodes, esc } from './render';
 import { sendPerRepoMessages, sendTelegram } from './notify';
 import { archiveToGitHub, archiveOgImage, createTelegraphAccount, createTelegraphPage } from './archive';
 import { urlToMarkdown, extractOgImage } from './urlmd';
 
 // 北京时间日期串(与 index.ts 一致; 独立内联避免循环依赖)
 export const today = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
+
+/** Wayback 主动保存(fire-and-forget): web/2/<url> 只是跳转, 从未抓过的 URL 会落在保存提示页 →
+ *  save 端点触发真实快照。失败静默(8s 超时), 调用方有 ctx 就 waitUntil, 没有(如 lookupRepo 在外层
+ *  waitUntil 内)就浮动 promise——lookupRepo 整体在 waitUntil 里, 绝大多数能落地。 */
+export function saveToWayback(url?: string): Promise<unknown> {
+  if (!url) return Promise.resolve();
+  return fetch(`https://web.archive.org/save/${url}`, { signal: AbortSignal.timeout(8000) })
+    .then((r) => r.text().catch(() => ''))
+    .catch(() => {});
+}
 
 /** 同一 repo 当日已查过 → 跳过重复回复与存档。TTL 48h(跨过午夜即视为新一天)。 */
 export async function seenToday(env: Env, repo: string): Promise<boolean> {
@@ -117,6 +127,7 @@ export async function fanoutRepoRefs(env: Env, chatId: string, text: string, ctx
         // 仍索引(为 /search 可查)
         await indexArchivedItems(env, [item], stamp).catch(() => {});
         await env.CACHE.put(`lookup:${today()}:${r.toLowerCase()}`, '1', { expirationTtl: 172800 }).catch(() => {});
+        ctx.waitUntil(saveToWayback(item.url));
       } catch { /* 单个失败不影响其它 */ }
     }),
   );
@@ -256,9 +267,14 @@ export async function lookupRepo(env: Env, chatId: string, repo: string): Promis
     }
     console.log('lookup: fallback to GitHub desc translation');
   }
+  // Telegraph 页: 单仓低频, +1 子请求可承受(多仓 fanout 不建——批量预算取舍); Wayback 主动保存
+  const tgPageUrl = env.TELEGRAPH_TOKEN
+    ? await createTelegraphPage(env.TELEGRAPH_TOKEN, item.titleZh ?? item.title, renderTelegraphNodes([item])).catch(() => null)
+    : null;
   // 一条消息: ogUrl 触发 TG link_preview(GitHub repo → opengraph.githubassets 动态生成 OG 卡)
-  const chunks = renderMessage(today(), [item]);
+  const chunks = renderMessage(today(), [item], tgPageUrl || undefined);
   await sendPerRepoMessages(env.BOT_TOKEN, chatId, chunks.map((html) => ({ html, photo: `https://opengraph.githubassets.com/1/${item.title}`, ogUrl: item.url })), env.GH_ARCHIVE_REPO || 'gandli/daily-digest', env.CACHE);
+  saveToWayback(item.url); // lookupRepo 无 ctx(整体跑在外层 waitUntil 内), 浮动 promise——helper 注释见上
   // 索引独立写入, 不依赖 archive 成功(archive 抛错 → 索引仍落, 避免 seenToday 死循环)
   const stamp = `${today()}-${Date.now() % 86400000}`; // 单次计算: 索引 date 必须等于实际文件名
   try {
@@ -470,6 +486,7 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
     await fanoutRepoRefs(env, chatId, clipped, ctx);
     const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
     await indexArchivedItems(env, [{ title: host, url, desc: summaryZh, descZh: undefined } as SourceItem], stamp);
+    ctx?.waitUntil?.(saveToWayback(url));
     // 统一印刷: 标题直链(中文优先) / 中文摘要 / 标签 / 存档三链——对齐 repo 卡的 renderMessage 三段结构
     // 标签: 无现成 topics 时用 LLM 生成领域标签
     let tagsZh: string[] | null = null;

@@ -16,8 +16,9 @@ vi.mock('../src/notify', () => ({
   sendTelegram: (...a: unknown[]) => sendText(...a),
 }));
 vi.mock('../src/render', () => ({
-  renderMessage: () => [{ html: 'render-card' }],
+  renderMessage: vi.fn(() => [{ html: 'render-card' }]),
   renderMarkdown: () => '# md',
+  renderTelegraphNodes: () => [],
   esc: (s: unknown) => String(s),
 }));
 vi.mock('../src/deepwiki', () => ({
@@ -48,6 +49,8 @@ vi.mock('../src/urlmd', () => ({
 }));
 
 import { lookupRepo, fanoutRepoRefs, backfillDescriptions, archiveUrl, markProcessed, refreshLookupDescriptions } from '../src/lookup';
+import { createTelegraphPage } from '../src/archive';
+import { renderMessage } from '../src/render';
 
 // ---- 内存 KV stub(+list) ----
 function makeEnv(): any {
@@ -91,6 +94,21 @@ describe('fetchRepo: GitHub API 解析(私有, 经 lookupRepo)', () => {
     const body = sendRepo.mock.calls[0][2] as { html: { html: string } }[];
     expect(body).toHaveLength(1);
     expect(body[0].html.html).toContain('render-card');
+  });
+  it('TELEGRAPH_TOKEN 有 → 建 Telegraph 页并传入渲染; Wayback save 触发', async () => {
+    mockTgPageUrl.mockResolvedValue('https://telegra.ph/repo-page-1');
+    const saves: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      const u = String(url);
+      if (u.startsWith('https://web.archive.org/save/')) { saves.push(u); return new Response('ok', { status: 200 }); }
+      return ghResponse({ full_name: 'nousresearch/hermes-agent', description: 'A cool agent', stargazers_count: 1500, language: 'TypeScript', topics: ['agent'] });
+    }));
+    const env = makeEnv();
+    env.TELEGRAPH_TOKEN = 'tg';
+    await lookupRepo(env, 'chat', 'nousresearch/hermes-agent');
+    expect(createTelegraphPage).toHaveBeenCalledWith('tg', 'nousresearch/hermes-agent', expect.anything());
+    expect(renderMessage).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'https://telegra.ph/repo-page-1');
+    expect(saves).toEqual(['https://web.archive.org/save/https://github.com/nousresearch/hermes-agent']);
   });
   it('404 → 找不到仓库提示(不发卡)', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ghResponse({ message: 'Not Found' }, 404)));

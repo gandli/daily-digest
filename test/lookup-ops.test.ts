@@ -97,9 +97,11 @@ describe('fanoutRepoRefs: ctx 缺省 / repo 过滤 / 单仓失败', () => {
     await fanoutRepoRefs(env, 'chat', 'https://github.com/o/r', { waitUntil: (p) => p } as any);
     expect(sendRepo).not.toHaveBeenCalled();
   });
-  it('repo 未 seen → 逐个查+发精简卡; fetchRepo 返回 null → 跳过不影响其它', async () => {
+  it('repo 未 seen → 逐个查+发精简卡; fetchRepo 返回 null → 跳过不影响其它; Wayback save 触发', async () => {
+    const saves: string[] = [];
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const u = String(input);
+      if (u.startsWith('https://web.archive.org/save/')) { saves.push(u); return new Response('ok', { status: 200 }); }
       if (u.includes('api.github.com/repos/o/r')) return new Response(JSON.stringify({ full_name: 'o/r', description: 'a rust cli', stargazers_count: 5, language: 'Rust', topics: ['rust'] }), { status: 200 });
       if (u.includes('api.github.com/repos/p/q')) return new Response('{}', { status: 404 });
       throw new Error(`unexpected ${u}`);
@@ -109,6 +111,7 @@ describe('fanoutRepoRefs: ctx 缺省 / repo 过滤 / 单仓失败', () => {
     expect(sendRepo).toHaveBeenCalledTimes(1); // 只有 o/r 发卡(p/q 404 → fetchRepo null → 跳过)
     // 序号按 fresh 批量: 失败仓占位, o/r 仍为 1/2
     expect(String((sendRepo.mock.calls[0][2] as { html: string }[])[0].html)).toContain('<b>1/2</b> ');
+    expect(saves).toEqual(['https://web.archive.org/save/https://github.com/o/r']); // 只存成功发卡的仓
     await Promise.allSettled([]);
   });
   it('deepwiki 命中 → descZh 用翻译后的中文', async () => {
