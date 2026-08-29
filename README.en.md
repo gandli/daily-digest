@@ -24,8 +24,8 @@ Every day at **08:30 (UTC+8)** it pushes the top 10 repos — one message per re
 
 | Input | Behavior |
 |---|---|
-| `/gt` `/trending` | Today's chart (already fetched by cron; served instantly from the `digest:<date>` cache; trending is fixed for the day, never re-fetched) |
-| `/hn` `/product` | Today's HN cool products: reads `product/<date>.json` from the archive branch for an instant card; if missing, auto-triggers GitHub Actions and pushes when done |
+| `/gt` | Today's chart (already fetched by cron; served instantly from the `digest:<date>` cache; trending is fixed for the day, never re-fetched) |
+| `/hn` | Today's HN cool products: reads `product/<date>.json` from the archive branch for an instant card; if missing, auto-triggers GitHub Actions and pushes when done |
 | `/ph` | **Product Hunt daily popular**: key-free official feed, top 10 with Chinese summaries as product cards (ogUrl preview); same-day cache; digest archived as `ph-<date>.md` |
 | `/search <keyword>` | Full-index search across 6000+ entries (stars/bookmarks/archives); on-page English descriptions translated in batch; paginated with inline-keyboard paging/jump |
 | `/archive [page]` | Paginated history list; each entry shows the **archive triple-link** (Telegraph → Internet Archive web.archive.org → GitHub md) |
@@ -85,7 +85,7 @@ npm run manual     # user-manual full pipeline: e2e scenarios → annotated scre
 
 BOT_TOKEN · CHAT_ID · WEBHOOK_SECRET · GH_TOKEN · TELEGRAPH_TOKEN (optional)
 
-Optional: OPENROUTER_API_KEY (/product deep summaries + manual AI docs; free model pool/template without it) · JINA_API_KEY / GENEDAI_API_KEY (URL→markdown fallbacks) · CF_ACCOUNT_ID / CF_API_TOKEN (Browser Rendering)
+Optional: OPENROUTER_API_KEY (/hn deep summaries + manual AI docs; free model pool/template without it) · JINA_API_KEY / GENEDAI_API_KEY (URL→markdown fallbacks) · CF_ACCOUNT_ID / CF_API_TOKEN (Browser Rendering)
 
 ## 🚀 Deploy
 
