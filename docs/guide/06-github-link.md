@@ -1,42 +1,13 @@
-### 步骤 1:粘贴仓库链接
+# 粘贴 GitHub 仓库链接
 
-在任意聊天窗口中,直接将 GitHub 仓库的 URL 发送给 Bot,例如:
+> **事务**：粘贴 `https://github.com/owner/repo` → 已查过 → ♻️ 带描述的归档卡；首次 → 抓 repo 元数据 + deepwiki/zread 描述 + 存档 + 卡片。
 
-```
-https://github.com/antirez/kilo
-```
+## 操作步骤
 
-Bot 接收到链接后会自动识别为 GitHub 仓库链接,并启动仓库元数据抓取流程——这包括从 GitHub 拉取基础信息(如 star 数、语言、作者)以及调用 deepwiki/zread 等来源获取仓库的简要描述。
+### 第 1 步 — https://github.com/antirez/kilo
 
-### 步骤 2:首次抓取与归档
+![第 1 步界面](assets/06-github-link-r1.png)
 
-由于这是 Bot 首次查询 `antirez/kilo`,它会执行完整的抓取动作:
+- Bot 回复: antirez/kilo ⭐ 3.2k · #C 👤 antirez 这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。 #trending #c #editor 🗂 <a href="
 
-- 从 GitHub 拉取仓库元数据(仓库名、star 数、主要语言、作者等)。
-- 调用 deepwiki/zread 等知识源,生成一段简短的仓库功能描述。
-- 将上述信息打包后写入存档,作为后续查询的缓存。
-
-抓取与存档通常在数秒内完成,首次访问的延迟会比重复查询略长。
-
-### 步骤 3:Bot 返回归档卡片
-
-抓取完成后,Bot 会回复一张带描述的归档卡,包含仓库核心信息和可点击的存档链接,类似如下形式:
-
-> antirez/kilo ⭐ 3.2k · #C 👤 antirez
-> 这个仓库实现了经典的文本编辑器,代码精炼,适合学习 C 语言。
-> #trending #c #editor
-> 🗂 [存档链接]
-
-卡片顶部的 ⭐ 数字、语言标签(`#C`)和作者(`👤 antirez`)直接来自 GitHub 元数据;中间的描述段落由 deepwiki/zread 生成;底部的 `#trending #c #editor` 标签便于快速分类,🗂 后的链接指向本次生成的归档。
-
-![首次查询返回的归档卡片,显示 antirez/kilo 的 star 数、语言、作者、描述与标签](assets/06-github-link-r1.png)
-
-### 步骤 4:后续重复查询
-
-再次粘贴同一个 `https://github.com/antirez/kilo` 时,Bot 会识别出该仓库已存档,跳过抓取与调用 deepwiki/zread 的步骤,直接从存档中取出卡片并附上 ♻️ 标记,表示这是「带描述的归档卡」复用。响应速度会比首次快很多,内容则与首次完全一致。
-
-## 小贴士
-
-1. 链接必须是标准的 `https://github.com/owner/repo` 形式,省略协议头(如只粘贴 `github.com/owner/repo`)可能导致识别失败。
-2. 首次查询包含网络抓取,若 Bot 长时间无响应,稍等片刻重试即可——重复查询走缓存,通常瞬时返回。
-3. 卡片中的 `🗂` 链接是永久归档地址,即使原仓库被删除、转为私有或 GitHub 不可访问,仍可继续访问存档内容。
+> 本章由 e2e 场景自动生成, 与 Bot 当前行为一致。
