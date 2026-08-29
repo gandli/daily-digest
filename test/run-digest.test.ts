@@ -50,14 +50,15 @@ describe('runDigest', () => {
     vi.mocked(fetchTrending).mockResolvedValue(items as any);
   });
 
-  it('缓存命中(新格式 {chunks,repos}) → 用 sendPerRepoMessages 重放, 不重抓', async () => {
+  it('缓存命中(新格式 {chunks,repos}) → 用 sendPerRepoMessages 重放带 OG 图, 不重抓', async () => {
     const kv = memKv();
     const key = `digest:${new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10)}`;
     await kv.put(key, JSON.stringify({ chunks: ['card1', 'card2'], repos: ['a/b', 'c/d'] }));
     const n = await runDigest(mkEnv(kv));
     expect(n).toBe(0);
     expect(vi.mocked(fetchTrending)).not.toHaveBeenCalled(); // 不发重抓
-    expect(sentMessages().length).toBe(2); // 缓存 2 块经 sendMessage 重放
+    expect(calls.filter((c) => c.url.includes('/sendPhoto')).length).toBe(2); // 缓存 2 块重放(带 OG 图, 走 sendPhoto)
+    expect(calls.filter((c) => c.url.includes('/sendPhoto')).some((m) => String(m.body.photo).includes('opengraph.githubassets.com/1/a/b'))).toBe(true);
   });
 
   it('缓存 miss → 完整抓取 + 翻译 + 渲染 + 存档 + 发卡, 返回条数', async () => {
