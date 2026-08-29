@@ -1,10 +1,13 @@
 /// <reference types="@cloudflare/workers-types" />
 
 // ponytail: 手写最小 Env,部署后跑 `wrangler types` 生成的替换本文件即可。
-// binding 与 wrangler.jsonc 保持一致:AI / CACHE + secrets。
+// binding 与 wrangler.jsonc 保持一致:AI / CACHE / DB + secrets。
 export interface Env {
   AI: Ai;
   CACHE: KVNamespace;
+  DB?: D1Database; // D1 存档镜像(可选: 未绑定时所有 D1 helper 静默跳过, 行为同旧版)
+  VEC?: VectorizeIndex; // Vectorize 语义检索(可选, 未绑定时 /search 纯子串匹配)
+  RATE_LIMITER?: RateLimit; // webhook 速率限制(可选, 未绑定时不限流)
   BOT_TOKEN: string;
   CHAT_ID: string;
   WEBHOOK_SECRET: string;

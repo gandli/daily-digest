@@ -48,7 +48,7 @@ export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl
       `<b><a href="${esc(it.url)}">${esc(it.titleZh ?? it.title)}</a></b>${stars}${langTag}\n\n` + // 标题层(中文优先)
       (metaLine ? `${metaLine}\n\n` : '') + // 作者/创建日期层
       descLine + // 描述层(仅来自 zread/deepwiki 的中文)
-      (tags ? `\n\n${tags}` : '');
+      `\n\n${tags}`;
     // ponytail: wikiDesc 极端超长时仍可能超4096——截断到安全长度
     let msg = head + body + links(it);
     if (msg.length > 4000) msg = msg.slice(0, 3999) + '…';

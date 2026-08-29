@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="340" viewBox="0 0 1200 340" role="img" aria-labelledby="t d">
+  <title id="t">daily-digest 服务栈 — Cloudflare 免费层八项服务</title>
+  <desc id="d">系统图:左侧输入(cron 08:30 与 webhook 验签限流)经 Workers 核心管线(抓取·翻译·渲染·存档,100% 中文守卫),写入 KV 索引缓冲、D1 存档镜像、Vectorize 语义索引,输出 Telegram 每日推送与 archive 分支单 commit。</desc>
+  <defs>
+    <linearGradient id="core" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#2b5278"/>
+      <stop offset="1" stop-color="#1f3a56"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="340" rx="26" fill="#0e1621"/>
+
+  <g id="header">
+    <text x="64" y="60" fill="#6d8db3" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="15" letter-spacing="3">CLOUDFLARE FREE TIER · ONE PROJECT</text>
+    <text x="1136" y="60" fill="#9fc3e8" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="17">全部免费层 ✓✓</text>
+  </g>
+
+  <g id="column-labels" fill="#6d8db3" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="14">
+    <text x="64" y="98">输入</text>
+    <text x="348" y="98">核心管线</text>
+    <text x="632" y="98">存储三件套</text>
+    <text x="916" y="98">输出</text>
+  </g>
+
+  <g id="inputs">
+    <rect x="64" y="108" width="224" height="56" rx="10" fill="#242f3d" stroke="#38475a" stroke-width="1.5"/>
+    <text x="176" y="143" fill="#9fc3e8" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="19">⏰ cron 08:30</text>
+    <rect x="64" y="178" width="224" height="80" rx="10" fill="#242f3d" stroke="#38475a" stroke-width="1.5"/>
+    <text x="176" y="210" fill="#ffffff" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="19">webhook</text>
+    <text x="176" y="238" fill="#9fc3e8" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif" font-size="17">验签 · 白名单 · 限流</text>
+  </g>
+
+  <g id="workers-core">
+    <rect x="348" y="108" width="224" height="150" rx="18" fill="url(#core)" stroke="#3d6591" stroke-width="1.5"/>
+    <text x="460" y="152" fill="#ffffff" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="28" font-weight="700">Workers</text>
+    <text x="460" y="188" fill="#dbe9f7" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif" font-size="19">抓取 · 翻译 · 渲染</text>
+    <text x="460" y="216" fill="#dbe9f7" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif" font-size="19">存档 · 摘要 · 标签</text>
+    <text x="460" y="244" fill="#9fc3e8" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif" font-size="18">100% 中文守卫</text>
+  </g>
+
+  <g id="storage">
+    <rect x="632" y="108" width="224" height="52" rx="10" fill="#242f3d" stroke="#38475a" stroke-width="1.5"/>
+    <text x="652" y="141" fill="#dbe9f7" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif" font-size="19">🗂 KV · 索引与缓冲</text>
+    <rect x="632" y="172" width="224" height="52" rx="10" fill="#242f3d" stroke="#38475a" stroke-width="1.5"/>
+    <text x="652" y="205" fill="#dbe9f7" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif" font-size="19">🗃 D1 · 存档镜像</text>
+    <rect x="632" y="236" width="224" height="52" rx="10" fill="#242f3d" stroke="#38475a" stroke-width="1.5"/>
+    <text x="652" y="269" fill="#dbe9f7" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif" font-size="19">🧭 VEC · 语义索引</text>
+  </g>
+
+  <g id="outputs">
+    <rect x="916" y="108" width="220" height="72" rx="10" fill="#242f3d" stroke="#38475a" stroke-width="1.5"/>
+    <text x="1026" y="140" fill="#ffffff" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif" font-size="21" font-weight="700">Telegram 推送</text>
+    <text x="1026" y="166" fill="#9fc3e8" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif" font-size="17">每日 08:30 · OG 卡图</text>
+    <rect x="916" y="196" width="220" height="72" rx="10" fill="#242f3d" stroke="#38475a" stroke-width="1.5"/>
+    <text x="1026" y="228" fill="#ffffff" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="19">archive 分支</text>
+    <text x="1026" y="254" fill="#9fc3e8" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif" font-size="17">单 commit 批量 ✓✓</text>
+  </g>
+
+  <g id="arrows" fill="none" stroke="#55677e" stroke-width="2">
+    <path d="M294 188 h38 m-9 -6 l9 6 l-9 6"/>
+    <path d="M578 188 h38 m-9 -6 l9 6 l-9 6"/>
+    <path d="M862 188 h38 m-9 -6 l9 6 l-9 6"/>
+  </g>
+
+  <g id="footer">
+    <text x="64" y="318" fill="#6d8db3" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="16">Workers · KV · Cron · AI · Browser Rendering · D1 · Vectorize · Rate Limiting — 50 子请求/请求预算内设计</text>
+  </g>
+</svg>

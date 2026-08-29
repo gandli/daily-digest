@@ -75,4 +75,18 @@ describe('indexArchivedItems → search:index 增量', () => {
     const raw = JSON.parse((await kv.get('search:index')) as string);
     expect(raw.filter((e: string[]) => e[1] === 'x/@dup').length).toBe(1);
   });
+
+  it('不同大小写的同 title 幂等(与 archive:idx 小写键对齐), 存一条且保留首次原始大小写', async () => {
+    const kv = kvStub({ 'search:index': JSON.stringify([]) });
+    const env = { CACHE: kv } as never;
+    await indexArchivedItems(env as never, [
+      { title: 'Owner/Repo', url: 'https://github.com/Owner/Repo' } as never,
+    ], '2026-08-28');
+    await indexArchivedItems(env as never, [
+      { title: 'owner/repo', url: 'https://github.com/owner/repo' } as never,
+    ], '2026-08-29');
+    const raw = JSON.parse((await kv.get('search:index')) as string);
+    expect(raw.filter((e: string[]) => e[1].toLowerCase() === 'owner/repo').length).toBe(1);
+    expect(raw[0][1]).toBe('Owner/Repo'); // 去重跳过时条目保持首次入库的原始大小写
+  });
 });
