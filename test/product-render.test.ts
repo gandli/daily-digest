@@ -77,4 +77,10 @@ describe('renderProductMessage zeli 卡片', () => {
     const [msg] = renderProductMessage('2026-08-27', [mk({ createdAt: past(25 * 3600e3) }) as never]);
     expect(msg).toContain('about 1 days ago');
   });
+
+  it('单条产品 → 仅 🚀 日期头, 无 N/M 序号', () => {
+    const [msg] = renderProductMessage('2026-08-27', [mk() as never]);
+    expect(msg).toMatch(/🚀 <b>\d{4}-\d{2}-\d{2}<\/b>/);
+    expect(msg).not.toMatch(/<b>\d+\/\d+<\/b>/); // 序号只在多条产品时出现
+  });
 });

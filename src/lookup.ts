@@ -81,13 +81,15 @@ export async function fanoutRepoRefs(env: Env, chatId: string, text: string, ctx
   // → 单请求能全出(完整 lookupRepo 5-6 子请求/个 ×9 >50 铁超)。单 repo 查询仍走完整 lookupRepo(其他调用)。
   const stamp = `${today()}-${Date.now() % 86400000}`;
   await Promise.all(
-    fresh.map(async (r) => {
+    fresh.map(async (r, i) => {
       try {
         const item = await fetchRepo(r, env.GH_TOKEN);
         if (!item) return;
         // 完整三段式: 标题⭐·语言 / 中文摘要(描述翻译) / 标签 / 存档三链 —— 对齐统一排版
         const stars = item.stars ? ` ⭐${item.stars >= 1000 ? (item.stars / 1000).toFixed(1) + 'k' : item.stars}` : '';
         const lang = item.lang ? ` · ${item.lang}` : '';
+        // 多仓批量才编号(N/M, 按输入序, 失败仓占位); 单仓不显示 1/1 头
+        const head = fresh.length > 1 ? `<b>${i + 1}/${fresh.length}</b> ` : '';
         // 描述优先 wiki 三链(fetchDeepwikiOverview 是 wiki 英文 Overview), 失败回退 GitHub desc
         let descZh = item.descZh ?? '';
         if (!isChinese(descZh)) {
@@ -105,7 +107,7 @@ export async function fanoutRepoRefs(env: Env, chatId: string, text: string, ctx
         const topicTags = (item.topics ?? []).slice(0, 4).map((x) => `#${x}`).join(' ');
         const mdLink = `https://github.com/${env.GH_ARCHIVE_REPO || 'gandli/daily-digest'}/blob/archive/archive/${today().slice(0, 4)}/${today()}.md`;
         const html =
-          `<b><a href="${esc(item.url)}">${esc(item.title)}</a></b>${stars}${lang}\n\n` +
+          `${head}<b><a href="${esc(item.url)}">${esc(item.title)}</a></b>${stars}${lang}\n\n` +
           (descZh ? `📝 ${esc(descZh).slice(0, 300)}\n\n` : '') +
           `#archive${topicTags ? ` ${topicTags}` : ''}\n\n` +
           // wiki 三链在倒数第二行(存档三链之前)
