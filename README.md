@@ -24,8 +24,8 @@ GitHub Trending → **Telegram 每日中文摘要 bot**。Cloudflare Workers 免
 
 | 输入 | 行为 |
 |---|---|
-| `/gt` `/trending` | 当日榜单(cron 已抓取,读 `digest:<date>` 缓存秒回;当天 trending 固定不重抓) |
-| `/hn` `/product` | 今日 HN 酷产品:读 archive 分支 `product/<date>.json` 秒回产品卡;未生成时自动触发 GitHub Actions,完成后推送 |
+| `/gt` | 当日榜单(cron 已抓取,读 `digest:<date>` 缓存秒回;当天 trending 固定不重抓) |
+| `/hn` | 今日 HN 酷产品:读 archive 分支 `product/<date>.json` 秒回产品卡;未生成时自动触发 GitHub Actions,完成后推送 |
 | `/ph` | **Product Hunt 每日热门**:官方 feed 免 key 直拉 top10,中文摘要 + 产品卡(ogUrl 预览),当日缓存秒回;榜单存档 `ph-<日期>.md` |
 | `/search <关键词>` | 全索引搜索(星标/书签/存档 6000+ 条),结果当页英文描述批量译中,分页 + inline keyboard 翻页/跳转 |
 | `/archive [页码]` | 历史存档分页列表,每条约**存档三链**(Telegraph → 互联网档案馆 web.archive.org → GitHub md) |
@@ -85,7 +85,7 @@ npm run manual     # 用户手册全管线: e2e 场景 → 标注截图 → AI �
 
 BOT_TOKEN · CHAT_ID · WEBHOOK_SECRET · GH_TOKEN · TELEGRAPH_TOKEN(可选)
 
-可选:OPENROUTER_API_KEY(/product 深度摘要 + 手册 AI 正文,缺省走免费模型池/模板) · JINA_API_KEY / GENEDAI_API_KEY(URL→markdown 兜底链) · CF_ACCOUNT_ID / CF_API_TOKEN(Browser Rendering)
+可选:OPENROUTER_API_KEY(/hn 深度摘要 + 手册 AI 正文,缺省走免费模型池/模板) · JINA_API_KEY / GENEDAI_API_KEY(URL→markdown 兜底链) · CF_ACCOUNT_ID / CF_API_TOKEN(Browser Rendering)
 
 ## 🚀 部署
 
