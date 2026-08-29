@@ -22,7 +22,7 @@
         "file": "02-trending-r1.png",
         "user": "/gt",
         "bots": [
-          "⏳ Trending 生成中(10-30 秒), 完成后自动推送。",
+          "⏳ GitHub Trending 生成中(10-30 秒), 完成后自动推送。",
           "<b>1/2</b> <b><a href=\"https://github.com/antirez/kilo\">antirez/kilo</a></b> ⭐ 3.2k\n\n👤 antirez\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending #c #editor\n\n🗂 <a ",
           "<b>2/2</b> <b><a href=\"https://github.com/sharkdp/bat\">sharkdp/bat</a></b> ⭐ 50.0k\n\n👤 sharkdp\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending\n\n🗂 <a href=\"https:"
         ]
@@ -47,7 +47,7 @@
         "file": "03-product-r1.png",
         "user": "/hn",
         "bots": [
-          "⏳ 今日 HN 酷产品生成中(约 2-5 分钟), 完成后自动推送。"
+          "⏳ 今日 Hacker News 酷产品生成中(约 2-5 分钟), 完成后自动推送。"
         ]
       },
       {
