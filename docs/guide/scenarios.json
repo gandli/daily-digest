@@ -14,7 +14,7 @@
       },
       {
         "actor": "bot",
-        "text": "📊 daily-digest 使用\n\n<b>命令</b>\n/gt — 查询今日 GitHub Trending\n/hn — 查询今日 Hacker News 酷产品\n/ph — 查询今日 Product Hunt 热门产品\n/search 关键词 — 搜索历史存档\n/archive — 历史存档(分页+三链)\n\n<b>链接</b>\nGitHub 仓库链接 → 单仓查询存档\nX/Twitter 链接 → 帖子存档\n任意网页链接 → markdown 存档\n\n每天 08:30(北京时间)自动推送。",
+        "text": "📊 daily-digest 使用\n\n<b>命令</b>\n/gt — 查询今日 GitHub Trending\n/hn — 查询今日 Hacker News 酷产品\n/ph — 查询今日 Product Hunt 热门产品\n/search 关键词 — 查询历史存档\n/archive — 浏览历史存档(分页+三链)\n\n<b>链接</b>\nGitHub 仓库链接 → 单仓查询存档\nX/Twitter 链接 → 帖子存档\n任意网页链接 → markdown 存档\n\n每天 08:30(北京时间)自动推送。",
         "note": "先显示「正在输入…」"
       }
     ]
