@@ -4,7 +4,7 @@ import { resolveDescriptions } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes, renderProductMessage, esc } from './render';
 import { sendPerRepoMessages, sendTelegram, sendChatAction, sendPhotoOrText, registerCommands, safeEqual, sendTelegramKbd, answerCallbackQuery, editMessageKbd, type InlineKB } from './notify';
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage, createTelegraphAccount, flushArchivedPending } from './archive';
-import { extractRepo, extractRepoRefs, today, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, archiveLinks, backfillDescriptions } from './lookup';
+import { extractRepo, extractRepoRefs, today, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, archiveLinks, backfillDescriptions, saveToWayback } from './lookup';
 import { extractUrl } from './urlmd';
 import { extractTweet, fetchTweet, renderTweetHtml, articleToText, type FxTweet } from './fxtweet';
 import { matchEntries, type SearchEntry } from './search-index';
@@ -270,6 +270,7 @@ export async function archiveTweet(
     await indexArchivedItems(env, [{ title: `x/@${handle}`, url: tweet.url ?? '', desc: tweetDescZh, descZh: tweetDescZh } as SourceItem], stamp);
     // 帖子正文含 GitHub repo 链接 → 联动查询(后台独立 waitUntil, 不阻塞主卡; repo 多时分批防子请求上限)
     if (ctx) ctx.waitUntil(fanoutRepoRefs(env, chatId, md, ctx));
+    if (ctx) ctx.waitUntil(saveToWayback(tUrl)); // Wayback 主动保存: web/2 链接只跳转, save 才落真实快照
     const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
     // 统一对齐 product/trending 卡: LLM 生成标题 / 中文内容 / #archive(LLM标签) / 存档三链 — 一张卡一次发送
     const tags = await generateTagsZh(env, bodyText.slice(0, 300) || tweet.article?.title || '').catch(() => null);

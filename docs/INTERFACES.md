@@ -65,6 +65,26 @@ Binding `CACHE`。
 
 **存档批量化**: 三个存档函数 (`archiveToGitHub` / `archiveDatedToGitHub` / `archiveOgImage`) 不再逐文件 PUT， 而是写 KV `pend:arc:*` 缓冲； `flushArchivedPending()` 经 **Git Data API** (ref→blobs→tree→commit→ref) 把缓冲合并为**一个 commit** 推 archive 分支 (单批 ≤40 文件)。触发: 每日 `scheduled()` 末尾 + webhook 侧缓冲 ≥20 条机会性触发。成功才删键， 失败保留重试； ref 409 重取 base 重建； KV 故障回落 Contents API 直推。**因此 GitHub md 链接最长延迟到下次 flush 才生效**。
 
+### 响应内容契约 (卡型 × 字段矩阵)
+
+统一三段式: 标题直链(中文优先) / 中文正文(📝 摘要) / 标签行 / 存档链。语义定案:
+- **中文**: 翻译失败保留原文， 不机翻凑数 (isChinese 守卫 + 四级回退)
+- **OG 图**: 尽力附图 (OG→s2 四级链)， sendPhoto 失败降纯文字， 不为图牺牲卡片
+- **Telegraph**: 低频单发建页 (单仓查询/网页/X 帖/digest)； 多仓 fanout **不建** (批量子请求预算， 两链)
+- **Wayback**: 发卡时 fire-and-forget 请求 `web.archive.org/save/<url>` 主动触发快照 (`saveToWayback`)； digest 批量时段不触发 (子请求预算)
+
+| 卡型 | 标题直链 | 中文正文 | 标签 | OG 图 | Telegraph | Wayback | GitHub md | 子请求预算 |
+|------|---------|---------|------|------|-----------|---------|-----------|-----------|
+| digest 推送 (/trending·cron) | ✓ | ✓ | ✓ | ✓ sendPhoto | ✓ 建页 | ✓ 链接 | ✓ 批量 | ~40/日管线 |
+| /trending 当日重放 | ✓ | ✓ | ✓ | ✗ 纯文本 | ✗ | ✗ | ✓ | 1 |
+| 单仓查询 | ✓ | ✓ | ✓ | ✓ | ✓ 建页 | ✓ save | ✓ 缓冲 | ~9 |
+| 多仓联动 fanout | ✓ | ✓ | ✓ | ✓ | ✗ 两链 | ✓ save | ✓ 缓冲 | 3×N (≤40) |
+| 网页存档 | ✓ | ✓ | ✓ | ✓ | ✓ 建页 | ✓ save | ✓ 缓冲 | ~10 |
+| X 帖 | ✓ | ✓ | ✓ | ✓ mosaic/原图/预览 | ✓ 建页 | ✓ save | ✓ 缓冲 | ~12 |
+| 重发回执 | ✓ | ✓ 摘要 | ✗ | ✗ | 读历史键 | ✓ 链接 | ✓ | 2 |
+
+新增卡型必须按本矩阵声明必有/可有字段， 并核对子请求预算 (免费层单请求 ≤50)。
+
 ## 5. Secrets (wrangler secret put)
 
 `BOT_TOKEN` · `CHAT_ID` · `WEBHOOK_SECRET` · `GH_TOKEN` · `TELEGRAPH_TOKEN`
