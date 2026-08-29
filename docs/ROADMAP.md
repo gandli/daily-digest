@@ -39,7 +39,7 @@
 ## 待定 / 计划 📋
 
 ### 短中期
-- [ ] 存档索引 `archive:idx` 补 `url` 字段 → repo 重发三链的 web.archive 更精确 (当前用 github.com/<repo> 推断)
+- [x] 存档索引 `archive:idx` 补 `url` 字段 → repo 重发三链的 web.archive 用真实源 URL (旧记录回落 repo 推断, #160)
 - [ ] `/search` 描述翻译结果缓存回索引 (当前每次翻页实时译， 可缓存省额度)
 - [ ] 超长摘要输入 (`text.slice(0,2000)`) 分段/分块处理
 - [ ] 移动端预览 (LAN 预览已有模式， bot 侧照片展示优化)
