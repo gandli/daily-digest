@@ -7,7 +7,7 @@ import { archiveToGitHub, archiveOgImage, createTelegraphAccount, createTelegrap
 import { urlToMarkdown, extractOgImage } from './urlmd';
 
 // 北京时间日期串(与 index.ts 一致; 独立内联避免循环依赖)
-const today = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
+export const today = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
 
 /** 同一 repo 当日已查过 → 跳过重复回复与存档。TTL 48h(跨过午夜即视为新一天)。 */
 export async function seenToday(env: Env, repo: string): Promise<boolean> {

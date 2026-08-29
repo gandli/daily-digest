@@ -20,7 +20,7 @@ vi.mock('../src/translate', () => ({
   generateTagsZh: async () => ['ai'],
 }));
 
-import { archiveLinks, fanoutRepoRefs, refreshLookupDescriptions, backfillDescriptions } from '../src/lookup';
+import { archiveLinks, fanoutRepoRefs, refreshLookupDescriptions, backfillDescriptions, today } from '../src/lookup';
 
 function memKv(entries: Array<[string, string]> = []) {
   const s = new Map<string, string>(entries);
@@ -93,7 +93,7 @@ describe('fanoutRepoRefs: ctx 缺省 / repo 过滤 / 单仓失败', () => {
     expect(mockDw).not.toHaveBeenCalled();
   });
   it('所有 repo 当日已 seen → 全过滤, 不发卡', async () => {
-    const env = makeEnv([['lookup:2026-08-28:o/r', '1']]);
+    const env = makeEnv([[`lookup:${today()}:o/r`, '1']]);
     await fanoutRepoRefs(env, 'chat', 'https://github.com/o/r', { waitUntil: (p) => p } as any);
     expect(sendRepo).not.toHaveBeenCalled();
   });

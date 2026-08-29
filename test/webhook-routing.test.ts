@@ -3,6 +3,7 @@
 // mock: fetchTrending / fetchTweet 可控; global fetch 只放行 TG + GitHub + Telegraph + raw; 其余 404。
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { fetchTrending } from '../src/sources/trending';
+import { today } from '../src/lookup';
 
 vi.mock('../src/sources/trending', () => ({ fetchTrending: vi.fn() }));
 vi.mock('../src/fxtweet', () => ({
@@ -180,7 +181,7 @@ describe('webhook 路由全分支', () => {
   it('GitHub 链接(已查过) → replyArchived 回存档信息', async () => {
     const date = '2026-08-27T120000';
     await env.CACHE.put('archive:idx:owner/repo', JSON.stringify({ repo: 'owner/repo', date, descZh: 'rust cli 工具', topics: ['rust'] }));
-    await env.CACHE.put('lookup:2026-08-28:owner/repo', '1');
+    await env.CACHE.put(`lookup:${today()}:owner/repo`, '1');
     await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://github.com/owner/repo' } });
     const msgs = photos();
     expect(msgs.length).toBeGreaterThanOrEqual(1);
@@ -400,7 +401,7 @@ describe('webhook 分支补充(search 深路径 / X 帖失败 / URL 重挂)', ()
     expect(texts().some((t) => t.includes('重新归档取回存档链接'))).toBe(true);
   });
   it('replyArchived 索引缺失(seenToday 已置位) → 重新 lookupRepo 发卡', async () => {
-    await env.CACHE.put('lookup:2026-08-28:owner/repo', '1');
+    await env.CACHE.put(`lookup:${today()}:owner/repo`, '1');
     // archive:idx 缺失 → replyArchived 落 lookupRepo
     await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://github.com/owner/repo' } });
     expect(texts().some((t) => t.includes('owner/repo'))).toBe(true);
@@ -424,7 +425,7 @@ describe('webhook 分支补充(search 深路径 / X 帖失败 / URL 重挂)', ()
     }) as typeof fetch;
     const date = '2026-08-27T120000';
     await env.CACHE.put('archive:idx:owner/repo', JSON.stringify({ repo: 'owner/repo', date, descZh: 'rust cli 工具', topics: ['rust'] }));
-    await env.CACHE.put('lookup:2026-08-28:owner/repo', '1');
+    await env.CACHE.put(`lookup:${today()}:owner/repo`, '1');
     await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://github.com/owner/repo' } });
     expect(texts().some((t) => t.includes('今日已存档'))).toBe(true); // sendMessage 兜底送达
     globalThis.fetch = orig;
