@@ -200,7 +200,10 @@ export async function archiveTweet(
   const media0 = (tweet.media?.all ?? [])[0];
   const repoRef = tweet.text?.match(/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/i)?.[1]
     ?? `x.com/${tweet.author?.screen_name ?? handle}`;
-  const photo =
+  // 多图帖(≥2 photo) → mosaic 拼图单张展示全部; 单图/视频/无媒体走原逻辑
+  const photos = (tweet.media?.photos ?? (tweet.media?.all ?? []).filter((m) => m.type === 'photo'));
+  const mosaicUrl = photos.length >= 2 ? tweet.media?.mosaic?.formats?.jpeg : undefined;
+  const photo = mosaicUrl ??
     (media0?.type === 'photo' ? media0.url : media0?.thumbnail_url) ??
     (tweet.text?.includes('github.com')
       ? `https://opengraph.githubassets.com/1/${repoRef}`
@@ -214,7 +217,7 @@ export async function archiveTweet(
     `- 原链: ${tUrl}`,
     `- 作者: ${tweet.author?.name ?? ''} (@${tweet.author?.screen_name ?? handle})`,
     `- 时间: ${tweet.created_at ?? ''}`,
-    `- 数据: ❤️ ${tweet.likes ?? '-'} · 🔁 ${tweet.retweets ?? '-'} · 💬 ${tweet.replies ?? '-'}`,
+    `- 数据: ❤️ ${tweet.likes ?? '-'} · 🔁 ${tweet.reposts ?? tweet.retweets ?? '-'} · 💬 ${tweet.replies ?? '-'}`,
     '',
     '---',
     '',
@@ -272,8 +275,9 @@ export async function archiveTweet(
     const links = `${tagLine}\n\n📁 ${archiveLinks(tUrl, tgLine ? tgLine.split(' ').pop() : undefined, `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`)}`;
     const card = renderTweetHtml(tweet, titleZh ?? '', hasZh ? textZh! : (isArticle ? (bodyText || (tweet.text ?? '')) : (tweet.text ?? '')), '', links);
     // Tweet 卡链接预览 = Telegraph 页(og:image 由 Telegraph 渲染), 无 Telegraph 回退原推 URL。
-    // 不用 sendPhotoOrText(发媒体图) —— 用户指定 Telegraph 作链接预览。
-    await sendPerRepoMessages(env.BOT_TOKEN, chatId, [{ html: card, ogUrl: tgPageUrl || tUrl }], repo);
+    // 多图帖用 mosaic 实体图发 sendPhoto; 单图/视频/无媒体走 ogUrl 链接预览。
+    // ponytail: 单图 sendPhoto 实体图(有 file_id 缓存), 多图 mosaic 拼图, 无媒体/视频回退 ogUrl 链接预览
+    await sendPerRepoMessages(env.BOT_TOKEN, chatId, [{ html: card, photo: mosaicUrl || (photos.length === 1 ? photo : undefined), ogUrl: tgPageUrl || tUrl }], repo);
   } catch (e) {
     console.error('archiveTweet store failed', String(e).slice(0, 100));
     await sendTelegram(env.BOT_TOKEN, chatId, `⚠️ 已取到帖子但存档失败(${String(e).slice(0, 120)})。请重发一次该链接重试。`);
@@ -535,6 +539,17 @@ function buildArchiveKeyboard(page: number, maxPage: number): InlineKB {
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
+    // /run: 手动触发完整管线(含发送)。需 POST + X-Runner-Token header(token 不进 URL, 避免落日志)。
+    // 必须在 GET 探活分支之前 —— GET 块会吞掉所有路径的 GET。
+    if (url.pathname === '/run') {
+      if (req.method !== 'POST') return new Response('method not allowed', { status: 405 });
+      const got = req.headers.get('X-Runner-Token') ?? '';
+      if (!env.WEBHOOK_SECRET || got !== env.WEBHOOK_SECRET) {
+        return new Response('forbidden', { status: 403 });
+      }
+      const n = await runDigest(env, url.searchParams.get('cache') !== '0');
+      return Response.json({ ok: true, chunks: n });
+    }
     if (req.method === 'GET') {
       // /preview: 数据管线自检(抓取→翻译→渲染, 不发消息)。仅未配凭证时开放。
       if (url.pathname === '/preview' && !env.BOT_TOKEN) {
@@ -556,17 +571,6 @@ export default {
           items,
         });
       }
-      // /run: 手动触发完整管线(含发送)。需 POST + X-Runner-Token header(token 不进 URL, 避免落日志)。
-      if (url.pathname === '/run') {
-        // fetch handler 入口已过滤 method==='GET', 此处 TS 收窄为 'GET'——运行时仍可能 POST, 用 as 断言
-        if ((req.method as string) !== 'POST') return new Response('method not allowed', { status: 405 });
-        const got = req.headers.get('X-Runner-Token') ?? '';
-        if (!env.WEBHOOK_SECRET || got !== env.WEBHOOK_SECRET) {
-          return new Response('forbidden', { status: 403 });
-        }
-        const n = await runDigest(env, url.searchParams.get('cache') !== '0');
-        return Response.json({ ok: true, chunks: n });
-      }
       return new Response('daily-digest worker running\n', { headers: { 'content-type': 'text/plain' } });
     }
     if (url.pathname !== '/telegram' || req.method !== 'POST') {
@@ -584,10 +588,12 @@ export default {
       callback_query?: {
         id?: string;
         data?: string;
+        from?: { id?: number };
         message?: { chat?: { id?: number }; message_id?: number };
       };
     };
-    const chatId = String(update.message?.chat?.id ?? update.callback_query?.message?.chat?.id ?? '');
+    // chatId: message 或 callback 所属消息; callback 无 message(消息已删/inline 模式)→ from.id 兜底
+    const chatId = String(update.message?.chat?.id ?? update.callback_query?.message?.chat?.id ?? update.callback_query?.from?.id ?? '');
     const text = (update.message?.text ?? '').trim();
 
     // c) 白名单外:不响应任何动作
@@ -697,19 +703,22 @@ export default {
           ctx.waitUntil(archiveUrl(env, chatId, url, ctx));
           await sendTelegram(env.BOT_TOKEN, chatId, '🔁 检测到上次处理不完整(未翻译或缺描述), 重新归档中…');
         } else if (verdict === 'done') {
-          // 已完整处理过: 优先回 Telegraph 页(若有存档索引), 否则回 GitHub .md 存档链接。
-          // 读 reproc 键里的 md stamp; 无 md(老记录)则重挂一次归档取回存档信息, 而非"无需重复"梗概。
+          // 已完整处理过: 回具体内容(标题+摘要, reproc 记录) + 三链存档; 无 md(老记录)则重挂归档补信息。
           const rec = await env.CACHE.get(`reproc:${url.slice(0, 400)}`).catch(() => null);
-          let stamp = '';
-          try { stamp = rec ? (JSON.parse(rec)?.md ?? '') : ''; } catch { /* 忽略 */ }
+          let stamp = '', recTitle = '', recSummary = '';
+          try {
+            const r = rec ? (JSON.parse(rec) as { md?: string; t?: string; s?: string }) : null;
+            stamp = r?.md ?? ''; recTitle = r?.t ?? ''; recSummary = r?.s ?? '';
+          } catch { /* 忽略 */ }
           if (stamp) {
-                      const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
-                      const link = `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`;
-                      const tgUrl = (await env.CACHE.get(`archive:tg:${stamp.slice(0, 10)}`).catch(() => null)) || '';
-                      // 三链: Telegraph → web.archive(源 URL) → GitHub md
-                      const links = archiveLinks(url, tgUrl || undefined, link);
-                      await sendTelegram(env.BOT_TOKEN, chatId, `♻️ <b>该链接此前已处理归档</b>\n\n📁 ${links}`);
-                    } else {
+            const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
+            const link = `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`;
+            const tgUrl = (await env.CACHE.get(`archive:tg:${stamp}`).catch(() => null)) || '';
+            // 三链: Telegraph → web.archive(源 URL) → GitHub md
+            const links = archiveLinks(url, tgUrl || undefined, link);
+            const head = recTitle ? `<b><a href="${esc(url)}">${esc(recTitle)}</a></b>` : '<b>该链接此前已处理归档</b>';
+            await sendTelegram(env.BOT_TOKEN, chatId, `♻️ ${head}\n\n${recSummary ? `📝 ${esc(recSummary)}\n\n` : ''}📁 ${links}`);
+          } else {
             // 老记录无 md——重挂一次归档补上存档信息, 回给用户(而非"无需重复")
             await sendTelegram(env.BOT_TOKEN, chatId, '♻️ 已识别此前处理过, 重新归档取回存档链接…');
             await archiveUrl(env, chatId, url, ctx);

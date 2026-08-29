@@ -9,12 +9,12 @@ type Call = { url: string; body: any };
 const calls: Call[] = [];
 const pending: Promise<unknown>[] = [];
 
-const TWEET_OK = { code: 200, tweet: {
+const TWEET_OK = { code: 200, status: {
   url: 'https://x.com/fe2o3/status/123',
   text: 'Hello world, check out github.com/acme/tool it is neat',
   author: { screen_name: 'fe2o3', name: 'Fe' },
   created_at: '2026-08-27T00:00:00Z',
-  likes: 10, retweets: 2, replies: 3,
+  likes: 10, reposts: 2, replies: 3,
   media: { all: [{ type: 'photo', url: 'https://x/photo.jpg' }] },
   translation: null, article: null,
 } };
@@ -28,7 +28,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   }
   if (url.includes('api.telegram.org')) {
     const body = String(init?.body ?? '');
-    if (mode === 'fail-send' && body.includes('link_preview_options')) throw new Error('TG down');
+    if (mode === 'fail-send' && !body.includes('⚠️')) throw new Error('TG down');
     calls.push({ url, body: JSON.parse(body || '{}') });
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
   }
@@ -64,10 +64,10 @@ describe('archiveTweet', () => {
     const kv = memKv();
     await archiveTweet(mkEnv(kv), '944783507', 'fe2o3', '123', ctx);
     await Promise.allSettled(pending);
-    const card = sendMessages()[0]?.body?.text?.toString() ?? '';
-    expect(card).toContain('Hello world');
-    // 卡片经 sendPerRepoMessages(sendMessage) 发出
-    expect(sendMessages().length).toBeGreaterThanOrEqual(1);
+    // 单图帖走 sendPhoto(caption=卡片)
+    const photoCall = calls.find((c) => c.url.includes('/sendPhoto'));
+    expect(photoCall?.body?.caption?.toString() ?? '').toContain('Hello world');
+    expect(photoCall?.body?.photo).toBe('https://x/photo.jpg');
     // Telegraph 页 URL 已存 KV(archive:tg:<stamp>)
     const tgKey = [...kv.store.keys()].find((k) => k.startsWith('archive:tg:'));
     expect(tgKey).toBeTruthy();

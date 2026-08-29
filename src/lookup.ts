@@ -3,7 +3,7 @@ import { resolveDescriptions, translateBatch, translateTextZh, isChinese, summar
 import { fetchDeepwikiOverview } from './deepwiki';
 import { renderMessage, renderMarkdown, esc } from './render';
 import { sendPerRepoMessages, sendTelegram } from './notify';
-import { archiveToGitHub, archiveOgImage } from './archive';
+import { archiveToGitHub, archiveOgImage, createTelegraphAccount, createTelegraphPage } from './archive';
 import { urlToMarkdown, extractOgImage } from './urlmd';
 
 // 北京时间日期串(与 index.ts 一致; 独立内联避免循环依赖)
@@ -48,11 +48,11 @@ export async function shouldReprocess(env: Env, url: string): Promise<'first' | 
   return prev.translated && prev.descOk ? 'done' : 'retry';
 }
 
-/** shouldReprocess 的配对写: 处理结束后回填真实质量。 */
-export async function markProcessed(env: Env, url: string, translated: boolean, descOk: boolean, mdStamp?: string): Promise<void> {
+/** shouldReprocess 的配对写: 处理结束后回填真实质量。title/summary 供重复卡片渲染具体内容。 */
+export async function markProcessed(env: Env, url: string, translated: boolean, descOk: boolean, mdStamp?: string, title?: string, summary?: string): Promise<void> {
   // ponytail: 键截断防 KV 512B 上限抛错(url 理论上可超长); 截断碰撞仅影响 7 天 TTL 去重, 可接受
   try {
-    await env.CACHE.put(`reproc:${url.slice(0, 400)}`, JSON.stringify({ ts: Date.now(), translated, descOk, md: mdStamp }), { expirationTtl: 7 * 86400 });
+    await env.CACHE.put(`reproc:${url.slice(0, 400)}`, JSON.stringify({ ts: Date.now(), translated, descOk, md: mdStamp, t: title?.slice(0, 120), s: summary?.slice(0, 300) }), { expirationTtl: 7 * 86400 });
   } catch {
     // 写失败只影响重发判定(下次按 retry 重跑), 不杀调用方
   }
@@ -432,12 +432,6 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
   } else translatedOk = isChinese(summaryZh);
   try {
     await archiveToGitHub(env, stamp, `# Web Archive · ${url}\n\n${clipped}\n\n---\n由 daily-digest bot 自动生成`);
-    // 重发质量记录: translated=中文摘要成功; descOk 网页无 deepwiki/zread 概念, 归档+摘要齐即 true
-    ctx?.waitUntil?.(markProcessed(env, url, translatedOk, true, stamp));
-    // 内容含 GitHub repo 链接 → 逐个走 repo lookup(去重防递归; 上限 3 个省子请求)
-    await fanoutRepoRefs(env, chatId, clipped, ctx);
-    const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
-    await indexArchivedItems(env, [{ title: new URL(url).hostname, url, desc: summaryZh, descZh: undefined } as SourceItem], stamp);
     const host = new URL(url).hostname;
     // 标题: md 首行非空非标点优先(页面标题), 否则原 URL 域名; 英文 → 中文
     let title = md.split('\n').map((l) => l.trim()).find((l) => l && !/^[#*>\-|`]/.test(l) && !/^https?:\/\//i.test(l)) ?? host;
@@ -446,6 +440,33 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
     if (!isChinese(titleZh) && env.OPENROUTER_API_KEY) {
       titleZh = (await generateTitleZh(env, title).catch(() => null)) ?? (await translateTextZh(env, title).catch(() => null)) ?? title;
     }
+    // Telegraph 存档(单页; 失败静默——增强非必需)
+    let tgPageUrl = '';
+    const tgToken = env.TELEGRAPH_TOKEN ?? (await createTelegraphAccount().catch(() => null));
+    if (tgToken) {
+      // markdown 转 telegraph nodes: 简易按行分段。Telegraph 仅支持 h3/h4(#/##→h3, ###→h4); li 须嵌 ul
+      const nodes = clipped.split('\n').map((line) => {
+        const l = line.trim();
+        if (!l) return { tag: 'br' as const, children: [] };
+        if (/^#{1,2} /.test(l)) return { tag: 'h3' as const, children: [l.replace(/^#{1,2} /, '')] };
+        if (l.startsWith('### ')) return { tag: 'h4' as const, children: [l.slice(4)] };
+        if (l.startsWith('> ')) return { tag: 'blockquote' as const, children: [{ tag: 'p', children: [l.slice(2)] }] };
+        if (l.startsWith('```')) return { tag: 'pre' as const, children: [{ tag: 'code', children: [l] }] };
+        if (l.startsWith('- ') || l.startsWith('* ')) return { tag: 'ul' as const, children: [{ tag: 'li', children: [l.slice(2)] }] };
+        return { tag: 'p', children: [l] };
+      });
+      const pageUrl = await createTelegraphPage(tgToken, titleZh || host, nodes);
+      if (pageUrl) {
+        tgPageUrl = pageUrl;
+        try { await env.CACHE.put(`archive:tg:${stamp}`, pageUrl); } catch { /* KV 额度忽略 */ }
+      }
+    }
+    // 重发质量记录: translated=中文摘要成功; descOk 网页无 deepwiki/zread 概念, 归档+摘要齐即 true
+    ctx?.waitUntil?.(markProcessed(env, url, translatedOk, true, stamp, titleZh, summaryZh ?? undefined));
+    // 内容含 GitHub repo 链接 → 逐个走 repo lookup(去重防递归; 上限 3 个省子请求)
+    await fanoutRepoRefs(env, chatId, clipped, ctx);
+    const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
+    await indexArchivedItems(env, [{ title: host, url, desc: summaryZh, descZh: undefined } as SourceItem], stamp);
     // 统一印刷: 标题直链(中文优先) / 中文摘要 / 标签 / 存档三链——对齐 repo 卡的 renderMessage 三段结构
     // 标签: 无现成 topics 时用 LLM 生成领域标签
     let tagsZh: string[] | null = null;
@@ -455,7 +476,7 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
       `<b><a href="${esc(url)}">${esc(titleZh)}</a></b>`,
       summaryZh ? `\n\n📝 ${esc(summaryZh).slice(0, 300)}` : '',
       `\n\n${tagLine}`,
-      `\n\n📁 ${archiveLinks(url, undefined, `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`)}`,
+      `\n\n📁 ${archiveLinks(url, tgPageUrl || undefined, `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`)}`,
     ].join('');
     // 有 og:image → sendPhoto(图=OG 卡, caption=确认+链接); 无图/发送失败 → 纯文字
     if (photo) {

@@ -62,21 +62,27 @@ describe('fetchTweet: FxEmbed 拉取', () => {
     globalThis.fetch = (async () => new Response(JSON.stringify(body), { status })) as typeof fetch;
   };
   it('200 + text + translation → 返回含 translation', async () => {
-    mock({ code: 200, tweet: { text: 'hello', translation: { text: '你好' } } });
+    mock({ code: 200, status: { text: 'hello', translation: { text: '你好' } } });
     const t = await fetchTweet('j', '1');
     expect(t?.text).toBe('hello');
     expect(t?.translation?.text).toBe('你好');
+  });
+  it('v2 端点: /2/status/{id}?lang=zh-cn', async () => {
+    let url = '';
+    globalThis.fetch = (async (i: RequestInfo | URL) => { url = String(i); return new Response(JSON.stringify({ code: 200, status: { text: 'x' } })); }) as typeof fetch;
+    await fetchTweet('j', '42');
+    expect(url).toBe('https://api.fxtwitter.com/2/status/42?lang=zh-cn');
   });
   it('HTTP 非200 → null', async () => {
     mock({}, 500);
     expect(await fetchTweet('j', '1')).toBeNull();
   });
   it('body code≠200 → null', async () => {
-    mock({ code: 404, tweet: null });
+    mock({ code: 404, status: null });
     expect(await fetchTweet('j', '1')).toBeNull();
   });
   it('无 text → null(僵尸数据)', async () => {
-    mock({ code: 200, tweet: { translation: { text: 'partial' } } });
+    mock({ code: 200, status: { translation: { text: 'partial' } } });
     expect(await fetchTweet('j', '1')).toBeNull();
   });
   it('网络异常 → null(不抛)', async () => {

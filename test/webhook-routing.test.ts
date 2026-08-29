@@ -108,9 +108,9 @@ describe('webhook 路由全分支', () => {
     const res = await get('https://x/run');
     expect(res.status).toBe(405);
   });
-  it('/run POST → 404(不在 /telegram 路径)', async () => {
-    const res = await postRaw('https://x/run', { 'X-Runner-Token': 'sec' });
-    expect(res.status).toBe(404);
+  it('/run POST 无 token → 403(不再 404: 端点已修复可用)', async () => {
+    const res = await postRaw('https://x/run', { 'X-Runner-Token': 'wrong' });
+    expect(res.status).toBe(403);
   });
   it('/preview 无凭证(BOT_TOKEN 空) → 抓取+描述+渲染 JSON', async () => {
     env.BOT_TOKEN = '';
@@ -227,6 +227,49 @@ describe('webhook 路由全分支', () => {
     expect(card).not.toContain('x.com/i/article/');
   });
 
+  it('X 多图帖(4 photo + mosaic) → 卡片用 mosaic 拼图而非首图', async () => {
+    const multiTweet = {
+      ...TWEET,
+      media: {
+        all: [
+          { type: 'photo', url: 'https://pbs.twimg.com/media/1.jpg' },
+          { type: 'photo', url: 'https://pbs.twimg.com/media/2.jpg' },
+          { type: 'photo', url: 'https://pbs.twimg.com/media/3.jpg' },
+          { type: 'photo', url: 'https://pbs.twimg.com/media/4.jpg' },
+        ],
+        mosaic: { formats: { jpeg: 'https://mosaic.fxtwitter.com/jpeg/123/1/2/3/4' } },
+      },
+    };
+    let photoUrl = '';
+    vi.mocked(fetchTweet).mockResolvedValueOnce(multiTweet as any);
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async (i: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(i);
+      if (u.includes('sendPhoto')) { const b = JSON.parse(String(init?.body ?? '{}')); photoUrl = b.photo; return new Response(JSON.stringify({ ok: true }), { status: 200 }); }
+      return orig(i, init);
+    }) as typeof fetch;
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://x.com/fe2o3/status/123' } });
+    globalThis.fetch = orig;
+    expect(photoUrl).toContain('mosaic.fxtwitter.com');
+    expect(photoUrl).not.toContain('pbs.twimg.com/media/1.jpg');
+  });
+  it('X 单图帖 → 不用 mosaic(只有1张, 直接原图)', async () => {
+    const singleTweet = {
+      ...TWEET,
+      media: { all: [{ type: 'photo', url: 'https://pbs.twimg.com/media/solo.jpg' }], photos: [{ type: 'photo', url: 'https://pbs.twimg.com/media/solo.jpg' }] },
+    };
+    let photoUrl = '';
+    vi.mocked(fetchTweet).mockResolvedValueOnce(singleTweet as any);
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async (i: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(i);
+      if (u.includes('sendPhoto')) { const b = JSON.parse(String(init?.body ?? '{}')); photoUrl = b.photo; return new Response(JSON.stringify({ ok: true }), { status: 200 }); }
+      return orig(i, init);
+    }) as typeof fetch;
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://x.com/fe2o3/status/123' } });
+    globalThis.fetch = orig;
+    expect(photoUrl).toBe('https://pbs.twimg.com/media/solo.jpg');
+  });
   it('X 中文帖 → 不走翻译(中文主导判定), 卡片无🌐翻译段', async () => {
     const zhTweet = {
       ...TWEET,
@@ -256,6 +299,27 @@ describe('webhook 路由全分支', () => {
     await env.CACHE.put('reproc:https://example.com/page', JSON.stringify({ translated: true, descOk: true, md: '2026-08-27T120000' }));
     await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://example.com/page' } });
     expect(texts().some((t) => t.includes('此前已处理归档'))).toBe(true);
+  });
+  it('URL 重发 done(记录带标题+摘要) → 回具体内容卡片(非梗概)', async () => {
+    await env.CACHE.put('reproc:https://example.com/page', JSON.stringify({
+      translated: true, descOk: true, md: '2026-08-27T120000',
+      t: '公司 Wi-Fi 安全指南', s: '讲企业内网威胁模型与零信任接入实践的文章。',
+    }));
+    await env.CACHE.put('archive:tg:2026-08-27T120000', 'https://telegra.ph/web-done-1');
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://example.com/page' } });
+    const card = texts().find((t) => t.includes('📝'));
+    expect(card).toBeTruthy();
+    expect(card).toContain('公司 Wi-Fi 安全指南');
+    expect(card).toContain('零信任接入实践');
+    expect(card).not.toContain('该链接此前已处理归档'); // 具体内容替换梗概
+    expect(card).toContain('telegra.ph/web-done-1'); // archive:tg 完整 stamp 键命中
+  });
+  it('URL 重发 done(老记录无标题) → 回退梗概头, 不空标题', async () => {
+    await env.CACHE.put('reproc:https://example.com/page', JSON.stringify({ translated: true, descOk: true, md: '2026-08-27T120000' }));
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://example.com/page' } });
+    const card = texts().find((t) => t.includes('📁'));
+    expect(card).toContain('该链接此前已处理归档');
+    expect(card).not.toContain('📝');
   });
   it('URL 重发判定 retry(上次未翻译) → 重跑 + 提示', async () => {
     await env.CACHE.put('reproc:https://example.com/page', JSON.stringify({ translated: false, descOk: false }));
@@ -364,5 +428,72 @@ describe('webhook 分支补充(search 深路径 / X 帖失败 / URL 重挂)', ()
     await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://github.com/owner/repo' } });
     expect(texts().some((t) => t.includes('今日已存档'))).toBe(true); // sendMessage 兜底送达
     globalThis.fetch = orig;
+  });
+  it('archive callback 空存档 → 纯文字回"暂无存档记录"(无 keyboard 不发 kbd)', async () => {
+    await post('https://x/telegram', { callback_query: { id: 'cq3', data: 'arch:pg:0', message: { chat: { id: 944783507 }, message_id: 44 } } });
+    const edit = calls.find((c) => c.url.includes('/editMessageText'));
+    expect(edit).toBeTruthy();
+    expect(String(edit!.body.text)).toContain('暂无存档记录');
+  });
+  it('archive callback 无 messageId → sendTelegramKbd 新消息(from.id 兜底)', async () => {
+    await post('https://x/telegram', { callback_query: { id: 'cq4', data: 'arch:pg:0', from: { id: 944783507 } } });
+    expect(calls.some((c) => c.url.includes('/sendMessage'))).toBe(true);
+    expect(calls.some((c) => c.url.includes('/answerCallbackQuery'))).toBe(true);
+  });
+  it('search callback 有效 token → 按 KV query 重渲染页', async () => {
+    // 预置 search:q:<token> + 索引数据
+    await env.CACHE.put('search:index', JSON.stringify([
+      ['x', 'a/repo', 'https://github.com/a/repo', 'a repo tool rust cli', 'rust cli 工具'],
+      ['x', 'b/repo', 'https://github.com/b/repo', 'b repo web server', 'web 服务器'],
+    ]));
+    await env.CACHE.put('search:q:tok123', 'rust');
+    await post('https://x/telegram', { callback_query: { id: 'cq5', data: 'sch:1:tok123', message: { chat: { id: 944783507 }, message_id: 45 } } });
+    const edit = calls.find((c) => c.url.includes('/editMessageText'));
+    expect(edit).toBeTruthy(); // 结果渲染(页 1 或空页提示)
+    expect(calls.some((c) => c.url.includes('/answerCallbackQuery'))).toBe(true);
+  });
+  it('search callback 无 messageId 且过期 → 静默(只 answer, from.id 兜底)', async () => {
+    await post('https://x/telegram', { callback_query: { id: 'cq6', data: 'sch:1:gone', from: { id: 944783507 } } });
+    expect(calls.some((c) => c.url.includes('/editMessageText'))).toBe(false);
+    expect(calls.some((c) => c.url.includes('/answerCallbackQuery'))).toBe(true);
+  });
+  it('/run POST + 正确 token → 触发 digest 返回 chunks', async () => {
+    vi.mocked(fetchTrending).mockResolvedValue(baseItems as any);
+    const res = await worker.fetch(new Request('https://x/run', {
+      method: 'POST', headers: { 'X-Runner-Token': 'sec' },
+    }), env, { waitUntil: (p: Promise<unknown>) => Promise.resolve(p) } as any);
+    expect(res.status).toBe(200);
+    const j = await res.json() as { ok: boolean; chunks: number };
+    expect(j.ok).toBe(true);
+  });
+  it('/run GET → 405; /run 错 token → 403', async () => {
+    const r1 = await worker.fetch(new Request('https://x/run', { method: 'GET' }), env, {} as any);
+    expect(r1.status).toBe(405);
+    const r2 = await worker.fetch(new Request('https://x/run', {
+      method: 'POST', headers: { 'X-Runner-Token': 'wrong' },
+    }), env, {} as any);
+    expect(r2.status).toBe(403);
+  });
+  it('GET / 探活 → running 文本', async () => {
+    const r = await worker.fetch(new Request('https://x/'), env, {} as any);
+    expect(await r.text()).toContain('running');
+  });
+  it('非 /telegram POST → 404', async () => {
+    const r = await worker.fetch(new Request('https://x/other', { method: 'POST' }), env, {} as any);
+    expect(r.status).toBe(404);
+  });
+  it('webhook 验签失败(无 secret header) → 403', async () => {
+    const res = await worker.fetch(new Request('https://x/telegram', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: { chat: { id: 944783507 }, text: 'hi' } }),
+    }), env, {} as any);
+    expect(res.status).toBe(403);
+  });
+  it('白名单外 chatId → 200 ok 且不响应', async () => {
+    const res = await worker.fetch(new Request('https://x/telegram', {
+      method: 'POST', headers: { 'content-type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': 'sec' },
+      body: JSON.stringify({ message: { chat: { id: 111 }, text: '/help' } }),
+    }), env, {} as any);
+    expect(await res.text()).toBe('ok');
+    expect(texts().length).toBe(0);
   });
 });
