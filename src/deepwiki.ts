@@ -32,7 +32,6 @@ export function extractDeepwikiOverview(payload: string, maxLen = 800): string |
     stripped = comma ? comma[1] : rest;
   }
   stripped = stripped.trim();
-  if (!stripped) return null;
   return stripped.length > maxLen ? stripped.slice(0, maxLen - 1) + '…' : stripped;
 }
 

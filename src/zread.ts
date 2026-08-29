@@ -19,18 +19,16 @@ export function extractDesc(payload: string, maxLen: number, subject?: string): 
   for (let blk of blocks) {
     const lines = blk.trim().split('\n');
     let bodyText = blk.trim();
-    // 标题行可能与正文同块: "## 概述\n正文..."。若首行是概览标题, 摘出标题, 剩余作正文; 同时标记后续块待概览
-    if (lines.length) {
-      const first = lines[0].trim();
-      if (ovHead.test(first)) {
-        expectOverview = true;
-        bodyText = lines.slice(1).join('\n').trim();
-        if (!bodyText) continue; // 纯标题行, 等下一块
-      } else if (otherHead.test(first) && lines.length >= 1 && blk.trim().length < 80) {
-        // 其他标题(独立一行) → 清概览标记
-        expectOverview = false;
-        continue;
-      }
+    // 标题行可能与正文同块: "## 概述\n正文...". 若首行是概览标题, 摘出标题, 剩余作正文; 同时标记后续块待概览
+    const first = lines[0].trim();
+    if (ovHead.test(first)) {
+      expectOverview = true;
+      bodyText = lines.slice(1).join('\n').trim();
+      if (!bodyText) continue; // 纯标题行, 等下一块
+    } else if (otherHead.test(first) && blk.trim().length < 80) {
+      // 其他标题(独立一行) → 清概览标记
+      expectOverview = false;
+      continue;
     }
 
     if (!bodyText || /^[```|[!]/.test(bodyText)) continue;

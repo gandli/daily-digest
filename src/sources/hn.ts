@@ -6,7 +6,6 @@ import type { SourceItem } from '../types';
 export async function fetchHackerNewsProducts(limit = 10): Promise<SourceItem[]> {
   const n = Math.min(50, Math.max(1, Math.floor(limit) || 10)); // 整数消毒(SSRF 守卫: 数字才进 URL)
   const url = `https://hn.algolia.com/api/v1/search_by_date?tags=story,show_hn&hitsPerPage=${n}`;
-  if (new URL(url).hostname !== 'hn.algolia.com') throw new Error('unexpected hn endpoint'); // 出口域白名单
   const res = await fetch(url, { headers: { 'User-Agent': 'daily-digest' } });
   if (!res.ok) throw new Error(`hn algolia ${res.status}`);
   const j = (await res.json()) as { hits?: { title?: string; url?: string; story_text?: string | null; points?: number; objectID?: string; author?: string; created_at?: string }[] };

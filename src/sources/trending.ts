@@ -27,11 +27,11 @@ export async function fetchTrending(): Promise<SourceItem[]> {
     // h2 标题内唯一链接即仓库路径(/owner/repo)
     .on('article.Box-row h2 a', {
       element(el) {
-        if (!cur) return;
+        // cur 必非空: 选择器限定 article.Box-row 内, 首个回调必先跑 element() 建 cur
         const href = el.getAttribute('href') ?? '';
         if (/^\/[^/]+\/[^/]+$/.test(href)) {
-          cur.title = href.replace(/^\//, '');
-          cur.url = `https://github.com/${cur.title}`;
+          cur!.title = href.replace(/^\//, '');
+          cur!.url = `https://github.com/${cur!.title}`;
         }
       },
     })
@@ -56,8 +56,7 @@ export async function fetchTrending(): Promise<SourceItem[]> {
     })
     .on('article.Box-row p.col-9', {
       text(t) {
-        if (!cur) return;
-        cur.desc = (cur.desc ?? '') + t.text;
+        cur!.desc = (cur!.desc ?? '') + t.text;
       },
     })
   // 必须消费转换后的流, handler 才会执行(workerd 语义)
