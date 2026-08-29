@@ -57,7 +57,7 @@ describe('translateTextZh: TranSmart/Google/MyMemory 响应形态', () => {
   it('TranSmart auto_translation 数组 → 译文', async () => {
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const u = String(input);
-      if (u.includes('transmart.qq.com')) return new Response(JSON.stringify({ auto_translation: ['腾讯翻译的中文'] }), { status: 200 });
+      if (u.includes('transmart.qq.com')) return new Response(JSON.stringify({ auto_translation: ['腾讯翻译的中文'], header: { ret_code: 'succ' } }), { status: 200 });
       throw new Error(`unexpected ${u}`);
     }) as typeof fetch;
     expect(await translateTextZh(skipAiEnv, 'hello world')).toBe('腾讯翻译的中文');
