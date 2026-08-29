@@ -39,9 +39,9 @@ export { topicsFromTitle };
 const HELP = `📊 daily-digest 使用
 
 <b>命令</b>
-/gt — 今日 GitHub Trending
-/hn — 今日 HN 酷产品
-/ph — Product Hunt 每日热门
+/gt — 查询今日 GitHub Trending
+/hn — 查询今日 Hacker News 酷产品
+/ph — 查询今日 Product Hunt 热门产品
 /search 关键词 — 搜索历史存档
 /archive — 历史存档(分页+三链)
 
