@@ -37,7 +37,7 @@ describe('runProductThin dispatch 失败', () => {
     const n = await runProductThin(env, '944783507');
     expect(n).toBe(0);
     expect(dispatchCalled).toBe(true);
-    expect(sendTexts().some((t) => t.includes('⚠️ 今日酷产品尚未生成且触发失败'))).toBe(true);
+    expect(sendTexts().some((t) => t.includes('⚠️ 今日 Hacker News 酷产品尚未生成且触发失败'))).toBe(true);
     expect(sendTexts().some((t) => t.includes('生成中'))).toBe(false);
   });
 });
