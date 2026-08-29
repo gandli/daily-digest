@@ -5,8 +5,8 @@ import { renderMessage, renderMarkdown, renderTelegraphNodes, renderProductMessa
 import { sendPerRepoMessages, sendTelegram, sendChatAction, sendPhotoOrText, registerCommands, safeEqual, sendTelegramKbd, answerCallbackQuery, editMessageKbd, type InlineKB } from './notify';
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage, createTelegraphAccount, flushArchivedPending } from './archive';
 import { extractRepo, extractRepoRefs, today, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, archiveLinks, backfillDescriptions, saveToWayback } from './lookup';
-import { extractUrl } from './urlmd';
-import { extractTweet, fetchTweet, renderTweetHtml, articleToText, type FxTweet } from './fxtweet';
+import { extractUrl, urlToMarkdown } from './urlmd';
+import { extractTweet, fetchTweet, renderTweetHtml, articleToText, articleRefFixup, type FxTweet } from './fxtweet';
 import { matchEntries, type SearchEntry } from './search-index';
 import { summarizeZh, summarizeZhDeep, translateTextZh, translateBatch, isChinese, isZhDominant, generateTitleZh, generateTagsZh } from './translate';
 
@@ -185,10 +185,19 @@ export async function archiveTweet(
   // LLM 喂裸 URL 会输出"无法访问"拒绝语(中文过守卫变标题)——title/body 优先用 article 内容。
   const artText = articleToText(tweet);
   const isArticle = !!artText || !!tweet.article?.title;
-  // 正文: article 帖用 preview_text + blocks 截段; 普通帖用 tweet.text
+  // article 引用帖: v2 API 对部分 article 帖不内嵌 article 对象(text 只是 x.com/i/article 裸链)。
+  // fixupx 公开页服务端渲染全文 → urlToMarkdown 提取正文; 展示链接也转 fixupx(免登录墙, Wayback 可存)。
+  const fixup = isArticle ? null : articleRefFixup(tweet, handle);
+  const refText = fixup ? await urlToMarkdown(env, fixup, {}).catch(() => null) : null;
+  const refTitle = refText?.match(/^#\s+(.+)$/m)?.[1] ?? null; // fixupx 页首标题 = 文章题
+  const isArticlePost = isArticle || (!!fixup && !!refText);
+  // 正文: article 帖用 preview_text + blocks 截段; fixupx 引用帖用提取正文; 普通帖用 tweet.text
   const bodyText = isArticle
     ? [tweet.article?.preview_text, artText].filter(Boolean).join('\n\n')
-    : (tweet.text ?? '');
+    : isArticlePost
+      ? (refText ?? '')
+      : (tweet.text ?? '');
+  if (isArticlePost && fixup) tweet.url = fixup; // 卡片标题直链/存档源都指向 fixupx
   const trunc = bodyText.length > 450 ? bodyText.slice(0, 450) + '  …' : bodyText;
   // 正文已是中文 → 不翻译(isChinese 占比阈值对含代码/URL 的中文帖会稀释误判; isZhDominant 比字母数不受稀释)
   const isZhBody = isZhDominant(bodyText);
@@ -223,7 +232,7 @@ export async function archiveTweet(
     '',
     '---',
     '',
-    tweet.text ?? '',
+    bodyText,
     ...(articleToText(tweet) ? [`\n\n### 📄 嵌套文章: ${tweet.article?.title ?? ''}\n\n${articleToText(tweet)}`] : []),
     ...(hasZh ? [`\n---\n\n**🌐 中文翻译**\n\n${textZh}`] : []),
     ...(tweet.media?.all ?? []).map((m) => `\n![${m.type ?? 'media'}](${m.url ?? m.thumbnail_url})`),
@@ -236,16 +245,18 @@ export async function archiveTweet(
     // Telegraph 存档(单帖一页; 失败静默——增强非必需)
     // 页标题 = LLM 帖子标题(易读), 失败回退 "X · @handle · 日期"
     // article 帖: article.title 是现成中文标题 → 直接用, 不再调 LLM(裸 URL 喂 LLM 必得拒绝语)
-    const titleText = tweet.article?.title || (tweet.text ?? '').slice(0, 600);
+    const titleText = tweet.article?.title || refTitle || (isArticlePost ? bodyText : (tweet.text ?? '')).slice(0, 600);
     let titleZh: string | null = tweet.article?.title
       ? tweet.article.title
-      : await generateTitleZh(env, titleText).catch(() => null);
+      : isArticlePost && refTitle
+        ? refTitle // fixupx 页首标题即文章题, 免 LLM(中文文章得中文题, 确定性)
+        : await generateTitleZh(env, titleText).catch(() => null);
     let tgLine = '';
     let tgPageUrl = '';
     if (env.TELEGRAPH_TOKEN) {
       const nodes: unknown[] = [
         { tag: 'p', children: [`@${tweet.author?.screen_name ?? handle} · ${tweet.created_at ?? ''}`] },
-        ...(isArticle ? [{ tag: 'p', children: [`${tweet.author?.name ?? ''} · ${tweet.article?.title ?? ''}`] }] : [{ tag: 'p', children: [tweet.text ?? ''] }]),
+        ...(isArticle ? [{ tag: 'p', children: [`${tweet.author?.name ?? ''} · ${tweet.article?.title ?? ''}`] }] : [{ tag: 'p', children: [bodyText] }]),
         ...(articleToText(tweet) ? [{ tag: 'h3' as const, children: [`📄 ${tweet.article?.title ?? '嵌套文章'}`] }, { tag: 'p', children: [articleToText(tweet)!] }] : []),
         ...(hasZh ? [{ tag: 'h3' as const, children: ['🌐 中文翻译'] }, { tag: 'p', children: [textZh!] }] : []),
         ...(tweet.media?.all ?? []).map((m) => ({ tag: 'figure' as const, children: [{ tag: 'img' as const, attrs: { src: m.thumbnail_url ?? m.url ?? '' } }] })),
@@ -276,7 +287,7 @@ export async function archiveTweet(
     const tags = await generateTagsZh(env, bodyText.slice(0, 300) || tweet.article?.title || '').catch(() => null);
     const tagLine = `#archive${tags?.length ? ` ${tags.map((t) => `#${t}`).join(' ')}` : ''}`;
     const links = `${tagLine}\n\n📁 ${archiveLinks(tUrl, tgLine ? tgLine.split(' ').pop() : undefined, `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`)}`;
-    const card = renderTweetHtml(tweet, titleZh ?? '', hasZh ? textZh! : (isArticle ? (bodyText || (tweet.text ?? '')) : (tweet.text ?? '')), '', links);
+    const card = renderTweetHtml(tweet, titleZh ?? '', hasZh ? textZh! : (bodyText || (tweet.text ?? '')), '', links);
     // Tweet 卡链接预览 = Telegraph 页(og:image 由 Telegraph 渲染), 无 Telegraph 回退原推 URL。
     // 多图帖用 mosaic 实体图发 sendPhoto; 单图/视频/无媒体走 ogUrl 链接预览。
     // ponytail: 单图 sendPhoto 实体图(有 file_id 缓存), 多图 mosaic 拼图, 无媒体/视频回退 ogUrl 链接预览

@@ -3,7 +3,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { archiveTweet } from '../src/index';
 
-type Mode = 'ok' | 'tweet-empty' | 'fail-send' | 'fail-dispatch';
+type Mode = 'ok' | 'tweet-empty' | 'fail-send' | 'fail-dispatch' | 'article-ref';
 let mode: Mode = 'ok';
 type Call = { url: string; body: any };
 const calls: Call[] = [];
@@ -19,12 +19,26 @@ const TWEET_OK = { code: 200, status: {
   translation: null, article: null,
 } };
 
+// article 引用帖(真实故障 2093573946478305776): v2 API 不内嵌 article 对象, text 只是裸引用链
+const TWEET_ARTICLE_REF = { code: 200, status: {
+  url: 'https://x.com/fe2o3/status/125',
+  id: '125',
+  text: 'https://x.com/i/article/2093572549854855168',
+  author: { screen_name: 'fe2o3', name: 'Fe' },
+  created_at: '2026-08-29T00:00:00Z',
+  media: { all: [] }, translation: null, article: null,
+} };
+
 globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = String(input);
   if (url.includes('api.fxtwitter.com')) {
-    return mode === 'tweet-empty'
-      ? new Response('{}', { status: 404 })
-      : new Response(JSON.stringify(TWEET_OK), { status: 200, headers: { 'content-type': 'application/json' } });
+    if (mode === 'tweet-empty') return new Response('{}', { status: 404 });
+    if (mode === 'article-ref') return new Response(JSON.stringify(TWEET_ARTICLE_REF), { status: 200, headers: { 'content-type': 'application/json' } });
+    return new Response(JSON.stringify(TWEET_OK), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
+  if (mode === 'article-ref' && url.includes('r.jina.ai')) {
+    // urlToMarkdown Jina 级返回 fixupx 全文(>40 字符过 viaJina 门槛)
+    return new Response('# 钓鱼邮件分析报告\n\n本文依据原始邮件头与解码后的头部字段还原了完整攻击链, 包含诱饵文档与回连地址。', { status: 200 });
   }
   if (url.includes('api.telegram.org')) {
     const body = String(init?.body ?? '');
@@ -74,6 +88,19 @@ describe('archiveTweet', () => {
     expect(kv.store.get(tgKey!)).toBe('https://telegra.ph/x-post-1');
     // repo 索引 + search:index 已写
     expect([...kv.store.keys()].some((k) => k.startsWith('archive:idx:'))).toBe(true);
+  });
+
+  it('article 引用帖(v2 无 article 对象) → 转 fixupx 提取正文, 标题/链接转 fixupx', async () => {
+    mode = 'article-ref';
+    const env = { ...mkEnv(), JINA_API_KEY: 'j' };
+    await archiveTweet(env, '944783507', 'fe2o3', '125', ctx);
+    await Promise.allSettled(pending);
+    const card = sendMessages().find((c) => String(c.body.text ?? '').includes('fixupx.com'));
+    expect(card).toBeTruthy(); // 卡片存在且标题直链已转 fixupx
+    const text = String(card!.body.text ?? '');
+    expect(text).toContain('https://fixupx.com/fe2o3/status/125');
+    expect(text).toContain('钓鱼邮件分析报告'); // 正文与标题来自 fixupx 提取
+    expect(text).not.toContain('x.com/i/article/'); // 裸引用链不再出现
   });
 
   it('tweet 为空(FxEmbed 404) → 落 archiveUrl 通用链, 不抛错且发 TG', async () => {
