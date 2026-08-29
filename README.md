@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="#-命令与消息"><img src="https://img.shields.io/badge/命令-5_个-2b5278" alt="命令数"></a>
+  <a href="#-命令与消息"><img src="https://img.shields.io/badge/命令-6_个-2b5278" alt="命令数"></a>
   <a href="#-描述获取链"><img src="https://img.shields.io/badge/中文守卫-100%25-2b5278" alt="中文守卫"></a>
   <a href="https://github.com/gandli/daily-digest/actions/workflows/deploy.yml"><img src="https://github.com/gandli/daily-digest/actions/workflows/deploy.yml/badge.svg" alt="CI"></a>
 </p>
@@ -26,6 +26,7 @@ GitHub Trending → **Telegram 每日中文摘要 bot**。Cloudflare Workers 免
 |---|---|
 | `/trending` | 当日榜单(cron 已抓取,读 `digest:<date>` 缓存秒回;当天 trending 固定不重抓) |
 | `/product` | 今日 HN 酷产品:读 archive 分支 `product/<date>.json` 秒回产品卡;未生成时自动触发 GitHub Actions,完成后推送 |
+| `/ph` | **Product Hunt 每日热门**:官方 feed 免 key 直拉 top10,中文摘要 + 产品卡(ogUrl 预览),当日缓存秒回;榜单存档 `ph-<日期>.md` |
 | `/search <关键词>` | 全索引搜索(星标/书签/存档 6000+ 条),结果当页英文描述批量译中,分页 + inline keyboard 翻页/跳转 |
 | `/archive [页码]` | 历史存档分页列表,每条约**存档三链**(Telegraph → 互联网档案馆 web.archive.org → GitHub md) |
 | `/start` `/help` 其他 | 使用提示 + 命令菜单注册 |
@@ -75,7 +76,7 @@ npm install
 npm run dev        # wrangler dev --test-scheduled
 curl http://localhost:8787/__scheduled   # 手动触发 cron 管线
 npx tsc --noEmit   # 类型检查
-npm test           # vitest 519+ 用例(44 文件)
+npm test           # vitest 550+ 用例(45 文件)
 npm test -- --coverage  # 覆盖率报告
 npm run manual     # 用户手册全管线: e2e 场景 → 标注截图 → AI 正文(无 key 自动模板兜底)
 ```
@@ -108,5 +109,5 @@ main push 另触发 changelog workflow 自动更新 [CHANGELOG.md](CHANGELOG.md)
 ---
 
 <p align="center">
-  <sub>Cloudflare Workers 免费层 · 无 DB · KV only · 519+ tests · CI 自动部署 · changelog 自动生成 · 用户手册自动生成</sub>
+  <sub>Cloudflare Workers 免费层 · 无 DB · KV only · 550+ tests · CI 自动部署 · changelog 自动生成 · 用户手册自动生成</sub>
 </p>

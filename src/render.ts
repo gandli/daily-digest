@@ -57,7 +57,7 @@ export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl
 }
 
 // HN 酷产品消息(仿 trending 但独立)。标题直链 + 中文描述 + #product + 领域标签 + 存档三链。
-export function renderProductMessage(dateStr: string, items: SourceItem[], telegraphUrl?: string, archiveRepo = 'gandli/daily-digest'): string[] {
+export function renderProductMessage(dateStr: string, items: SourceItem[], telegraphUrl?: string, archiveRepo = 'gandli/daily-digest', tag = 'product'): string[] {
   const header = `🚀 <b>${dateStr}</b>`;
   const mdPath = `https://github.com/${archiveRepo}/blob/archive/archive/${dateStr.slice(0, 4)}/${dateStr}.md`;
   return items.map((it, i) => {
@@ -78,7 +78,7 @@ export function renderProductMessage(dateStr: string, items: SourceItem[], teleg
       `${head}<b><a href="${esc(it.url)}">${esc(it.titleZh ?? it.title)}</a></b>${score}${metaLine}` +
       descLine +
       quoteLine +
-      `\n#product ${topicTags}`.replace(/\s+/g, ' ') +
+      `\n#${tag} ${topicTags}`.replace(/\s+/g, ' ') +
       `\n\n📁 ${links.join(' · ')}`;
     if (msg.length > 4000) msg = msg.slice(0, 3999) + '…';
     return msg;

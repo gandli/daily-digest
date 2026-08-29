@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="#-commands"><img src="https://img.shields.io/badge/commands-5-2b5278" alt="commands"></a>
+  <a href="#-commands"><img src="https://img.shields.io/badge/commands-6-2b5278" alt="commands"></a>
   <a href="#-description-chain"><img src="https://img.shields.io/badge/Chinese%20guard-100%25-2b5278" alt="Chinese guard"></a>
   <a href="https://github.com/gandli/daily-digest/actions/workflows/deploy.yml"><img src="https://github.com/gandli/daily-digest/actions/workflows/deploy.yml/badge.svg" alt="CI"></a>
 </p>
@@ -26,6 +26,7 @@ Every day at **08:30 (UTC+8)** it pushes the top 10 repos — one message per re
 |---|---|
 | `/trending` | Today's chart (already fetched by cron; served instantly from the `digest:<date>` cache; trending is fixed for the day, never re-fetched) |
 | `/product` | Today's HN cool products: reads `product/<date>.json` from the archive branch for an instant card; if missing, auto-triggers GitHub Actions and pushes when done |
+| `/ph` | **Product Hunt daily popular**: key-free official feed, top 10 with Chinese summaries as product cards (ogUrl preview); same-day cache; digest archived as `ph-<date>.md` |
 | `/search <keyword>` | Full-index search across 6000+ entries (stars/bookmarks/archives); on-page English descriptions translated in batch; paginated with inline-keyboard paging/jump |
 | `/archive [page]` | Paginated history list; each entry shows the **archive triple-link** (Telegraph → Internet Archive web.archive.org → GitHub md) |
 | `/start` `/help` anything else | Usage hints + command-menu registration |
@@ -75,7 +76,7 @@ npm install
 npm run dev        # wrangler dev --test-scheduled
 curl http://localhost:8787/__scheduled   # trigger cron pipeline manually
 npx tsc --noEmit   # type check
-npm test           # vitest, 519+ tests (44 files)
+npm test           # vitest, 550+ tests (44 files)
 npm test -- --coverage   # coverage report
 npm run manual     # user-manual full pipeline: e2e scenarios → annotated screenshots → AI docs (template fallback without a key)
 ```
@@ -108,5 +109,5 @@ Pushing to main also triggers a changelog workflow that auto-updates [CHANGELOG.
 ---
 
 <p align="center">
-  <sub>Cloudflare Workers free tier · no DB · KV only · 519+ tests · CI auto-deploy · auto changelog · auto-generated user manual</sub>
+  <sub>Cloudflare Workers free tier · no DB · KV only · 550+ tests · CI auto-deploy · auto changelog · auto-generated user manual</sub>
 </p>

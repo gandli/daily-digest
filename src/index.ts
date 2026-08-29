@@ -8,6 +8,7 @@ import { extractRepo, extractRepoRefs, today, lookupRepo, seenToday, refreshLook
 import { extractUrl, urlToMarkdown } from './urlmd';
 import { extractTweet, fetchTweet, renderTweetHtml, articleToText, articleRefFixup, type FxTweet } from './fxtweet';
 import { matchEntries, type SearchEntry } from './search-index';
+import { runProductHunt } from './ph';
 import { summarizeZh, summarizeZhDeep, translateTextZh, translateBatch, isChinese, isZhDominant, generateTitleZh, generateTagsZh } from './translate';
 
 // 北京时间日期串 YYYY-MM-DD(UTC+8 无 DST,直接偏移即可)
@@ -40,6 +41,7 @@ const HELP = `📊 daily-digest 使用
 <b>命令</b>
 /trending — 今日 GitHub Trending
 /product — 今日 HN 酷产品
+/ph — Product Hunt 每日热门
 /search 关键词 — 搜索历史存档
 /archive — 历史存档(分页+三链)
 
@@ -667,7 +669,7 @@ export default {
 
     // 注册命令菜单(幂等)+ 分派命令
     // 慢命令先显示"正在输入…"(低成本, 标准体验)。/help/空即时跳过。
-    if (text.startsWith('/trending') || text.startsWith('/product') || text.startsWith('/archive') || text.startsWith('/search')) {
+    if (text.startsWith('/trending') || text.startsWith('/product') || text.startsWith('/ph') || text.startsWith('/archive') || text.startsWith('/search')) {
       ctx.waitUntil(sendChatAction(env.BOT_TOKEN, chatId)); // 随主 pipeline 后台, 不 block 分派
     }
     if (text.startsWith('/trending')) {
@@ -687,6 +689,9 @@ export default {
     } else if (text.startsWith('/product')) {
       // 薄路径: 读 Actions 生成的 archive 分支 JSON 秒回; miss → repository_dispatch 触发 Actions 生成。
       ctx.waitUntil(runProductThin(env, chatId, ctx));
+    } else if (text.startsWith('/ph')) {
+      // Product Hunt 每日热门: 官方 Atom feed 免 key 直拉, Worker 内完成(无 Actions 重管线)。
+      ctx.waitUntil(runProductHunt(env, chatId));
     } else if (text.startsWith('/help') || text === '') {
       ctx.waitUntil(Promise.all([registerCommands(env.BOT_TOKEN), sendTelegram(env.BOT_TOKEN, chatId, HELP)]));
       return new Response('ok');

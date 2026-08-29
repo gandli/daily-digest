@@ -101,7 +101,7 @@ describe('registerCommands', () => {
     await registerCommands('t');
     const set = calls.filter((c) => c.url.includes('/setMyCommands'));
     expect(set.length).toBe(2);
-    expect((set[0].body.commands as any[]).length).toBe(5);
+    expect((set[0].body.commands as any[]).length).toBe(6);
   });
 });
 
