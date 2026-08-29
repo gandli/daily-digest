@@ -241,6 +241,190 @@ describe('flushArchivedPending: ref 冲突重试成功(blob sha 复用)', () => 
   });
 });
 
+describe('flushArchivedPending: 失败/边界分支补全', () => {
+  it('条目 JSON 合法但缺 path / content 非串 → 全部跳过: 返回 0 零请求, 键保留', async () => {
+    const kv = memKv();
+    kv.store.set('pend:arc:a1', JSON.stringify({ path: '', content: b64('# x'), encoding: 'utf-8', message: 'm' })); // path 缺失
+    kv.store.set('pend:arc:a2', JSON.stringify({ path: 'a.md', content: 123, encoding: 'utf-8', message: 'm' })); // content 非串
+    mockFetch([{ match: () => true, json: {} }]);
+    expect(await flushArchivedPending(env(kv))).toBe(0);
+    expect(gh().length).toBe(0);
+    expect(pendKeys(kv).length).toBe(2);
+  });
+
+  it('blob 外呼网络错误(无路由抛错) → catch 返回 0, pend 键保留, 零 tree 请求', async () => {
+    const kv = memKv();
+    await archiveToGitHub(env(kv), '2026-08-28', '# a');
+    mockFetch([
+      { match: (u, m) => u.includes('/git/ref/heads/archive') && m === 'GET', json: { object: { sha: 'basesha' } } },
+      { match: (u, m) => u.includes('/git/commits/') && m === 'GET', json: { tree: { sha: 'treeshabase' } } },
+      // 故意不给 blobs 路由 → stub 抛 unexpected → flush 内部 catch
+    ]);
+    expect(await flushArchivedPending(env(kv))).toBe(0);
+    expect(pendKeys(kv).length).toBe(1);
+    expect(gh().some((c) => c.url.includes('/git/trees') || c.url.includes('/git/refs'))).toBe(false);
+  });
+
+  it('tree 400 → 返回 0, pend 键保留, 零 commit/PATCH 请求', async () => {
+    const kv = memKv();
+    await archiveToGitHub(env(kv), '2026-08-28', '# a');
+    mockFetch([
+      { match: (u, m) => u.includes('/git/ref/heads/archive') && m === 'GET', json: { object: { sha: 'basesha' } } },
+      { match: (u, m) => u.includes('/git/commits/') && m === 'GET', json: { tree: { sha: 'treeshabase' } } },
+      { match: (u, m) => u.includes('/git/blobs') && m === 'POST', json: { sha: 'blob0' } },
+      { match: (u, m) => u.includes('/git/trees') && m === 'POST', status: 400 },
+    ]);
+    expect(await flushArchivedPending(env(kv))).toBe(0);
+    expect(pendKeys(kv).length).toBe(1);
+    expect(gh().some((c) => c.method === 'PATCH' || (c.url.endsWith('/git/commits') && c.method === 'POST'))).toBe(false);
+  });
+
+  it('commit 422 → 返回 0, pend 键保留, 零 PATCH 请求', async () => {
+    const kv = memKv();
+    await archiveToGitHub(env(kv), '2026-08-28', '# a');
+    mockFetch([
+      { match: (u, m) => u.includes('/git/ref/heads/archive') && m === 'GET', json: { object: { sha: 'basesha' } } },
+      { match: (u, m) => u.includes('/git/commits/') && m === 'GET', json: { tree: { sha: 'treeshabase' } } },
+      { match: (u, m) => u.includes('/git/blobs') && m === 'POST', json: { sha: 'blob0' } },
+      { match: (u, m) => u.includes('/git/trees') && m === 'POST', json: { sha: 'newtree0' } },
+      { match: (u, m) => u.endsWith('/git/commits') && m === 'POST', status: 422 },
+    ]);
+    expect(await flushArchivedPending(env(kv))).toBe(0);
+    expect(pendKeys(kv).length).toBe(1);
+    expect(gh().filter((c) => c.method === 'PATCH').length).toBe(0);
+  });
+
+  it('commit/ref 外呼网络错误(无 tree 路由抛错) → catch 返回 0, pend 键保留', async () => {
+    const kv = memKv();
+    await archiveToGitHub(env(kv), '2026-08-28', '# a');
+    mockFetch([
+      { match: (u, m) => u.includes('/git/ref/heads/archive') && m === 'GET', json: { object: { sha: 'basesha' } } },
+      { match: (u, m) => u.includes('/git/commits/') && m === 'GET', json: { tree: { sha: 'treeshabase' } } },
+      { match: (u, m) => u.includes('/git/blobs') && m === 'POST', json: { sha: 'blob0' } },
+      // 故意不给 trees 路由 → stub 抛 unexpected → 提交阶段 catch
+    ]);
+    expect(await flushArchivedPending(env(kv))).toBe(0);
+    expect(pendKeys(kv).length).toBe(1);
+  });
+
+  it('PATCH 失败(500)后重取 base 也失败(404) → 放弃返回 0, pend 键保留', async () => {
+    const kv = memKv();
+    await archiveToGitHub(env(kv), '2026-08-28', '# a');
+    let refN = 0;
+    mockFetch([
+      { match: (u, m) => u.includes('/git/ref/heads/archive') && m === 'GET', status: () => (++refN === 1 ? 200 : 404), json: { object: { sha: 'basesha' } } },
+      { match: (u, m) => u.includes('/git/commits/') && m === 'GET', json: { tree: { sha: 'treeshabase' } } },
+      { match: (u, m) => u.includes('/git/blobs') && m === 'POST', json: { sha: 'blob0' } },
+      { match: (u, m) => u.includes('/git/trees') && m === 'POST', json: { sha: 'newtree0' } },
+      { match: (u, m) => u.endsWith('/git/commits') && m === 'POST', json: { sha: 'newcommit0' } },
+      { match: (u, m) => u.includes('/git/refs/heads/archive') && m === 'PATCH', status: 500 },
+    ]);
+    expect(await flushArchivedPending(env(kv))).toBe(0);
+    expect(pendKeys(kv).length).toBe(1);
+    // 确实重试过: 第二次 ref 读失败, PATCH 只发生一次
+    expect(gh().filter((c) => c.url.includes('/git/ref/heads/archive') && c.method === 'GET').length).toBe(2);
+    expect(gh().filter((c) => c.method === 'PATCH').length).toBe(1);
+  });
+
+  it('CACHE.list 抛错 → 顶层 catch 返回 0, 零外呼', async () => {
+    const kv = memKv();
+    kv.list = async () => { throw new Error('kv list boom'); };
+    mockFetch([{ match: () => true, json: {} }]);
+    expect(await flushArchivedPending(env(kv))).toBe(0);
+    expect(gh().length).toBe(0);
+  });
+
+  it('base 读取各失败形态 → 返回 0 零 blob, pend 键保留', async () => {
+    // ref 200 但 object.sha 缺失
+    let kv = memKv();
+    await archiveToGitHub(env(kv), '2026-08-28', '# a');
+    mockFetch([{ match: (u) => u.includes('/git/ref/heads/archive'), json: {} }]);
+    expect(await flushArchivedPending(env(kv))).toBe(0);
+    expect(pendKeys(kv).length).toBe(1);
+    expect(gh().filter((c) => c.url.includes('/git/blobs')).length).toBe(0);
+
+    // base commit 读取 500
+    kv = memKv();
+    await archiveToGitHub(env(kv), '2026-08-28', '# a');
+    mockFetch([
+      { match: (u, m) => u.includes('/git/ref/heads/archive') && m === 'GET', json: { object: { sha: 'basesha' } } },
+      { match: (u, m) => u.includes('/git/commits/') && m === 'GET', status: 500 },
+    ]);
+    expect(await flushArchivedPending(env(kv))).toBe(0);
+    expect(pendKeys(kv).length).toBe(1);
+    expect(gh().filter((c) => c.url.includes('/git/blobs')).length).toBe(0);
+
+    // base commit 200 但 tree.sha 缺失
+    kv = memKv();
+    await archiveToGitHub(env(kv), '2026-08-28', '# a');
+    mockFetch([
+      { match: (u, m) => u.includes('/git/ref/heads/archive') && m === 'GET', json: { object: { sha: 'basesha' } } },
+      { match: (u, m) => u.includes('/git/commits/') && m === 'GET', json: {} },
+    ]);
+    expect(await flushArchivedPending(env(kv))).toBe(0);
+    expect(pendKeys(kv).length).toBe(1);
+    expect(gh().filter((c) => c.url.includes('/git/blobs')).length).toBe(0);
+
+    // ref 外呼网络错误(无路由抛错) → baseOf catch
+    kv = memKv();
+    await archiveToGitHub(env(kv), '2026-08-28', '# a');
+    mockFetch([]);
+    expect(await flushArchivedPending(env(kv))).toBe(0);
+    expect(pendKeys(kv).length).toBe(1);
+  });
+
+  it('list 到键但 get 返回 null(KV 最终一致) → 该键跳过, 其余正常刷', async () => {
+    const kv = memKv();
+    await archiveToGitHub(env(kv), '2026-08-28', '# a');
+    await archiveToGitHub(env(kv), '2026-08-29', '# b');
+    const names = pendKeys(kv);
+    const gone = names[0];
+    kv.get = async (k: string) => (k === gone ? null : kv.store.get(k) ?? null);
+    const { routes } = gitRoutes();
+    mockFetch(routes);
+    expect(await flushArchivedPending(env(kv))).toBe(1);
+    // 消失键(get 返回 null)不进批、不删; 存活键已刷掉
+    expect(pendKeys(kv)).toEqual([gone]);
+  });
+
+  it('list 翻页(list_complete=false + cursor) → 两页键都入批, 一个 commit 刷完删键', async () => {
+    const kv = memKv();
+    await archiveToGitHub(env(kv), '2026-08-28', '# a');
+    await archiveToGitHub(env(kv), '2026-08-29', '# b');
+    const names = pendKeys(kv);
+    const pages = [
+      { keys: [{ name: names[0] }], list_complete: false, cursor: 'c1' },
+      { keys: [{ name: names[1] }], list_complete: true },
+    ];
+    let listN = 0;
+    kv.list = async () => pages[listN++];
+    const { routes } = gitRoutes();
+    mockFetch(routes);
+    expect(await flushArchivedPending(env(kv))).toBe(2);
+    expect(listN).toBe(2);
+    expect(pendKeys(kv).length).toBe(0);
+  });
+
+  it('base64 条目(OG 图)flush → blob 直传 base64 原串(encoding=base64)', async () => {
+    const kv = memKv();
+    const png = new Uint8Array([137, 80, 78, 71, 9, 9]);
+    mockFetch([
+      { match: (u) => u.includes('opengraph.githubassets.com'), body: png },
+      { match: (u) => u.includes('/contents/og-images/'), status: 404 },
+      { match: (u) => u.includes('api.github.com'), json: {} },
+    ]);
+    expect(await archiveOgImage(env(kv), 'o/r')).toBe('../../og-images/o__r.png');
+    const stored = JSON.parse(kv.store.get(pendKeys(kv)[0])!);
+    mockFetch(gitRoutes().routes);
+    expect(await flushArchivedPending(env(kv))).toBe(1);
+    const blob = gh().find((c) => c.url.includes('/git/blobs') && c.method === 'POST')!;
+    expect(blob.body.encoding).toBe('base64');
+    expect(blob.body.content).toBe(stored.content); // 直传不解码
+    expect(Buffer.from(blob.body.content, 'base64')).toEqual(Buffer.from(png));
+    expect(pendKeys(kv).length).toBe(0);
+  });
+});
+
 describe('webhook 机会性刷写(命令分派后 ≥20 条阈值)', () => {
   const postWebhook = async (kv: any): Promise<Promise<unknown>[]> => {
     const pending: Promise<unknown>[] = [];

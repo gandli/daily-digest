@@ -178,7 +178,7 @@ describe('webhook 路由全分支', () => {
     expect(texts().some((t) => t.includes('用法'))).toBe(true);
   });
 
-  it('GitHub 链接(已查过) → replyArchived 回存档信息', async () => {
+  it('GitHub 链接(已查过) → replyArchived 回存档信息, 索引无 url 时 Wayback 回落 github.com/<repo>', async () => {
     const date = '2026-08-27T120000';
     await env.CACHE.put('archive:idx:owner/repo', JSON.stringify({ repo: 'owner/repo', date, descZh: 'rust cli 工具', topics: ['rust'] }));
     await env.CACHE.put(`lookup:${today()}:owner/repo`, '1');
@@ -186,6 +186,16 @@ describe('webhook 路由全分支', () => {
     const msgs = photos();
     expect(msgs.length).toBeGreaterThanOrEqual(1);
     expect(texts().some((t) => t.includes('今日已存档'))).toBe(true);
+    expect(msgs.some((m) => String(m.body.caption).includes('https://web.archive.org/web/2/https://github.com/owner/repo'))).toBe(true);
+  });
+  it('GitHub 链接(已查过, 索引带真实源 url) → Wayback 链接用源 URL 而非 repo 推断', async () => {
+    const date = '2026-08-27T120000';
+    await env.CACHE.put('archive:idx:owner/repo', JSON.stringify({ repo: 'owner/repo', date, url: 'https://x.com/fe2o3/status/123', descZh: 'rust cli 工具', topics: ['rust'] }));
+    await env.CACHE.put(`lookup:${today()}:owner/repo`, '1');
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://github.com/owner/repo' } });
+    const msgs = photos();
+    expect(msgs.some((m) => String(m.body.caption).includes('https://web.archive.org/web/2/https://x.com/fe2o3/status/123'))).toBe(true);
+    expect(msgs.some((m) => String(m.body.caption).includes('web.archive.org/web/2/https://github.com/owner/repo'))).toBe(false);
   });
   it('GitHub 链接(未查过) → lookupRepo 发卡', async () => {
     await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://github.com/owner/repo' } });
