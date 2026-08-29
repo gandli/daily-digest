@@ -221,7 +221,7 @@
       },
       {
         "actor": "bot",
-        "text": "<b>1/1</b> <b><a href=\"https://github.com/antirez/kilo\">antirez/kilo</a></b> ⭐ 3.2k · #C\n\n👤 antirez\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending #c #editor\n\n🗂 <a href=\"https://deepwiki.com/antirez/kilo\">deepwiki</a> · <a href=\"https://zread.ai/antirez/kilo\">zread</a> · <a href=\"https://codewiki.google/github.com/antirez/kilo\">codewiki</a>\n📁 <a href=\"https://web.archive.org/web/2/https://github.com/antirez/kilo\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29.md\">Archive</a>",
+        "text": "<b><a href=\"https://github.com/antirez/kilo\">antirez/kilo</a></b> ⭐ 3.2k · #C\n\n👤 antirez\n\n这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。\n\n#trending #c #editor\n\n🗂 <a href=\"https://deepwiki.com/antirez/kilo\">deepwiki</a> · <a href=\"https://zread.ai/antirez/kilo\">zread</a> · <a href=\"https://codewiki.google/github.com/antirez/kilo\">codewiki</a>\n📁 <a href=\"https://web.archive.org/web/2/https://github.com/antirez/kilo\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-29.md\">Archive</a>",
         "photo": "https://opengraph.githubassets.com/1/antirez/kilo",
         "note": "先显示「正在输入…」",
         "annotate": {
