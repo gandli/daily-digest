@@ -1,13 +1,13 @@
 # daily-digest · AI Agent Goal Spec
 
 本文件是 agent 可直接执行的验收契约。每条 AC 附验证方法；无法验证的表述不得出现在本文。
-状态：v1.5 —— 反映 2026-08-29 已实现功能（新增 /product、存档批量化、卡片序号规则、X article 帖、用户手册自动化管线）。
+状态：v1.5 —— 反映 2026-08-29 已实现功能（新增 /hn、存档批量化、卡片序号规则、X article 帖、用户手册自动化管线）。
 
 ## Objective
 
 在 Cloudflare Workers 免费层部署名为 `daily-digest` 的 Telegram bot：
 - 每日 08:30(Asia/Shanghai) 向白名单 chat 推送 github.com/trending(daily)top10（每仓一条，OG 图 + 中文描述）；
-- 同一 Worker 提供命令与链接处理：`/trending`（当日榜单）、`/product`（今日 HN 酷产品）、`/search`（星标/书签/存档全索引搜索）、`/archive`（历史存档分页）、`/help`；
+- 同一 Worker 提供命令与链接处理：`/gt`（当日榜单）、`/hn`（今日 HN 酷产品）、`/search`（星标/书签/存档全索引搜索）、`/archive`（历史存档分页）、`/help`；
 - 任意 GitHub repo / X 帖 / 网页 URL 链接 → 提取中文摘要并**三级存档**（Telegraph → 互联网档案馆 web.archive.org → GitHub md）；
 - 每日及每次单仓查询自动存档至本仓 `archive` 分支（KV 缓冲 + Git Data API 批量合并为一个 commit）。
 
@@ -21,7 +21,7 @@
 ## Functional Requirements
 
 **命令（webhook `POST /telegram`）**
-- F1 `/trending`：读缓存 `digest:<date>` 秒回；无缓存才触发完整管线 `runDigest(env,true)`。当天 trending 固定，不重抓。
+- F1 `/gt`：读缓存 `digest:<date>` 秒回；无缓存才触发完整管线 `runDigest(env,true)`。当天 trending 固定，不重抓。
 - F2 `/search <kw>`：读单键索引 `search:index`（内存过滤 → 命中列表），当页英文描述批量译中，分页 10 条 + inline keyboard 翻页/跳转。
 - F3 `/archive [n]`：遍历 `archive:idx:*` 倒序，10 条/页；每条含三链（Telegraph/web.archive/GitHub md）。
 - F4 `/help`／空：使用说明 + setMyCommands 幂等注册菜单。
@@ -29,7 +29,7 @@
 - F6 重发语义（URL）：`shouldReprocess` 三态 —— first(首处理)/retry(上次翻译/描述缺失,重跑)/done(跳过,回存档链接)。`markProcessed` 回填质量 + md stamp。
 - F7 验签：`X-Telegram-Bot-Api-Secret-Token` timingSafeEqual，不符立即 403；验签后先 return 200，处理放 `ctx.waitUntil`；chat 白名单外不响应；callback_query（翻页）answerCallbackQuery 必须放 finally。
 - F8 webhook `allowed_updates` 必须含 `callback_query`（否则翻页按钮被丢弃）。
-- F9 `/product`：读 archive 分支 `product/<date>.json` 秒回产品卡；miss → `repository_dispatch(product-digest)` 触发 Actions 生成并回占位提示。
+- F9 `/hn`：读 archive 分支 `product/<date>.json` 秒回产品卡；miss → `repository_dispatch(product-digest)` 触发 Actions 生成并回占位提示。
 - F10 卡片序号：`N/M` 仅多条批量渲染（trending/product 推送、`fanoutRepoRefs` 多仓联动）；单条卡不带序号。
 
 **管线**
@@ -53,8 +53,8 @@
 | A2 | 本地 `curl localhost:8787/__scheduled` 后测试 chat 收到含 `#digest` 的 10 条消息（每仓一条） | wrangler dev 实测 |
 | A3 | digest 消息每条有 OG 图 + 中文描述 | 人工检查 |
 | A4 | 无伪造 header 的 POST /telegram 返回 403 | curl -i |
-| A5 | 白名单外 /trending 无回复 | 第二账号 |
-| A6 | 白名单内发 `/trending` 秒回当日内容（缓存命中） | 二次触发无抓取日志 |
+| A5 | 白名单外 /gt 无回复 | 第二账号 |
+| A6 | 白名单内发 `/gt` 秒回当日内容（缓存命中） | 二次触发无抓取日志 |
 | A7 | `/search rust` 返回命中 + 分页，点下一页 editMessage 原地更新 | 真机 |
 | A8 | `/archive` 分页 + 翻页按钮工作，条目含三链 | 真机 |
 | A9 | 发 GitHub repo 链接首次存档（写 archive:idx + archive md），当日重发回存档三链卡 | 真机 + gh api |
@@ -63,7 +63,7 @@
 | A12 | 连续 7 天 cron 每天恰推送，无漏发无重复 | observability + 聊天记录 |
 | A13 | `npm test` 全绿（519+ tests）| CI |
 | A14 | `npx vitest run --coverage` 整体语句 ≥90% 且分支 ≥80% | 本地 |
-| A15 | 发 `/product` 命中产品卡；当日未生成回"生成中"占位且 Actions 被触发 | 真机 + gh api |
+| A15 | 发 `/hn` 命中产品卡；当日未生成回"生成中"占位且 Actions 被触发 | 真机 + gh api |
 | A16 | 发 X 帖/网页链接后 archive 分支**不立即**新增 commit；flush（cron/≥20）后新增**一个** batch commit 且 pend 键清空 | gh api commits 对比 |
 | A17 | 单仓查询卡无 `N/M` 序号；trending 推送各卡带 `i/N` | 真机截图 |
 
@@ -86,5 +86,5 @@
 - M2 管线（trending → 翻译 → 渲染 → 存档）✓
 - M3 上线 + 观察期 ✓
 - M4 扩展：搜索索引 + X/URL 存档 + 三链 + 分页导航 ✓
-- M5 扩展二：/product + 存档批量化 + 卡片序号规则 + X article 帖修复 + 用户手册自动化 ✓
+- M5 扩展二：/hn + 存档批量化 + 卡片序号规则 + X article 帖修复 + 用户手册自动化 ✓
 - M6（计划）：描述缓存 refresh 调优、search 翻译结果缓存回索引、archive:idx 补 url 字段
