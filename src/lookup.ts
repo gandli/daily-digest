@@ -222,11 +222,11 @@ export async function lookupRepo(env: Env, chatId: string, repo: string): Promis
     item = await fetchRepo(repo, env.GH_TOKEN);
   } catch (e) {
     console.error('lookup fetchRepo failed', String(e).slice(0, 80));
-    await sendTelegram(env.BOT_TOKEN, chatId, `⚠️ 查询 ${repo} 失败(网络异常)，请稍后再试。`);
+    await sendTelegram(env.BOT_TOKEN, chatId, `⚠️ 查询 ${repo} 失败(网络异常), 请稍后再试。`);
     return;
   }
   if (!item) {
-    await sendTelegram(env.BOT_TOKEN, chatId, `❌ 找不到仓库 ${repo}，请检查拼写或是否为公开仓库。`);
+    await sendTelegram(env.BOT_TOKEN, chatId, `❌ 找不到仓库 ${repo}, 请检查拼写或是否为公开仓库。`);
     return;
   }
   // 单 repo: 描述链 = KV 缓存(7天内) → deepwiki 概述(写入缓存) → resolveDescriptions(zread) → GitHub 描述翻译
