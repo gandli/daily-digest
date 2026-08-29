@@ -436,7 +436,7 @@ export async function runProductThin(env: Env, chatId: string, ctx?: ExecutionCo
 /** 当日已查过的 repo: 回存档数据(索引里的描述+存档链接), 不再提示"已查询过"。 */
 async function replyArchived(env: Env, chatId: string, repo: string): Promise<void> {
   const raw = await env.CACHE.get(`archive:idx:${repo.toLowerCase()}`);
-  let it: { repo: string; date: string; desc?: string; descZh?: string; topics?: string[] } | null = null;
+  let it: { repo: string; date: string; url?: string; desc?: string; descZh?: string; topics?: string[] } | null = null;
   if (raw) {
     try {
       it = JSON.parse(raw);
@@ -455,7 +455,8 @@ async function replyArchived(env: Env, chatId: string, repo: string): Promise<vo
     const d = (it.descZh ?? it.desc ?? '').trim();
     // 三链: Telegraph(当日有页) → web.archive(repo 源 URL) → GitHub md
     const tgUrl = (await env.CACHE.get(`archive:tg:${it.date}`).catch(() => null)) || '';
-    const repoUrl = `https://github.com/${it.repo}`;
+    // ponytail: 旧记录(本改动前写入)无 url 字段——回落 github.com/<repo> 推断, 不做存量迁移
+    const repoUrl = it.url || `https://github.com/${it.repo}`;
     const html =
       `♻️ <b><a href="${esc(repoUrl)}">${esc(it.repo)}</a></b> · 今日已存档\n\n` +
       (d ? `📝 ${esc(d).slice(0, 300)}\n\n` : '') +

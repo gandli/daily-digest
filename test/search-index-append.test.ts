@@ -53,6 +53,19 @@ describe('indexArchivedItems → search:index 增量', () => {
     expect(JSON.parse(idx as string).date).toBe('2026-08-28');
   });
 
+  it('archive:idx JSON 带 url 字段(真实源 URL), 空串不写', async () => {
+    const kv = kvStub({});
+    const env = { CACHE: kv } as never;
+    await indexArchivedItems(env as never, [
+      { title: 'owner/repo', url: 'https://github.com/owner/repo' } as never,
+      { title: 'x/@b', url: '' } as never,
+    ], '2026-08-28');
+    const withUrl = JSON.parse((await kv.get('archive:idx:owner/repo')) as string);
+    expect(withUrl.url).toBe('https://github.com/owner/repo');
+    const noUrl = JSON.parse((await kv.get('archive:idx:x/@b')) as string);
+    expect(noUrl.url).toBeUndefined();
+  });
+
   it('重复归档幂等: 同 title 不重复追加', async () => {
     const kv = kvStub({ 'search:index': JSON.stringify([]) });
     const env = { CACHE: kv } as never;
