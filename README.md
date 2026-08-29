@@ -29,7 +29,7 @@ GitHub Trending → **Telegram 每日中文摘要 bot**。Cloudflare Workers 免
 | `/search <关键词>` | 全索引搜索(星标/书签/存档 6000+ 条),结果当页英文描述批量译中,分页 + inline keyboard 翻页/跳转 |
 | `/archive [页码]` | 历史存档分页列表,每条约**存档三链**(Telegraph → 互联网档案馆 web.archive.org → GitHub md) |
 | `/start` `/help` 其他 | 使用提示 + 命令菜单注册 |
-| 含 GitHub 仓库链接 | 单仓库查询 + 中文描述 → OG 卡(单仓卡无序号);当日已查回存档三链卡 |
+| 含 GitHub 仓库链接 | 单仓 → 查询卡(无序号);**多个 repo 链接 → 逐仓联动卡(N/M 序号)**,全部已存档回一句话;当日已查回存档三链卡 |
 | 含 X/Twitter 链接 | FxEmbed 取帖 → **中文摘要 + 三级存档**(Telegraph/互联网档案馆/GitHub md);article 长文帖直接用内嵌标题;帖内多 repo 自动逐仓联动发卡(`N/M` 序号) |
 | 含其他网页链接 | markdown 三级链 → **中文摘要(summarizeZh)** → 三级存档;重发 done 回存档链接而非"已处理过" |
 

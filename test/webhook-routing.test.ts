@@ -201,6 +201,27 @@ describe('webhook 路由全分支', () => {
     await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://github.com/owner/repo' } });
     expect(texts().some((t) => t.includes('owner/repo'))).toBe(true);
   });
+  it('多 repo 直发(两个全新) → fanout 两张卡带 1/2、2/2 序号', async () => {
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: '看这两个 https://github.com/owner/repo 和 https://github.com/other/thing' } });
+    const msgs = photos();
+    expect(msgs.length).toBe(2);
+    expect(msgs.some((m) => String(m.body.caption).includes('<b>1/2</b>'))).toBe(true);
+    expect(msgs.some((m) => String(m.body.caption).includes('<b>2/2</b>'))).toBe(true);
+  });
+  it('多 repo 全部当日已存档 → 回一句话防静默, 不发卡', async () => {
+    await env.CACHE.put(`lookup:${today()}:owner/repo`, '1');
+    await env.CACHE.put(`lookup:${today()}:other/thing`, '1');
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://github.com/owner/repo https://github.com/other/thing' } });
+    expect(texts().some((t) => t.includes('2 个仓库今日均已存档'))).toBe(true);
+    expect(photos().length).toBe(0);
+  });
+  it('多 repo 一 seen 一 fresh → 只发 fresh 卡(无序号)', async () => {
+    await env.CACHE.put(`lookup:${today()}:owner/repo`, '1');
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://github.com/owner/repo https://github.com/other/thing' } });
+    const msgs = photos();
+    expect(msgs.length).toBe(1);
+    expect(String(msgs[0].body.caption)).not.toMatch(/<b>\d+\/\d+<\/b>/);
+  });
   it('X 帖链接 → archiveTweet 发卡', async () => {
     await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://x.com/fe2o3/status/123' } });
     expect(vi.mocked(fetchTweet)).toHaveBeenCalledWith('fe2o3', '123');

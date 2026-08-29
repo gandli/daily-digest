@@ -4,7 +4,7 @@ import { resolveDescriptions } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes, renderProductMessage, esc } from './render';
 import { sendPerRepoMessages, sendTelegram, sendChatAction, sendPhotoOrText, registerCommands, safeEqual, sendTelegramKbd, answerCallbackQuery, editMessageKbd, type InlineKB } from './notify';
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage, createTelegraphAccount, flushArchivedPending } from './archive';
-import { extractRepo, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, archiveLinks, backfillDescriptions } from './lookup';
+import { extractRepo, extractRepoRefs, today, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, archiveLinks, backfillDescriptions } from './lookup';
 import { extractUrl } from './urlmd';
 import { extractTweet, fetchTweet, renderTweetHtml, articleToText, type FxTweet } from './fxtweet';
 import { matchEntries, type SearchEntry } from './search-index';
@@ -692,7 +692,17 @@ export default {
       const tweet = extractTweet(text);
       const url = extractUrl(text);
       if (repo) {
-        if (await seenToday(env, repo)) {
+        // 多 repo 直发(≥2 个 github.com 链接): 复用 fanout(去重/只读 seen 过滤/N/M 编号/分批防超限);
+        // 全部当日已存档时回一句话防静默。单 repo 仍走完整 lookupRepo 管线。
+        const repos = extractRepoRefs(text);
+        if (repos.length > 1) {
+          const seen = await Promise.all(repos.map((r) => env.CACHE.get(`lookup:${today()}:${r.toLowerCase()}`).catch(() => null)));
+          if (seen.every(Boolean)) {
+            ctx.waitUntil(sendTelegram(env.BOT_TOKEN, chatId, `♻️ ${repos.length} 个仓库今日均已存档`));
+          } else {
+            ctx.waitUntil(fanoutRepoRefs(env, chatId, text, ctx));
+          }
+        } else if (await seenToday(env, repo)) {
           ctx.waitUntil(replyArchived(env, chatId, repo));
         } else {
           ctx.waitUntil(lookupRepo(env, chatId, repo));
