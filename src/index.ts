@@ -39,8 +39,8 @@ export { topicsFromTitle };
 const HELP = `📊 daily-digest 使用
 
 <b>命令</b>
-/trending — 今日 GitHub Trending
-/product — 今日 HN 酷产品
+/gt — 今日 GitHub Trending(兼容 /trending)
+/hn — 今日 HN 酷产品(兼容 /product)
 /ph — Product Hunt 每日热门
 /search 关键词 — 搜索历史存档
 /archive — 历史存档(分页+三链)
@@ -669,10 +669,10 @@ export default {
 
     // 注册命令菜单(幂等)+ 分派命令
     // 慢命令先显示"正在输入…"(低成本, 标准体验)。/help/空即时跳过。
-    if (text.startsWith('/trending') || text.startsWith('/product') || text.startsWith('/ph') || text.startsWith('/archive') || text.startsWith('/search')) {
+    if (text.startsWith('/trending') || text.startsWith('/gt') || text.startsWith('/product') || text.startsWith('/hn') || text.startsWith('/ph') || text.startsWith('/archive') || text.startsWith('/search')) {
       ctx.waitUntil(sendChatAction(env.BOT_TOKEN, chatId)); // 随主 pipeline 后台, 不 block 分派
     }
-    if (text.startsWith('/trending')) {
+    if (text.startsWith('/trending') || text.startsWith('/gt')) {
       // 用缓存(useCache=true): 当天 GitHub trending 固定不变, 无需每次重抓。
       // cron 早 08:30 已跑一次写 digest:<date> 缓存, /trending 当天后续读缓存秒回。
       // 首屏无缓存(如当天未到 cron)才触发完整抓取+描述链。缓存命中仅回纯文本(无 OG 照片),
@@ -686,7 +686,7 @@ export default {
           if (n < 0) await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ Trending 抓取失败, 请稍后再试。');
         })(),
       );
-    } else if (text.startsWith('/product')) {
+    } else if (text.startsWith('/product') || text.startsWith('/hn')) {
       // 薄路径: 读 Actions 生成的 archive 分支 JSON 秒回; miss → repository_dispatch 触发 Actions 生成。
       ctx.waitUntil(runProductThin(env, chatId, ctx));
     } else if (text.startsWith('/ph')) {

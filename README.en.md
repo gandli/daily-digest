@@ -24,8 +24,8 @@ Every day at **08:30 (UTC+8)** it pushes the top 10 repos — one message per re
 
 | Input | Behavior |
 |---|---|
-| `/trending` | Today's chart (already fetched by cron; served instantly from the `digest:<date>` cache; trending is fixed for the day, never re-fetched) |
-| `/product` | Today's HN cool products: reads `product/<date>.json` from the archive branch for an instant card; if missing, auto-triggers GitHub Actions and pushes when done |
+| `/gt` `/trending` | Today's chart (already fetched by cron; served instantly from the `digest:<date>` cache; trending is fixed for the day, never re-fetched) |
+| `/hn` `/product` | Today's HN cool products: reads `product/<date>.json` from the archive branch for an instant card; if missing, auto-triggers GitHub Actions and pushes when done |
 | `/ph` | **Product Hunt daily popular**: key-free official feed, top 10 with Chinese summaries as product cards (ogUrl preview); same-day cache; digest archived as `ph-<date>.md` |
 | `/search <keyword>` | Full-index search across 6000+ entries (stars/bookmarks/archives); on-page English descriptions translated in batch; paginated with inline-keyboard paging/jump |
 | `/archive [page]` | Paginated history list; each entry shows the **archive triple-link** (Telegraph → Internet Archive web.archive.org → GitHub md) |
