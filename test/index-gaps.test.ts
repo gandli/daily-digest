@@ -203,7 +203,7 @@ describe('index webhook: help / preview / 缓存重放', () => {
   it('/gt KV get 抛错 → 仍发占位并重抓(读取故障不阻塞)', async () => {
     env.CACHE = mkKv([], { failGet: (k) => k.startsWith('digest:') });
     await post({ message: { chat: { id: 944783507 }, text: '/gt' } });
-    expect(texts().some((t) => t.includes('Trending 生成中'))).toBe(true); // 占位先出(管线 reject 由 waitUntil 吞掉)
+    expect(texts().some((t) => t.includes('GitHub Trending 生成中'))).toBe(true); // 占位先出(管线 reject 由 waitUntil 吞掉)
   });
 });
 
