@@ -875,6 +875,7 @@ describe('lookup: archiveUrl og 预取降级', () => {
     expect(nodes).toContain('"blockquote"');
     expect(nodes).toContain('"ul"');
     expect(nodes).toContain('"pre"');
+    expect(nodes).toContain('中文翻译'); // 中文翻译段(摘要)置顶
   });
 
   it('titleZh LLM: 生成失败但原文非垃圾 → TranSmart 翻译兜底; 80k 内容截断', async () => {
