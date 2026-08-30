@@ -3,7 +3,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { archiveTweet } from '../src/index';
 
-type Mode = 'ok' | 'tweet-empty' | 'fail-send' | 'fail-dispatch' | 'article-ref';
+type Mode = 'ok' | 'tweet-empty' | 'fail-send' | 'fail-dispatch' | 'article-ref' | 'article-inline';
 let mode: Mode = 'ok';
 type Call = { url: string; body: any };
 const calls: Call[] = [];
@@ -17,6 +17,25 @@ const TWEET_OK = { code: 200, status: {
   likes: 10, reposts: 2, replies: 3,
   media: { all: [{ type: 'photo', url: 'https://x/photo.jpg' }] },
   translation: null, article: null,
+} };
+
+// article 内嵌块(article.blocks 有内容): 触发 articleToText  truthy 分支, L255/L279 覆盖率
+const TWEET_ARTICLE_INLINE = { code: 200, status: {
+  url: 'https://x.com/fe2o3/status/126',
+  id: '126',
+  text: '本文有嵌套文章块',
+  author: { screen_name: 'fe2o3', name: 'Fe' },
+  created_at: '2026-08-30T00:00:00Z',
+  likes: 5, reposts: 1, replies: 0,
+  media: { all: [{ type: 'photo', url: 'https://x/art.jpg' }] },
+  translation: { text: '本文有嵌套文章块', provider: 'deepl' },
+  article: {
+    title: '嵌套文章标题',
+    content: { blocks: [
+      { text: '第一段正文内容。', type: 'text' },
+      { text: '第二段正文内容。', type: 'text' },
+    ]},
+  },
 } };
 
 // article 引用帖(真实故障 2093573946478305776): v2 API 不内嵌 article 对象, text 只是裸引用链
@@ -34,6 +53,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   if (url.includes('api.fxtwitter.com')) {
     if (mode === 'tweet-empty') return new Response('{}', { status: 404 });
     if (mode === 'article-ref') return new Response(JSON.stringify(TWEET_ARTICLE_REF), { status: 200, headers: { 'content-type': 'application/json' } });
+    if (mode === 'article-inline') return new Response(JSON.stringify(TWEET_ARTICLE_INLINE), { status: 200, headers: { 'content-type': 'application/json' } });
     return new Response(JSON.stringify(TWEET_OK), { status: 200, headers: { 'content-type': 'application/json' } });
   }
   if (mode === 'article-ref' && url.includes('r.jina.ai')) {
@@ -101,6 +121,17 @@ describe('archiveTweet', () => {
     expect(text).toContain('https://fixupx.com/fe2o3/status/125');
     expect(text).toContain('钓鱼邮件分析报告'); // 正文与标题来自 fixupx 提取
     expect(text).not.toContain('x.com/i/article/'); // 裸引用链不再出现
+  });
+
+  it('article 内嵌块 → 正文并入 MD + Telegraph 节点, 标题用 article.title', async () => {
+    mode = 'article-inline';
+    await archiveTweet(mkEnv(), '944783507', 'fe2o3', '126', ctx);
+    await Promise.allSettled(pending);
+    // 有 photo 走 sendPhoto(caption = renderTweetHtml, 含文章标题)
+    const photo = calls.find((c) => c.url.includes('/sendPhoto'));
+    expect(photo).toBeTruthy();
+    const cap = String(photo?.body?.caption ?? '');
+    expect(cap).toContain('嵌套文章标题'); // renderTweetHtml 用 article.title
   });
 
   it('article 引用帖(fixupx 提取失败) → fxtwitter.com 同源兜底, 展示链接仍 fixupx', async () => {
