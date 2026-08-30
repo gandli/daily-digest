@@ -93,6 +93,8 @@ BOT_TOKEN · CHAT_ID · WEBHOOK_SECRET · GH_TOKEN · TELEGRAPH_TOKEN (optional)
 
 Optional: OPENROUTER_API_KEY (/hn deep summaries + manual AI docs; free model pool/template without it) · JINA_API_KEY / GENEDAI_API_KEY (URL→markdown fallbacks) · CF_ACCOUNT_ID / CF_API_TOKEN (Browser Rendering)
 
+**Local dev:** `cp .dev.vars.example .dev.vars` and fill in values (all keys documented inline). Production secrets go through `wrangler secret put` / repo secrets — never commit `.dev.vars` (already gitignored).
+
 ## 🚀 Deploy
 
 Merging a PR to main triggers GitHub Actions `wrangler deploy` (needs repo secrets CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID). After deploy, the `search:index` is seeded automatically (generated from `library.jsonl`).
