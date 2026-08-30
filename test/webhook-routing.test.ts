@@ -259,6 +259,39 @@ describe('webhook 路由全分支', () => {
     expect(allMsgs().length).toBeGreaterThan(0);
   });
 
+  it('X 帖重发(done) → 回缓存卡片不重建(fetchTweet 不被调)', async () => {
+    // 预置 done 记录(含 md stamp/title/summary)
+    env.CACHE.store.set('reproc:https://x.com/fe2o3/status/123', JSON.stringify({ ts: Date.now(), translated: true, descOk: true, md: '2026-08-27-6731467', t: 'Hello world 标题', s: '这是一段摘要内容。' }));
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://x.com/fe2o3/status/123' } });
+    // done → 直接回缓存卡片, fetchTweet 不被调
+    expect(vi.mocked(fetchTweet)).not.toHaveBeenCalled();
+    const m = texts().find((t) => t.includes('Hello world 标题'));
+    expect(m).toBeTruthy();
+    expect(m).toContain('这是一段摘要内容');
+  });
+
+  it('X 帖重发(done 但记录损坏) → 重挂归档一次', async () => {
+    env.CACHE.store.set('reproc:https://x.com/fe2o3/status/123', '{broken');
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://x.com/fe2o3/status/123' } });
+    // 损坏 → r=null → 兜底走 archiveTweet(fetchTweet 被调)
+    expect(vi.mocked(fetchTweet)).toHaveBeenCalled();
+  });
+
+  it('X 帖重发(shouldReprocess done 但 reproc 键丢失) → 兜底重挂一次', async () => {
+    // shouldReprocess 预置 done 记录, 但紧接着 read 前键被清(模拟竞态)
+    env.CACHE.store.set('reproc:https://x.com/fe2o3/status/123', JSON.stringify({ ts: Date.now(), translated: true, descOk: true, md: 'x', t: 'x', s: 'x' }));
+    // 首次调用后 KV 被外部清空——直接在 shouldReprocess 后删键
+    const origGet = env.CACHE.get.bind(env.CACHE);
+    env.CACHE.get = async (k: string) => {
+      const v = await origGet(k);
+      if (k.startsWith('reproc:') && v) env.CACHE.store.delete(k); // 读完即删, 模拟竞态丢失
+      return v;
+    };
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://x.com/fe2o3/status/123' } });
+    // done 判定但记录缺失 → 兜底走 archiveTweet
+    expect(vi.mocked(fetchTweet)).toHaveBeenCalled();
+  });
+
   it('X article 帖 → 标题用 article.title, 正文用 article 内容(非裸链接)', async () => {
     const artTweet = {
       url: 'https://x.com/Smartpigai/status/2093191865193677285',
