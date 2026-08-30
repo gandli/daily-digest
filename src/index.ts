@@ -4,7 +4,7 @@ import { resolveDescriptions } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes, renderProductMessage, esc, yearOf } from './render';
 import { sendPerRepoMessages, sendTelegram, sendChatAction, sendPhotoOrText, registerCommands, safeEqual, sendTelegramKbd, answerCallbackQuery, editMessageKbd, type InlineKB } from './notify';
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage, createTelegraphAccount, flushArchivedPending } from './archive';
-import { extractRepo, extractRepoRefs, today, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, archiveLinks, backfillDescriptions, saveToWayback } from './lookup';
+import { extractRepo, extractRepoRefs, today, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, markProcessed, archiveLinks, backfillDescriptions, saveToWayback } from './lookup';
 import { extractUrl, urlToMarkdown } from './urlmd';
 import { extractTweet, fetchTweet, renderTweetHtml, articleToText, articleRefFixup, type FxTweet } from './fxtweet';
 import { matchEntries, type SearchEntry } from './search-index';
@@ -311,6 +311,8 @@ export async function archiveTweet(
     // 多图帖用 mosaic 实体图发 sendPhoto; 单图/视频/无媒体走 ogUrl 链接预览。
     // ponytail: 单图 sendPhoto 实体图(有 file_id 缓存), 多图 mosaic 拼图, 无媒体/视频回退 ogUrl 链接预览
     await sendPerRepoMessages(env.BOT_TOKEN, chatId, [{ html: card, photo: mosaicUrl || (photos.length === 1 ? photo : undefined), ogUrl: tgPageUrl || tUrl }], repo);
+    // 重发去重记录: 成功 → 标记质量(下次重发回缓存卡片); 失败落 catch 不标记(placeholder 保持 retry)
+    ctx?.waitUntil?.(markProcessed(env, `https://x.com/${handle}/status/${id}`, !!hasZh || isZhBody, true, stamp, titleZh ?? tweet.article?.title, bodyText?.slice(0, 300)));
   } catch (e) {
     console.error('archiveTweet store failed', String(e).slice(0, 100));
     await sendTelegram(env.BOT_TOKEN, chatId, `⚠️ 已取到帖子但存档失败(${String(e).slice(0, 120)})。请重发一次该链接重试。`);
@@ -516,6 +518,22 @@ async function replyArchived(env: Env, chatId: string, repo: string): Promise<vo
       `📁 ${archiveLinks(repoUrl, tgUrl || undefined, link)}`;
   const photo = `https://raw.githubusercontent.com/${archiveRepo}/archive/og-images/${it.repo.replace('/', '__')}.png`;
   await sendPhotoOrText(env.BOT_TOKEN, chatId, photo, html, env.CACHE);
+}
+
+/** reproc done 记录重发: 回已有卡片(标题+摘要+三链), 不重建管线。repo/URL/X 帖共用。 */
+async function replyProcessed(
+  env: Env,
+  chatId: string,
+  url: string,
+  r: { md?: string; t?: string; s?: string },
+): Promise<void> {
+  const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
+  const stamp = r.md ?? '';
+  const link = `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`;
+  const tgUrl = (await env.CACHE.get(`archive:tg:${stamp}`).catch(() => null)) || '';
+  const links = archiveLinks(url, tgUrl || undefined, link);
+  const head = r.t ? `<b><a href="${esc(url)}">${esc(r.t)}</a></b>` : '<b>该链接此前已处理归档</b>';
+  await sendTelegram(env.BOT_TOKEN, chatId, `♻️ ${head}\n\n${r.s ? `📝 ${esc(r.s)}\n\n` : ''}📁 ${links}`);
 }
 
 /** /archive [页码]: 最近存档列表, inline keyboard 翻页, Telegraph 链接优先。 */
@@ -800,7 +818,23 @@ export default {
           ctx.waitUntil(lookupRepo(env, chatId, repo));
         }
       } else if (tweet) {
-        ctx.waitUntil(archiveTweet(env, chatId, tweet.handle, tweet.id, ctx));
+        // X 帖重发去重: reproc 记录 done → 回缓存卡片; first/retry → 走全管线
+        const tweetUrl = `https://x.com/${tweet.handle}/status/${tweet.id}`;
+        const v = await shouldReprocess(env, tweetUrl);
+        if (v === 'done') {
+          const rec = await env.CACHE.get(`reproc:${tweetUrl.slice(0, 400)}`).catch(() => null);
+          let r: { md?: string; t?: string; s?: string } | null = null;
+          try { r = rec ? (JSON.parse(rec) as { md?: string; t?: string; s?: string }) : null; } catch { r = null; }
+          if (r?.md) {
+            await replyProcessed(env, chatId, tweetUrl, r);
+          } else {
+            // 记录在但无 md——兜底重挂一次
+            await sendTelegram(env.BOT_TOKEN, chatId, '♻️ 已识别此前处理过, 重新归档取回存档链接…');
+            ctx.waitUntil(archiveTweet(env, chatId, tweet.handle, tweet.id, ctx));
+          }
+        } else {
+          ctx.waitUntil(archiveTweet(env, chatId, tweet.handle, tweet.id, ctx));
+        }
       } else if (url) {
         // 重发语义: first→处理; retry(上次未翻译或缺 deepwiki/zread 描述)→重跑+提示; done→跳过
         const verdict = await shouldReprocess(env, url);
@@ -808,21 +842,11 @@ export default {
           ctx.waitUntil(archiveUrl(env, chatId, url, ctx));
           await sendTelegram(env.BOT_TOKEN, chatId, '🔁 检测到上次处理不完整(未翻译或缺描述), 重新归档中…');
         } else if (verdict === 'done') {
-          // 已完整处理过: 回具体内容(标题+摘要, reproc 记录) + 三链存档; 无 md(老记录)则重挂归档补信息。
           const rec = await env.CACHE.get(`reproc:${url.slice(0, 400)}`).catch(() => null);
-          let stamp = '', recTitle = '', recSummary = '';
-          try {
-            const r = rec ? (JSON.parse(rec) as { md?: string; t?: string; s?: string }) : null;
-            stamp = r?.md ?? ''; recTitle = r?.t ?? ''; recSummary = r?.s ?? '';
-          } catch { /* 忽略 */ }
-          if (stamp) {
-            const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
-            const link = `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`;
-            const tgUrl = (await env.CACHE.get(`archive:tg:${stamp}`).catch(() => null)) || '';
-            // 三链: Telegraph → web.archive(源 URL) → GitHub md
-            const links = archiveLinks(url, tgUrl || undefined, link);
-            const head = recTitle ? `<b><a href="${esc(url)}">${esc(recTitle)}</a></b>` : '<b>该链接此前已处理归档</b>';
-            await sendTelegram(env.BOT_TOKEN, chatId, `♻️ ${head}\n\n${recSummary ? `📝 ${esc(recSummary)}\n\n` : ''}📁 ${links}`);
+          let r: { md?: string; t?: string; s?: string } | null = null;
+          try { r = rec ? (JSON.parse(rec) as { md?: string; t?: string; s?: string }) : null; } catch { r = null; }
+          if (r?.md) {
+            await replyProcessed(env, chatId, url, r);
           } else {
             // 老记录无 md——重挂一次归档补上存档信息, 回给用户(而非"无需重复")
             await sendTelegram(env.BOT_TOKEN, chatId, '♻️ 已识别此前处理过, 重新归档取回存档链接…');
