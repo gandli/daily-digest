@@ -8,7 +8,7 @@
   // 以下资源 ID 均为 gandli 账号私有 —— fork 部署者必须换成自己账号的资源:
   //   wrangler kv namespace create CACHE && wrangler d1 create daily-digest-archive
   //   wrangler vectorize create daily-digest-search --dimensions 384 --metric cosine
-  //   wrangler ratelimit create RATE_LIMITER --limit 20 --period 60
+  //   ratelimits 无需 CLI 创建 —— 直接在下方配置即可 (namespace_id 是自定整数标识)
   "kv_namespaces": [
     { "binding": "CACHE", "id": "51e73f8381d34b9c95eaebdf4f7d8101" }
   ],
