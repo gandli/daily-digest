@@ -165,7 +165,7 @@ describe('archive: pendArchive 回落 + flush delete catch', () => {
       return new Response('{}', { status: 200 });
     });
     const env = { GH_TOKEN: 'g', GH_ARCHIVE_REPO: 'gandli/daily-digest', CACHE: { put: async () => { throw new Error('kv down'); }, get: async () => null } } as any;
-    await expect(archiveToGitHub(env, '2026-09-01', '# net err')).resolves.toBeUndefined();
+    await expect(archiveToGitHub(env, '2026-09-01', '# net err')).resolves.toBe(false);
   });
   it('flush 成功但 delete 抛错 → 吞掉, 返回 batch 数', async () => {
     const store = new Map<string, string>();

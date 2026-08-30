@@ -427,7 +427,8 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
   } catch {
     // KV 额度/网络异常只损失当日缓存
   }
-  await archiveToGitHub(env, dateStr, renderMarkdown(dateStr, items, telegraphUrl ?? undefined));
+  const ok = await archiveToGitHub(env, dateStr, renderMarkdown(dateStr, items, telegraphUrl ?? undefined));
+  if (!ok) console.warn('archiveToGitHub failed (buffered? direct put failed)', dateStr);
   await indexArchivedItems(env, items, dateStr); // /search 索引
   console.log('digest sent', dateStr, `${items.length} items`);
   return chunks.length;

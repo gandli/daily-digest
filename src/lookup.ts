@@ -274,7 +274,8 @@ export async function lookupRepo(env: Env, chatId: string, repo: string): Promis
   try {
     const ogPath = await archiveOgImage(env, item.title);
     const md = renderMarkdown(today(), [item], undefined, ogPath ? new Map([[item.title, ogPath]]) : undefined);
-    await archiveToGitHub(env, stamp, md, today().slice(0, 4)); // 目录取北京日期年份, 与文件名前缀(repo)解耦
+    const ok = await archiveToGitHub(env, stamp, md, today().slice(0, 4)); // 目录取北京日期年份, 与文件名前缀(repo)解耦
+    if (!ok) console.warn('archiveToGitHub failed (buffered? direct put failed)', stamp);
   } catch {
     /* 存档失败静默 */
   }

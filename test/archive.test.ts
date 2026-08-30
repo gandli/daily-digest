@@ -95,7 +95,7 @@ describe('archiveToGitHub/archiveDatedToGitHub 缓冲语义', () => {
       { match: () => true, method: 'GET', status: 404, text: '' },
       { match: () => true, method: 'PUT', status: 500, text: 'rate limit' },
     ]);
-    await expect(archiveToGitHub(env(kv), '2026-08-28', '# x')).resolves.toBeUndefined();
+    await expect(archiveToGitHub(env(kv), '2026-08-28', '# x')).resolves.toBe(false);
   });
 });
 

@@ -127,7 +127,8 @@ export async function runProductHunt(env: Env, chatId: string): Promise<number> 
     })
     .join('\n');
   const md = `# Product Hunt · ${dateStr}\n\n${tgPageUrl ? `Telegraph: ${tgPageUrl}\n\n` : ''}${mdRows}\n\n---\n由 daily-digest bot 自动生成\n`;
-  await archiveToGitHub(env, `ph-${dateStr}`, md, dateStr.slice(0, 4));
+  const ok = await archiveToGitHub(env, `ph-${dateStr}`, md, dateStr.slice(0, 4));
+  if (!ok) console.warn('archiveToGitHub failed (buffered? direct put failed)', `ph-${dateStr}`);
   await env.CACHE.put(`ph:${dateStr}`, JSON.stringify({ chunks }), { expirationTtl: 86400 }).catch(() => {});
   console.log('producthunt sent', dateStr, `${chunks.length} items`);
   return chunks.length;
