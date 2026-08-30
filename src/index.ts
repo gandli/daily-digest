@@ -657,12 +657,10 @@ function buildArchiveKeyboard(page: number, maxPage: number): InlineKB {
   return kb;
 }
 
-// 从 archive 分支拉最近 digest md → 重建 RSS feed（KV miss 惰性回填）
-// ponytail: 只拉当天 digest（YYYY-MM-DD.md）, 翻多天等需求明确
-export async function buildRssFromArchive(env: Env): Promise<string | null> {
+// 从 archive 分支拉 digest md → 解析条目（RSS/archive 页/JSON API 复用）
+async function fetchArchiveMd(env: Env, dateStr: string): Promise<RssItem[] | null> {
   const repo = (env.GH_ARCHIVE_REPO || 'gandli/daily-digest').replace(/[^A-Za-z0-9_.\/-]/g, '');
   if (!env.GH_TOKEN) return null;
-  const dateStr = shanghaiDate();
   const year = dateStr.slice(0, 4);
   const url = `https://api.github.com/repos/${repo}/contents/archive/${year}/${dateStr}.md?ref=archive`;
   const res = await fetch(url, {
@@ -680,14 +678,30 @@ export async function buildRssFromArchive(env: Env): Promise<string | null> {
     const idx = m.index;
     const title = m[2];
     const link = m[3];
-    // 取下一个非空行（跳过空行和图片行），以 `- ` 开头为描述
     const lines = md.slice(idx).split('\n');
     const descLine = lines.find((l) => l.startsWith('   - ') && !l.includes('<img'));
     const desc = descLine ? descLine.replace(/^   - /, '').trim() : title;
     items.push({ title, url: link, desc });
   }
-  if (!items.length) return null;
-  return buildRssFeed(items, dateStr, `https://daily-digest.gandli-digest.workers.dev`);
+  return items.length ? items : null;
+}
+
+// /rss KV miss → 从 archive 分支惰性重建（近 7 天合并, 当天优先）
+export async function buildRssFromArchive(env: Env): Promise<string | null> {
+  const today = shanghaiDate();
+  const all: RssItem[] = [];
+  // ponytail: 近 7 天合并去重(title 去重); 更多天等需求明确
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(Date.now() - i * 86400_000);
+    const dateStr = new Date(d.getTime() + 8 * 3600_000).toISOString().slice(0, 10);
+    const items = await fetchArchiveMd(env, dateStr).catch(() => null);
+    if (items) {
+      const seen = new Set(all.map((x) => x.title));
+      for (const it of items) if (!seen.has(it.title)) all.push(it);
+    }
+  }
+  if (!all.length) return null;
+  return buildRssFeed(all, today, `https://daily-digest.gandli-digest.workers.dev`);
 }
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -741,6 +755,48 @@ export default {
           items,
         });
       }
+      // /search?q=xxx: HTML 搜索页(复用 searchArchive 同款索引+语义混合检索)
+      if (url.pathname === '/search') {
+        const q = (url.searchParams.get('q') ?? '').trim();
+        if (!q) return new Response('<p>missing q</p>', { status: 400, headers: { 'content-type': 'text/html; charset=utf-8' } });
+        const raw = await env.CACHE.get('search:index').catch(() => null);
+        const entries = raw ? (JSON.parse(raw) as SearchEntry[]) : [];
+        type Hit = { src: string; name: string; url: string; desc?: string };
+        let hits: Hit[] = matchEntries(entries, q.toLowerCase()).map(([src, name, url, , desc]) => ({ src, name, url, desc }));
+        if (hits.length < 10) {
+          const have = new Set(hits.map((h) => h.name.toLowerCase()));
+          const sem = await vecSearch(env, q, 30).catch(() => []);
+          hits = hits.concat(sem.filter((s) => s.name && !have.has(s.name.toLowerCase())).slice(0, 10 - hits.length).map((s) => ({ src: 'arch', name: s.name, url: s.url })));
+        }
+        const rows = hits.slice(0, 20).map((h) => {
+          const href = h.src === 'arch' ? `https://github.com/gandli/daily-digest/blob/archive/archive/${h.url}/` : h.url;
+          return `<li><a href="${esc(href)}">${esc(h.name)}</a>${h.desc ? `<br><small style="color:#656d76">${esc(h.desc)}</small>` : ''}</li>`;
+        }).join('\n');
+        return new Response(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>搜索: ${esc(q)} · daily-digest</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui,sans-serif;max-width:640px;margin:3rem auto;padding:0 1rem;color:#1f2328}a{color:#0969da;text-decoration:none}ul{line-height:1.8}small{display:block}</style></head><body><h1>搜索: ${esc(q)}</h1><form action="/search"><input name="q" value="${esc(q)}" placeholder="关键词"><button>搜索</button></form><p>${hits.length} 条结果</p><ul>${rows}</ul><p><a href="/">← 首页</a></p></body></html>`, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=60' } });
+      }
+      // /archive/YYYY-MM-DD: 历史 digest 查看(从 archive 分支拉 md 渲染 HTML)
+      if (url.pathname.startsWith('/archive/')) {
+        const dateStr = url.pathname.slice('/archive/'.length).trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return new Response('bad date', { status: 400 });
+        const items = await fetchArchiveMd(env, dateStr).catch(() => null);
+        if (!items) return new Response(`<p>无 ${esc(dateStr)} digest</p>`, { status: 404, headers: { 'content-type': 'text/html; charset=utf-8' } });
+        const rows = items.map((it, i) => `<li>${i + 1}. <a href="${esc(it.url)}">${esc(it.title)}</a><br><small style="color:#656d76">${esc(it.desc)}</small></li>`).join('\n');
+        return new Response(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${esc(dateStr)} · daily-digest</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui,sans-serif;max-width:640px;margin:3rem auto;padding:0 1rem;color:#1f2328}a{color:#0969da;text-decoration:none}ul{line-height:1.8}small{display:block}</style></head><body><h1>${esc(dateStr)}</h1><ul>${rows}</ul><p><a href="/">← 首页</a></p></body></html>`, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=300' } });
+      }
+      // /api/today: 当天 digest 原始 JSON(第三方集成)
+      if (url.pathname === '/api/today') {
+        const items = await fetchArchiveMd(env, shanghaiDate()).catch(() => null);
+        return Response.json(items ? { date: shanghaiDate(), count: items.length, items } : { date: shanghaiDate(), count: 0, items: [] });
+      }
+      // /random: 随机一条(从 search:index 抽样)
+      if (url.pathname === '/random') {
+        const raw = await env.CACHE.get('search:index').catch(() => null);
+        const entries = raw ? (JSON.parse(raw) as SearchEntry[]) : [];
+        if (!entries.length) return new Response('<p>no index</p>', { status: 503 });
+        const [src, name, rurl, , desc] = entries[Math.floor(Math.random() * entries.length)];
+        const href = src === 'arch' ? `https://github.com/gandli/daily-digest/blob/archive/archive/${rurl}/` : rurl;
+        return new Response(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>随机一条 · daily-digest</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui,sans-serif;max-width:640px;margin:3rem auto;padding:0 1rem;color:#1f2328}a{color:#0969da;text-decoration:none}</style></head><body><h1>随机一条</h1><p><a href="${esc(href)}">${esc(name)}</a></p>${desc ? `<p style="color:#656d76">${esc(desc)}</p>` : ''}<p><a href="/random">再抽一条</a> · <a href="/">← 首页</a></p></body></html>`, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
+      }
       return new Response(
         `<!doctype html>
 <html lang="zh-CN">
@@ -753,7 +809,14 @@ export default {
 <p>GitHub Trending / HN / PH 每日中文摘要 bot（Cloudflare Worker）</p>
 <h2>📡 订阅</h2>
 <ul>
-<li><a href="/rss">RSS 2.0 订阅</a>（<code>/rss</code>）</li>
+<li><a href="/rss">RSS 2.0 订阅</a>（<code>/rss</code>，近 7 天合并）</li>
+</ul>
+<h2>🌐 网页</h2>
+<ul>
+<li><a href="/search">搜索</a>（<code>/search?q=关键词</code>）</li>
+<li><a href="/archive/2026-08-30">今日 digest</a>（<code>/archive/YYYY-MM-DD</code>）</li>
+<li><a href="/random">随机一条</a>（<code>/random</code>）</li>
+<li><a href="/api/today">JSON API</a>（<code>/api/today</code>）</li>
 </ul>
 <h2>🤖 Bot 命令</h2>
 <ul>

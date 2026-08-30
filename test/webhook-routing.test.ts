@@ -640,4 +640,39 @@ describe('webhook 分支补充(search 深路径 / X 帖失败 / URL 重挂)', ()
     expect(await res.text()).toBe('ok');
     expect(texts().length).toBe(0);
   });
+  describe('网页路由 /search /archive /api/today /random', () => {
+    it('/search?q=rust → HTML 搜索结果页', async () => {
+      const res = await get('https://x/search?q=rust');
+      expect(res.status).toBe(200);
+      const body = await res.text();
+      expect(body).toContain('owner/repo');
+      expect(body).toContain('a rust cli tool');
+      expect(body).toContain('/search');
+    });
+    it('/search 无 q → 400', async () => {
+      const res = await get('https://x/search');
+      expect(res.status).toBe(400);
+    });
+    it('/archive/2026-08-30 → fetchArchiveMd 拉不到(mock 无 content) → 404', async () => {
+      const res = await get('https://x/archive/2026-08-30');
+      expect(res.status).toBe(404);
+    });
+    it('/archive/坏日期 → 400', async () => {
+      const res = await get('https://x/archive/notadate');
+      expect(res.status).toBe(400);
+    });
+    it('/api/today → JSON(mock 无 content → count 0)', async () => {
+      const res = await get('https://x/api/today');
+      expect(res.status).toBe(200);
+      const j: any = await res.json();
+      expect(j.count).toBe(0);
+      expect(j.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+    it('/random → 从 search:index 抽样出一条', async () => {
+      const res = await get('https://x/random');
+      expect(res.status).toBe(200);
+      const body = await res.text();
+      expect(body).toContain('owner/repo');
+    });
+  });
 });
