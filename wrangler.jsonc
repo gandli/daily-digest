@@ -8,6 +8,12 @@
   "kv_namespaces": [
     { "binding": "CACHE", "id": "51e73f8381d34b9c95eaebdf4f7d8101" }
   ],
+  "d1_databases": [
+    { "binding": "DB", "database_name": "daily-digest-archive", "database_id": "b8a4db90-1429-43cd-9f2a-8c3f07828acc" }
+  ],
+  "vectorize": [
+    { "binding": "VEC", "index_name": "daily-digest-search" }
+  ],
   "ratelimits": [
     { "name": "RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 20, "period": 60 } }
   ],
