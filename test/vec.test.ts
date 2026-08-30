@@ -60,9 +60,10 @@ describe('vecUpsertItems 写入', () => {
 });
 
 describe('vecSearch 查询', () => {
-  it('正常: query 嵌入后 topK 查询, 返回映射 hits', async () => {
+  it('正常: query 嵌入后 topK 查询, 过滤低分(<0.55)噪声', async () => {
     const { env, query } = fakeEnv({ matches: [
       { score: 0.9, metadata: { name: 'rust cli', url: 'https://x', src: 'arch' } },
+      { score: 0.4, metadata: { name: 'noise', url: 'https://y' } }, // 低于阈值 → 过滤
       { score: 0.5, metadata: {} }, // 缺 name → 过滤
     ] });
     const hits = await vecSearch(env as never, '命令行工具', 10);
