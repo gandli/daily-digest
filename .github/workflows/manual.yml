@@ -40,7 +40,7 @@ jobs:
           # 缺失/失败自动走确定性模板兜底, 不会红
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       - name: Commit regenerated manual
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: 'docs: 自动更新用户手册 [skip ci]'
           file_pattern: 'docs/guide/**'
