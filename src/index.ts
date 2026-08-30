@@ -240,8 +240,18 @@ export async function archiveTweet(
       : `https://www.google.com/s2/favicons?domain=x.com&sz=64`);
   const stamp = `${shanghaiDate()}-${Date.now() % 86400000}`;
   const tUrl = tweet.url ?? `https://x.com/${handle}/status/${id}`;
+  // 标题生成(LLM): article 帖用现成标题; fixupx 用页首标题(免 LLM); 普通帖 LLM 生成。
+  // 同时用于 md 标题 + Telegraph 页标题 + 卡片标题(一次 LLM 调用三处复用)。
+  const titleText = tweet.article?.title || refTitle || (isArticlePost ? bodyText : (tweet.text ?? '')).slice(0, 600);
+  const titleZh: string | null = tweet.article?.title
+    ? tweet.article.title
+    : isArticlePost && refTitle
+      ? refTitle // fixupx 页首标题即文章题, 免 LLM(中文文章得中文题, 确定性)
+      : await generateTitleZh(env, titleText);
+  // md 标题: LLM 标题优先, 无则回退 "X Post · @handle"
+  const mdTitle = titleZh ? `# ${titleZh}` : `# X Post · @${tweet.author?.screen_name ?? handle}`;
   const md = [
-    `# X Post · @${tweet.author?.screen_name ?? handle}`,
+    mdTitle,
     '',
     `- 原链: ${tUrl}`,
     `- 作者: ${tweet.author?.name ?? ''} (@${tweet.author?.screen_name ?? handle})`,
@@ -262,13 +272,6 @@ export async function archiveTweet(
     await archiveDatedToGitHub(env, stamp, md);
     // Telegraph 存档(单帖一页; 失败静默——增强非必需)
     // 页标题 = LLM 帖子标题(易读), 失败回退 "X · @handle · 日期"
-    // article 帖: article.title 是现成中文标题 → 直接用, 不再调 LLM(裸 URL 喂 LLM 必得拒绝语)
-    const titleText = tweet.article?.title || refTitle || (isArticlePost ? bodyText : (tweet.text ?? '')).slice(0, 600);
-    let titleZh: string | null = tweet.article?.title
-      ? tweet.article.title
-      : isArticlePost && refTitle
-        ? refTitle // fixupx 页首标题即文章题, 免 LLM(中文文章得中文题, 确定性)
-        : await generateTitleZh(env, titleText);
     let tgLine = '';
     let tgPageUrl = '';
     if (env.TELEGRAPH_TOKEN) {
