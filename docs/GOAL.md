@@ -1,7 +1,7 @@
 # daily-digest · AI Agent Goal Spec
 
 本文件是 agent 可直接执行的验收契约。每条 AC 附验证方法；无法验证的表述不得出现在本文。
-状态：v1.5 —— 反映 2026-08-29 已实现功能（新增 /hn、存档批量化、卡片序号规则、X article 帖、用户手册自动化管线）。
+状态：v1.6 —— 反映 2026-08-30 已实现功能（审计根治 P0/P1/P2 全清评分 100、覆盖率 100%、841 测试、tsc 死代码/静态增强零容忍、治理三件套、data/文档化）。
 
 ## Objective
 
@@ -61,8 +61,8 @@
 | A10 | 发 X 帖 / 网页 URL → 摘要 + 存档三链；重发 done 回存档链接而非"无需重复" | 真机 |
 | A11 | `wrangler tail` 有 callback_query 到达（翻页） | 点按钮后 tail |
 | A12 | 连续 7 天 cron 每天恰推送，无漏发无重复 | observability + 聊天记录 |
-| A13 | `npm test` 全绿（836+ tests）| CI |
-| A14 | `npx vitest run --coverage` 整体语句 ≥90% 且分支 ≥80% | 本地 |
+| A13 | `npm test` 全绿（841 tests / 57 文件）| CI |
+| A14 | `npx vitest run --coverage` 整体语句 100% 且分支 ≥94% | 本地 |
 | A15 | 发 `/hn` 命中产品卡；当日未生成回"生成中"占位且 Actions 被触发 | 真机 + gh api |
 | A16 | 发 X 帖/网页链接后 archive 分支**不立即**新增 commit；flush（cron/≥20）后新增**一个** batch commit 且 pend 键清空 | gh api commits 对比 |
 | A17 | 单仓查询卡无 `N/M` 序号；trending 推送各卡带 `i/N` | 真机截图 |
