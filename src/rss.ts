@@ -34,7 +34,7 @@ export function buildRssFeed(
     <title>daily-digest: ${dateStr}</title>
     <link>${escapeXml(siteUrl)}</link>
     <atom:link href="${escapeXml(siteUrl)}/rss" rel="self" type="application/rss+xml"/>
-    <description>GitHub Trending / HN / PH daily digest — ${dateStr}</description>
+    <description>GitHub Trending / HN / PH daily digest — ${dateStr} | bot: @gandli_daily_digest_bot (https://t.me/gandli_daily_digest_bot)</description>
     <language>zh-CN</language>
     <lastBuildDate>${pubDate}</lastBuildDate>
     <ttl>1440</ttl>
