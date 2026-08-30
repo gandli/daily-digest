@@ -61,7 +61,7 @@
 | A10 | 发 X 帖 / 网页 URL → 摘要 + 存档三链；重发 done 回存档链接而非"无需重复" | 真机 |
 | A11 | `wrangler tail` 有 callback_query 到达（翻页） | 点按钮后 tail |
 | A12 | 连续 7 天 cron 每天恰推送，无漏发无重复 | observability + 聊天记录 |
-| A13 | `npm test` 全绿（519+ tests）| CI |
+| A13 | `npm test` 全绿（836+ tests）| CI |
 | A14 | `npx vitest run --coverage` 整体语句 ≥90% 且分支 ≥80% | 本地 |
 | A15 | 发 `/hn` 命中产品卡；当日未生成回"生成中"占位且 Actions 被触发 | 真机 + gh api |
 | A16 | 发 X 帖/网页链接后 archive 分支**不立即**新增 commit；flush（cron/≥20）后新增**一个** batch commit 且 pend 键清空 | gh api commits 对比 |
@@ -87,4 +87,4 @@
 - M3 上线 + 观察期 ✓
 - M4 扩展：搜索索引 + X/URL 存档 + 三链 + 分页导航 ✓
 - M5 扩展二：/hn + 存档批量化 + 卡片序号规则 + X article 帖修复 + 用户手册自动化 ✓
-- M6（计划）：描述缓存 refresh 调优、search 翻译结果缓存回索引、archive:idx 补 url 字段
+- M6（进行中）：描述缓存 refresh 调优、search 翻译结果缓存回索引、VEC 索引重建(历史条目从未 upsert, 语义检索退化)；archive:idx 补 url 字段 ✓
