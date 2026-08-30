@@ -132,13 +132,13 @@ async function main() {
   const chunks = renderProductMessage(dateStr, items, telegraphUrl ?? undefined, env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
   console.log(`[4/5] rendered ${chunks.length} messages${telegraphUrl ? `, telegraph: ${telegraphUrl}` : ''}`);
 
-  // 5a. 落 archive 分支(JSON + markdown)
-  const jsonPath = `product/${dateStr}.json`;
-  const jsonPayload = JSON.stringify({ date: dateStr, items, telegraphUrl: telegraphUrl ?? undefined, generatedAt: new Date().toISOString() }, null, 2);
-  await putToArchiveBranch(env, jsonPath, jsonPayload, `product: ${dateStr}`);
+  // 5a. 落 archive 分支(JSON + markdown) — HN 前缀 hn- 对齐 PH(ph-), 避免与 GT 主 digest 同路径竞态覆盖
+  const jsonPath = `archive/${dateStr.slice(0, 4)}/hn-${dateStr}.json`;
+  const jsonPayload = JSON.stringify({ date: dateStr, items, telegraphUrl: telegraphUrl ?? undefined, generatedAt: new Date().toISOString() });
+  await putToArchiveBranch(env, jsonPath, jsonPayload, `hn: ${dateStr}`);
   const md = renderMarkdown(dateStr, items, telegraphUrl ?? undefined);
-  await archiveToGitHub(env, dateStr, md);
-  console.log(`[5a] archived ${jsonPath} + ${dateStr}.md`);
+  await archiveToGitHub(env, `hn-${dateStr}`, md);
+  console.log(`[5a] archived ${jsonPath} + hn-${dateStr}.md`);
 
   // 5b. 直发 TG(Worker 已不在路径上, 由 Actions 直接发)
   await sendPerRepoMessages(env.BOT_TOKEN, env.CHAT_ID, chunks.map((html, i) => ({ html, ogUrl: items[i].url })), env.GH_ARCHIVE_REPO || 'gandli/daily-digest');
