@@ -3,11 +3,12 @@ import { fetchTrending } from './sources/trending';
 import { resolveDescriptions } from './translate';
 import { renderMessage, renderMarkdown, renderTelegraphNodes, renderProductMessage, esc, yearOf } from './render';
 import { sendPerRepoMessages, sendTelegram, sendChatAction, sendPhotoOrText, registerCommands, safeEqual, sendTelegramKbd, answerCallbackQuery, editMessageKbd, type InlineKB } from './notify';
-import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage, createTelegraphAccount, flushArchivedPending } from './archive';
+import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage, createTelegraphAccount, flushArchivedPending, errMsg } from './archive';
 import { extractRepo, extractRepoRefs, today, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, markProcessed, archiveLinks, backfillDescriptions, saveToWayback } from './lookup';
 import { extractUrl, urlToMarkdown } from './urlmd';
 import { extractTweet, fetchTweet, renderTweetHtml, articleToText, articleRefFixup } from './fxtweet';
 import { matchEntries, type SearchEntry } from './search-index';
+import { buildRssFeed } from './rss';
 import { d1ArchivePage } from './d1';
 import { vecSearch } from './vec';
 import { runProductHunt } from './ph';
@@ -427,6 +428,27 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
   }
   const ok = await archiveToGitHub(env, dateStr, renderMarkdown(dateStr, items, telegraphUrl ?? undefined));
   if (!ok) console.warn('archiveToGitHub failed (buffered? direct put failed)', dateStr);
+
+  // 6. RSS feed: 存 KV (ttl 24h) 供 /rss 读取。失败不影响主流程。
+  try {
+    await env.CACHE.put(
+      `rss:feed`,
+      buildRssFeed(
+        items.map((it) => ({
+          title: it.title,
+          url: it.url,
+          desc: it.descZh || it.desc,
+          author: it.author,
+          topics: it.topics,
+        })),
+        dateStr,
+        `https://daily-digest.gandli-digest.workers.dev`,
+      ),
+      { expirationTtl: 86400 },
+    );
+  } catch (e) {
+    console.error('rss feed put failed', errMsg(e));
+  }
   await indexArchivedItems(env, items, dateStr); // /search 索引
   console.log('digest sent', dateStr, `${items.length} items`);
   return chunks.length;
@@ -648,6 +670,16 @@ export default {
       return Response.json({ ok: true, chunks: n });
     }
     if (req.method === 'GET') {
+      // /rss: RSS 2.0 feed（昨日/最近 digest；KV 未命中则空 feed）
+      if (url.pathname === '/rss') {
+        const feed = await env.CACHE.get('rss:feed').catch(() => null);
+        return new Response(feed ?? '<?xml version="1.0"?><rss version="2.0"><channel><title>daily-digest</title><link>https://daily-digest.gandli-digest.workers.dev</link><description>No digest yet</description></channel></rss>', {
+          headers: {
+            'content-type': 'application/rss+xml; charset=utf-8',
+            'cache-control': 'public, max-age=300',
+          },
+        });
+      }
       // /preview: 数据管线自检(抓取→翻译→渲染, 不发消息)。仅未配凭证时开放。
       if (url.pathname === '/preview' && !env.BOT_TOKEN) {
         const dateStr = shanghaiDate();
@@ -668,7 +700,33 @@ export default {
           items,
         });
       }
-      return new Response('daily-digest worker running\n', { headers: { 'content-type': 'text/plain' } });
+      return new Response(
+        `<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>daily-digest</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{font-family:system-ui,sans-serif;max-width:640px;margin:3rem auto;padding:0 1rem;color:#1f2328}h1{font-size:1.5rem}a{color:#0969da;text-decoration:none}code{background:#f6f8fa;padding:2px 6px;border-radius:4px}ul{line-height:1.8}</style>
+</head>
+<body>
+<h1>daily-digest</h1>
+<p>GitHub Trending / HN / PH 每日中文摘要 bot（Cloudflare Worker）</p>
+<h2>📡 订阅</h2>
+<ul>
+<li><a href="/rss">RSS 2.0 订阅</a>（<code>/rss</code>）</li>
+</ul>
+<h2>🤖 Bot 命令</h2>
+<ul>
+<li><code>/gt</code> — 今日 GitHub Trending 中文摘要</li>
+<li><code>/hn</code> — Hacker News 深度摘要</li>
+<li><code>/ph</code> — Product Hunt 摘要</li>
+<li><code>/search &lt;关键词&gt;</code> — 本地索引搜索</li>
+<li><code>/archive</code> — 历史归档</li>
+</ul>
+<hr><p style="color:#656d76;font-size:.85rem">worker running · <a href="/health">health</a></p>
+</body>
+</html>`,
+        { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=300' } },
+      );
     }
     if (url.pathname !== '/telegram' || req.method !== 'POST') {
       return new Response('not found', { status: 404 });

@@ -459,9 +459,11 @@ describe('webhook 路由全分支', () => {
     const res = await postRaw('https://x/nope');
     expect(res.status).toBe(404);
   });
-  it('GET 根路径 → running 提示', async () => {
+  it('GET 根路径 → 状态页 (HTML, 含订阅链接)', async () => {
     const res = await get('https://x/');
-    expect(await res.text()).toContain('daily-digest worker running');
+    const body = await res.text();
+    expect(body).toContain('daily-digest');
+    expect(body).toContain('/rss');
   });
 
   it('scheduled cron → runDigest + refresh + backfill 不崩', async () => {
@@ -616,9 +618,9 @@ describe('webhook 分支补充(search 深路径 / X 帖失败 / URL 重挂)', ()
     }), env, {} as any);
     expect(r2.status).toBe(403);
   });
-  it('GET / 探活 → running 文本', async () => {
+  it('GET / 探活 → HTML 状态页', async () => {
     const r = await worker.fetch(new Request('https://x/'), env, {} as any);
-    expect(await r.text()).toContain('running');
+    expect(await r.text()).toContain('daily-digest');
   });
   it('非 /telegram POST → 404', async () => {
     const r = await worker.fetch(new Request('https://x/other', { method: 'POST' }), env, {} as any);
