@@ -6,7 +6,7 @@ import { articleToText } from '../src/fxtweet';
 import { fetchHackerNewsProducts } from '../src/sources/hn';
 import { translateTextZh, summarizeZhDeep } from '../src/translate';
 import { saveToWayback, shouldReprocess, markProcessed, extractRepoRefs, indexArchivedItems, backfillDescriptions, refreshLookupDescriptions } from '../src/lookup';
-import { makeEnv } from '../scripts/manual/runner';
+import { makeEnv, makeCallLog, runScheduled } from '../scripts/manual/runner';
 
 describe('answerCallbackQuery', () => {
   it('POST callback_query_id; 网络错静默不抛', async () => {
@@ -222,5 +222,16 @@ describe('runner.makeEnv: CACHE mock 完整性', () => {
     await env.CACHE.delete('k1');                        // delete 路径
     expect(await env.CACHE.get('k1')).toBeNull();
     expect((await env.CACHE.list({ prefix: 'k' })).keys).toEqual([]);
+  });
+});
+
+describe('runner.runScheduled: cron 场景驱动 scheduled', () => {
+  it('scheduled 走 waitUntil 收集 + harvest 出 sys 开场步', async () => {
+    const env = makeEnv();
+    const fetcher = makeCallLog();
+    const sc = await runScheduled(env, fetcher, '10', '每日自动推送', 'cron');
+    expect(sc.id).toBe('10');
+    expect(sc.steps[0]).toMatchObject({ actor: 'user', sys: true }); // sys 伪步开场
+    expect(sc.steps[0].text).toContain('08:30');
   });
 });
