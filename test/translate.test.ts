@@ -43,6 +43,13 @@ describe('isChinese: CJK 判定边界', () => {
   it('emoji + 5个中文 → true', () => {
     expect(isChinese('🎉 测试 测试 测试 测试 测试')).toBe(true);
   });
+  it('日文(含假名) → false, 不被当中文透传(2026-08 修复)', () => {
+    expect(isChinese('日本語のテキストを翻訳する必要があります')).toBe(false);
+    expect(isChinese('東京大学の研究者が開発した人工知能システム')).toBe(false);
+  });
+  it('日文假名混合 → false(含片假名)', () => {
+    expect(isChinese('これはテストです')).toBe(false);
+  });
 });
 
 // ---------- translateTextZh: 单段翻译, mock env 不触网 ----------
