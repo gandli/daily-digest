@@ -62,7 +62,7 @@ async function pendArchive(env: Env, path: string, content: string, message: str
 
 /** archive 分支通用 PUT(创建或覆盖, Contents API)。contentB64: base64 编码内容。失败只记日志。现仅作 KV 不可用时的兜底。 */
 async function putToArchiveBranchDirect(env: Env, path: string, contentB64: string, message: string): Promise<boolean> {
-  const repo = (env.GH_ARCHIVE_REPO || 'gandli/daily-digest').replace(/[^A-Za-z0-9_.-]/g, ''); // repo 名消毒(SSRF 守卫)
+  const repo = (env.GH_ARCHIVE_REPO || 'gandli/daily-digest').replace(/[^A-Za-z0-9_.\/-]/g, ''); // repo 名消毒(SSRF 守卫, 保留 / 支持 owner/repo)
   // 幂等: 先查 sha,存在则 update(PUT 带 sha 覆盖)
   let sha: string | undefined;
   try {
@@ -111,7 +111,7 @@ export async function archiveOgImage(env: Env, repoFull: string): Promise<string
     if (!res.ok) return null;
     const buf = new Uint8Array(await res.arrayBuffer());
     const name = `${repoFull.replace('/', '__')}.png`;
-    const repo = (env.GH_ARCHIVE_REPO || 'gandli/daily-digest').replace(/[^A-Za-z0-9_.-]/g, ''); // 消毒(SSRF 守卫)
+    const repo = (env.GH_ARCHIVE_REPO || 'gandli/daily-digest').replace(/[^A-Za-z0-9_.\/-]/g, ''); // 消毒(SSRF 守卫, 保留 / 支持 owner/repo)
     // 已有同名图(上次 flush 已入库) → 跳过重传(OG 卡内容随 stars 变化可接受); 同批重复由 flush 按路径去重
     const head = await fetch(`https://api.github.com/repos/${repo}/contents/og-images/${name}?ref=archive`, { headers: GH_HEADERS(env.GH_TOKEN) });
     if (head.ok) {
@@ -159,7 +159,7 @@ export async function flushArchivedPending(env: Env): Promise<number> {
     // 免费层子请求预算: 固定 4 + 每 blob 1 → 单批至多 40 文件, 超出留给下次 flush
     const batch = [...items.values()].slice(0, FLUSH_BLOB_CAP);
     if (!batch.length) return 0;
-    const repo = (env.GH_ARCHIVE_REPO || 'gandli/daily-digest').replace(/[^A-Za-z0-9_.-]/g, ''); // 消毒(SSRF 守卫)
+    const repo = (env.GH_ARCHIVE_REPO || 'gandli/daily-digest').replace(/[^A-Za-z0-9_.\/-]/g, ''); // 消毒(SSRF 守卫, 保留 / 支持 owner/repo)
     const api = `https://api.github.com/repos/${repo}/git`;
 
     // 2. base: ref → commit → tree

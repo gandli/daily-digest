@@ -147,7 +147,7 @@ async function main() {
 
 // archive 分支通用 PUT(从 archive.ts 内联, 避免导出私有 putToArchiveBranch)
 async function putToArchiveBranch(env: Env, path: string, content: string, message: string): Promise<boolean> {
-  const repo = (env.GH_ARCHIVE_REPO || 'gandli/daily-digest').replace(/[^A-Za-z0-9_.-]/g, ''); // repo 名消毒(SSRF 守卫)
+  const repo = (env.GH_ARCHIVE_REPO || 'gandli/daily-digest').replace(/[^A-Za-z0-9_.\/-]/g, ''); // repo 名消毒(SSRF 守卫, 保留 / 支持 owner/repo)
   if (path.includes('..') || path.startsWith('/')) throw new Error('bad archive path');
   const encoded = Buffer.from(content).toString('base64');
   let sha: string | undefined;
