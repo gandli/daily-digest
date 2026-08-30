@@ -226,6 +226,13 @@ describe('webhook 路由全分支', () => {
     await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://github.com/owner/repo' } });
     expect(texts().some((t) => t.includes('owner/repo'))).toBe(true);
   });
+  it('GitHub 链接(已查过但 archive:idx 缺失) → replyArchived 回落 lookupRepo 重查', async () => {
+    await env.CACHE.put(`lookup:${today()}:owner/repo`, '1');
+    // 不设 archive:idx:owner/repo —— 模拟索引缺失
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://github.com/owner/repo' } });
+    // miss 分支走 lookupRepo → 发卡(含 owner/repo)
+    expect(texts().some((t) => t.includes('owner/repo'))).toBe(true);
+  });
   it('多 repo 直发(两个全新) → fanout 两张卡带 1/2、2/2 序号', async () => {
     await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: '看这两个 https://github.com/owner/repo 和 https://github.com/other/thing' } });
     const msgs = photos();
@@ -289,6 +296,32 @@ describe('webhook 路由全分支', () => {
     };
     await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://x.com/fe2o3/status/123' } });
     // done 判定但记录缺失 → 兜底走 archiveTweet
+    expect(vi.mocked(fetchTweet)).toHaveBeenCalled();
+  });
+
+  it('X 帖重发(done 二次读损坏 JSON) → r=null 兜底重挂', async () => {
+    env.CACHE.store.set('reproc:https://x.com/fe2o3/status/123', JSON.stringify({ ts: Date.now(), translated: true, descOk: true, md: 'x', t: 'x', s: 'x' }));
+    const origGet = env.CACHE.get.bind(env.CACHE);
+    let n = 0;
+    env.CACHE.get = async (k: string) => {
+      n++;
+      if (k.startsWith('reproc:') && n >= 2) return '{broken'; // 二次读损坏(首次 shouldReprocess 读有效)
+      return origGet(k);
+    };
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://x.com/fe2o3/status/123' } });
+    expect(vi.mocked(fetchTweet)).toHaveBeenCalled();
+  });
+
+  it('X 帖重发(done 二次读 KV 抛错) → .catch 兜底重挂', async () => {
+    env.CACHE.store.set('reproc:https://x.com/fe2o3/status/123', JSON.stringify({ ts: Date.now(), translated: true, descOk: true, md: 'x', t: 'x', s: 'x' }));
+    const origGet = env.CACHE.get.bind(env.CACHE);
+    let n = 0;
+    env.CACHE.get = async (k: string) => {
+      n++;
+      if (k.startsWith('reproc:') && n >= 2) throw new Error('kv down'); // 二次读抛错
+      return origGet(k);
+    };
+    await post('https://x/telegram', { message: { chat: { id: 944783507 }, text: 'https://x.com/fe2o3/status/123' } });
     expect(vi.mocked(fetchTweet)).toHaveBeenCalled();
   });
 
@@ -443,6 +476,16 @@ describe('webhook 路由全分支', () => {
     await (worker as any).scheduled({} as any, env, ctx);
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('flushArchivedPending returned 0'));
     warnSpy.mockRestore();
+  });
+
+  it('scheduled: flush 返 0 且 list 抛错 → 告警兜底(0 pending)不崩', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const origList = env.CACHE.list.bind(env.CACHE);
+    env.CACHE.list = async () => { throw new Error('kv list down'); }; // list 抛错 → .catch 兜底空键
+    await (worker as any).scheduled({} as any, env, ctx);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('flushArchivedPending returned 0'));
+    warnSpy.mockRestore();
+    env.CACHE.list = origList;
   });
 });
 

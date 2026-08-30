@@ -154,9 +154,8 @@ export async function runScheduled(
   outline: string,
 ): Promise<Scenario> {
   const steps: Step[] = [{ actor: 'user', sys: true, text: '⏰ 每天 08:30(北京时间)自动推送', note: '定时任务触发, 无需用户操作' }];
-  const waitUntil: Promise<unknown>[] = [];
-  await (worker as any).scheduled({ cron: '30 0 * * *' }, env, { waitUntil: (p: Promise<unknown>) => waitUntil.push(p) } as any);
-  await Promise.all(waitUntil);
+  // scheduled 处理器全 await, 不用 ctx.waitUntil, 直接传 null
+  await (worker as any).scheduled({ cron: '30 0 * * *' }, env, null);
   harvest(fetcher, steps);
   return { id, title, outline, steps };
 }
