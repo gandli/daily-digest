@@ -653,9 +653,11 @@ describe('webhook 分支补充(search 深路径 / X 帖失败 / URL 重挂)', ()
       const res = await get('https://x/search');
       expect(res.status).toBe(400);
     });
-    it('/archive/2026-08-30 → fetchArchiveMd 拉不到(mock 无 content) → 404', async () => {
+    it('/archive/2026-08-30 → 聚合页(mock 下 HN 有数据 → 200 含 Hacker News 区)', async () => {
       const res = await get('https://x/archive/2026-08-30');
-      expect(res.status).toBe(404);
+      expect(res.status).toBe(200);
+      const body = await res.text();
+      expect(body).toContain('Hacker News');
     });
     it('/archive/坏日期 → 400', async () => {
       const res = await get('https://x/archive/notadate');
