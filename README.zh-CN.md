@@ -117,5 +117,5 @@ main push 另触发 changelog workflow 自动更新 [CHANGELOG.md](CHANGELOG.md)
 ---
 
 <p align="center">
-  <sub>Cloudflare 免费层全家桶:Workers · KV · D1 · Vectorize · AI · 836 tests · CI 自动部署 · changelog 自动生成 · 用户手册自动生成</sub>
+  <sub>Cloudflare 免费层全家桶:Workers · KV · D1 · Vectorize · AI · 841 tests · CI 自动部署 · changelog 自动生成 · 用户手册自动生成</sub>
 </p>

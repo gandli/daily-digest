@@ -117,5 +117,5 @@ Pushing to main also triggers a changelog workflow that auto-updates [CHANGELOG.
 ---
 
 <p align="center">
-  <sub>Cloudflare free-tier suite: Workers · KV · D1 · Vectorize · AI · 697 tests · CI auto-deploy · auto changelog · auto-generated user manual</sub>
+  <sub>Cloudflare free-tier suite: Workers · KV · D1 · Vectorize · AI · 841 tests · CI auto-deploy · auto changelog · auto-generated user manual</sub>
 </p>

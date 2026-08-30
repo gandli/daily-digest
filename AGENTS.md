@@ -33,7 +33,7 @@ npx wrangler dev                  # 本地起 worker
 npx wrangler kv namespace create CACHE
 npx wrangler d1 create daily-digest-archive
 npx wrangler vectorize create daily-digest-search --dimensions 384 --metric cosine
-npx wrangler ratelimit create RATE_LIMITER --limit 20 --period 60
+# ratelimits 无需 CLI 创建 —— 直接在 wrangler.jsonc 的 ratelimits 段配置（namespace_id 是自定整数标识）
 ```
 
 将输出 ID 回填 `wrangler.jsonc` 对应 binding（CACHE / DB / VEC / RATE_LIMITER）。
