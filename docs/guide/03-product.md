@@ -1,53 +1,41 @@
-# /product — 今日 HN 酷产品
+## /product — 今日 HN 酷产品
 
-本节介绍如何使用 Bot 的 `/product` 命令(亦可使用别名 `/hn`)快速获取今日 Hacker News 上值得关注的酷产品。Bot 会从 archive 分支读取预设的 JSON 数据秒回产品卡片,卡片内附带 OG 预览图;若当日尚未生成数据,Bot 会自动触发 GitHub Actions 工作流,并提示等待推送。
+`/product`(命令别名 `/hn`)为你带来每日精选的 Hacker News 高分产品。Bot 会先从 archive 分支读取当日 JSON,如尚未生成则触发 GitHub Actions 工作流,几分钟后自动推送产品卡。
 
-### 步骤 1: 发送命令
+### 步骤 1: 发起查询
 
-在任意 Telegram 对话窗口输入以下任一命令:
+在 Bot 对话中发送 `/product` 或 `/hn`。
 
-```
-/product
-```
+Bot 立即响应,提示数据正在准备:
 
-或使用别名:
+> ⏳ 今日 Hacker News 酷产品生成中(约 2-5 分钟), 完成后自动推送。
 
-```
-/hn
-```
+若当日 archive 分支已有 JSON,Bot 会直接返回产品卡(跳到步骤 3);若尚未生成,则进入等待。
 
-Bot 会立即识别并开始处理。
+![首次请求后 Bot 的等待提示](assets/03-product-r1.png)
 
-### 步骤 2: 首次触发(数据未就绪)
+### 步骤 2: 等待 Actions 触发
 
-若当日 archive 分支尚无产品 JSON 文件,Bot 会返回一个生成提示,告知用户等待 Actions 跑完后自动推送。这是首次使用或当日首次访问的常见情况,通常需要 2-5 分钟完成数据采集与生成。
+首次调用后,Bot 通过 `repository_dispatch` 事件唤醒 GitHub Actions。该工作流抓取 Hacker News 当日高分条目、筛选产品类项目、生成结构化 JSON 并提交到 archive 分支,通常耗时 2 至 5 分钟。期间你可以正常进行其他操作,无需重复触发。
 
-Bot 会回复类似以下内容:
+### 步骤 3: 接收产品卡
 
-> ⏳ 今日 Hacker News 酷产品生成中(约 2-5 分钟),完成后自动推送。
+工作流完成后,Bot 主动推送产品卡消息:
 
-此时用户无需重复发送命令,只需等待 Bot 在数据准备完毕后主动推送卡片。
+> 🚀 2026-08-30 Linear — 快得离谱的项目管理工具
+> 👤 by karkarpathy · about 3 hours ago
+> 📝 一款以速度著称的产品规划与 issue 跟踪工具。
+> 💬 "Linear is purpose-built to be fast…"
 
-![首次触发时 Bot 返回生成提示](assets/03-product-r1.png)
+卡片包含日期、产品名、一句话简介、作者、HN 热度时间以及 OG 预览图。
 
-### 步骤 3: 二次触发(数据已就绪)
+![Bot 推送的产品卡详情](assets/03-product-r2.png)
 
-用户在收到推送之前再次发送 `/product`(或 `/hn`),Bot 已能直接从 archive 分支读取 JSON 数据并秒回产品卡片。卡片包含日期、产品名称、作者、发布时间、简短描述以及原帖讨论引文,并附带 OG 预览图便于在 Telegram 内直观查看。
+### 步骤 4: 查看与互动
 
-示例回复内容:
+点开消息中的 OG 图可查看产品截图;若对产品感兴趣,直接访问 Hacker News 讨论串围观评论。卡片会被缓存到 archive 分支,后续 `/product` 重复调用时秒回。
 
-> 🚀 2026-08-30 Linear — 快得离谱的项目管理工具 👤 by karpathy · about 3 hours ago 📝 一款以速度著称的产品规划与 issue 跟踪工具。 💬 "Linear …"
-
-卡片顶部会展示产品对应的 OG 缩略图,点击可跳转到原 Hacker News 讨论帖。
-
-![二次触发时 Bot 直接返回产品卡片](assets/03-product-r2.png)
-
-### 步骤 4: 后续每日使用
-
-次日起,archive 分支通常已存在当日的 JSON 文件,用户每次发送 `/product` 都会秒回最新的产品卡片,无需等待。
-
-### 小贴士
-
-- 首次发送命令后请耐心等待 2-5 分钟,Bot 会在生成完毕后**主动推送**卡片,无需重复触发 Actions。
-- 若长时间未收到推送,可再次发送 `/product` 查看是否已生成,或前往对应 GitHub 仓库的 Actions 页面检查工作流运行状态。
-- `/hn` 与 `/product` 功能完全一致,可任选使用,适合在移动端快捷输入。
+- **小贴士**
+  - 等待期间可继续其他对话,完成后 Bot 会自动推送,无需再次输入命令。
+  - 若 5 分钟后仍未推送,可再发一次 `/product`,Bot 会读取 archive 分支的缓存 JSON 直接返回。
+  - 想查看历史产品?访问仓库 archive 分根浏览 `data/` 目录下的日期文件即可。
