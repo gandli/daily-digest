@@ -17,7 +17,7 @@
 | `/archive [页码]` | `archive:idx:*` 遍历倒序 → 10 条/页 + 三链 (Telegraph/web.archive/GitHub md) | 分页 inline keyboard |
 | `/help` / 空 | 使用说明 + 注册命令菜单 | 幂等 setMyCommands |
 | 任意 GitHub repo 链接 | 首次 → `lookupRepo` 单查+存档； 当日已查 → `replyArchived` 回存档三链 | `seenToday` 去重 (TTL 48h)； 单仓卡无 `N/M` 序号 |
-| ≥2 个 GitHub repo 链接(一条消息) | `fanoutRepoRefs` 逐仓发卡(多仓带 `N/M`)； 全部当日已存档 → 回一句话防静默 | 复用 X 帖联动管线(去重/分批防 50 子请求) |
+| ≥2 个 GitHub repo 链接(一条消息) | `fanoutRepoRefs` 逐仓精简卡全并发(多仓带 `N/M`, 原文描述不翻译)； 全部当日已存档 → 回一句话防静默 | 去重 TTL 48h； 精简卡每 repo ~2 子请求, 全并发防 waitUntil 30s 截断 |
 | X 帖链接 (`x.com/<h>/status/<id>`) | `archiveTweet`: FxEmbed 拉元数据 → 摘要 → 存档 | article 长文帖直用内嵌标题； **article 引用帖(text 为 `x.com/i/article` 裸链) → 转 fixupx 公开页提取正文(失败落 fxtwitter.com 同源兜底)并改用 fixupx 展示链接**； 多图 mosaic； 帖内多 repo → `fanoutRepoRefs` 逐仓发卡 (多仓带 `N/M`) |
 | 任意网页 URL | `archiveUrl`: markdown 三级链 → 中文摘要 → 存档 | 重发语义: first/retry/done |
 | 其余输入 | 帮助提示 | |
@@ -74,7 +74,7 @@ Binding `CACHE`。
 - **中文**: 翻译失败保留原文， 不机翻凑数 (isChinese 守卫 + 四级回退)
 - **OG 图**: 尽力附图 (OG→s2 四级链)， sendPhoto 失败降纯文字， 不为图牺牲卡片
 - **Telegraph**: 低频单发建页 (单仓查询/网页/X 帖/digest)； 多仓 fanout **不建** (批量子请求预算， 两链)
-- **Wayback**: 发卡时 fire-and-forget 请求 `web.archive.org/save/<url>` 主动触发快照 (`saveToWayback`)； digest 批量时段不触发 (子请求预算)
+- **Wayback**: 发卡时 fire-and-forget 请求 `web.archive.org/save/<url>` 主动触发快照 (`saveToWayback`)； digest 批量时段与多仓 fanout **不触发** (子请求预算)
 - **标题来源链** (网页): og:title → md 首个 heading → md 首行非结构文本 → host； 命中垃圾标题(URL/域名/导航样板/纯日期)或非中文且有 OPENROUTER_API_KEY → LLM 生成 (喂正文前 600 字)。X 帖: article.title → fixupx 页首标题 → generateTitleZh(正文)
 
 | 卡型 | 标题直链 | 中文正文 | 标签 | OG 图 | Telegraph | Wayback | GitHub md | 子请求预算 |
@@ -82,7 +82,7 @@ Binding `CACHE`。
 | digest 推送 (/gt·cron) | ✓ | ✓ | ✓ | ✓ sendPhoto | ✓ 建页 | ✓ 链接 | ✓ 批量 | ~40/日管线 |
 | /gt 当日重放 | ✓ | ✓ | ✓ | ✗ 纯文本 | ✗ | ✗ | ✓ | 1 |
 | 单仓查询 | ✓ | ✓ | ✓ | ✓ | ✓ 建页 | ✓ save | ✓ 缓冲 | ~9 |
-| 多仓联动 fanout | ✓ | ✓ | ✓ | ✓ | ✗ 两链 | ✓ save | ✓ 缓冲 | 3×N (≤40) |
+| 多仓联动 fanout | ✓ 原文 desc | ✓ | ✓ | ✓ | ✗ 两链 | ✗ 不 save | ✗ 不缓冲 | ~2×N (全并发, ≤50) |
 | 网页存档 | ✓ | ✓ | ✓ | ✓ | ✓ 建页 | ✓ save | ✓ 缓冲 | ~10 |
 | X 帖 | ✓ | ✓ | ✓ | ✓ mosaic/原图/预览 | ✓ 建页 | ✓ save | ✓ 缓冲 | ~12 |
 | 重发回执 | ✓ | ✓ 摘要 | ✗ | ✗ | 读历史键 | ✓ 链接 | ✓ | 2 |
