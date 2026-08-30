@@ -43,9 +43,12 @@ export async function vecUpsertItems(env: Env, items: SourceItem[]): Promise<voi
   }
 }
 
+// bge-m3 cosine 相关度阈值: 实测噪声区 0.28-0.46, 相关查询常 ≥0.55。低于阈值当无补充(防无关条目污染 /search 页)。
+const MIN_SCORE = 0.55;
+
 export type VecHit = { name: string; url: string; score: number };
 
-/** 语义检索: query 嵌入后 topK 查询。失败/未绑定返回 [](调用方当作无补充)。 */
+/** 语义检索: query 嵌入后 topK 查询, 过滤低分噪声。失败/未绑定返回 [](调用方当作无补充)。 */
 export async function vecSearch(env: Env, query: string, topK = 30): Promise<VecHit[]> {
   if (!env.VEC || !env.AI) return [];
   try {
@@ -54,7 +57,7 @@ export async function vecSearch(env: Env, query: string, topK = 30): Promise<Vec
     if (!vector) return [];
     const res = await env.VEC.query(vector, { topK, returnMetadata: 'all' });
     return (res.matches ?? [])
-      .filter((m): m is typeof m & { metadata: { name: string; url?: string } } => typeof m.metadata?.name === 'string')
+      .filter((m): m is typeof m & { metadata: { name: string; url?: string } } => typeof m.metadata?.name === 'string' && m.score >= MIN_SCORE)
       .map((m) => ({ name: m.metadata.name, url: m.metadata.url ?? '', score: m.score }));
   } catch (e) {
     console.error('vec search failed', String(e).slice(0, 80));
