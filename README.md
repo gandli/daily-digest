@@ -11,10 +11,10 @@
 </p>
 
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="daily-digest — 每日 GitHub Trending 中文摘要 bot,左侧为抓取-描述-翻译-推送管线,右侧为一条 Telegram 消息卡示例">
+  <img src="./assets/readme/hero.svg" width="100%" alt="daily-digest — 每日 GitHub Trending / HN / PH 中文摘要 bot,左侧为抓取-描述-翻译-推送管线,右侧为一条 Telegram 消息卡示例">
 </p>
 
-GitHub Trending → **Telegram 每日中文摘要 bot**。Cloudflare Workers 免费层单项目。
+GitHub Trending / HN / Product Hunt → **Telegram 中文摘要 bot**。任意链接(X 帖/网页/repo)三级存档 + 全库检索,Cloudflare Workers 免费层单项目。
 
 每天 **08:30(北京时间)** 自动推送 top10 仓库——每仓一条消息:OG 卡图 + 星数/语言/**中文描述**/deepwiki·zread 链接/topics 标签;数据批量 commit 到本仓 [archive 分支](https://github.com/gandli/daily-digest/tree/archive)(每日 cron 首位 flush 或缓冲满 20 条时合并为**一个 commit**,见[存档批量化](#-存档三链))。
 

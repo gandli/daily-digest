@@ -11,10 +11,10 @@
 </p>
 
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="daily-digest — daily GitHub Trending Chinese digest bot, pipeline on the left, Telegram message card on the right">
+  <img src="./assets/readme/hero.svg" width="100%" alt="daily-digest — daily GitHub Trending / HN / PH Chinese digest bot, pipeline on the left, Telegram message card on the right">
 </p>
 
-GitHub Trending → **Telegram daily Chinese digest bot**. Single project on the Cloudflare Workers free tier.
+GitHub Trending / HN / Product Hunt → **Telegram Chinese digest bot**. Triple-link archives any link (X post / web page / repo) + full-library search. Single project on the Cloudflare Workers free tier.
 
 Every day at **08:30 (UTC+8)** it pushes the top 10 repos — one message per repo: OG card image + stars/language/**Chinese description**/deepwiki·zread links/topic tags; data is batch-committed to this repo's [archive branch](https://github.com/gandli/daily-digest/tree/archive) (merged into **a single commit** by the daily cron or when the buffer reaches 20 entries — see [Archive triple-link](#archive-triple-link)).
 
