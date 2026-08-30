@@ -7,6 +7,10 @@ import { fetchDeepwikiBatch } from './deepwiki';
  *  2-3 字仍拒(过短易误判), 占比条件防 URL/代码稀释。 */
 export function isChinese(s?: string | null): boolean {
   if (!s) return false;
+  // 假名(平假名\u3040-\u309f / 片假名\u30a0-\u30ff)是日文专属, 日文句子必含假名——
+  // 排除防"日文汉字(\u4e00-\u9fff 同区间)被当中文"误判 → 日文走翻译而非透传。
+  // ponytail: 假名启发式; 纯汉字日文句(无假名, 如"日本語")仍无法区分, 需要日文字库时再加。
+  if ((s.match(/[\u3040-\u30ff]/g) ?? []).length >= 2) return false;
   const cjk = (s.match(/[\u4e00-\u9fff]/g) ?? []).length;
   return cjk >= 4 && cjk > s.length * 0.3;
 }
