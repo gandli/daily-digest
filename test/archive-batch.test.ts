@@ -108,7 +108,7 @@ describe('存档缓冲: 只写 KV, 零 GitHub 请求', () => {
       { match: (u) => u.includes('?ref=archive'), status: 404 },
       { match: (u) => u.includes('/contents/'), json: { content: {} } },
     ]);
-    await expect(archiveToGitHub(env(kv), '2026-08-28', '# x')).resolves.toBeUndefined();
+    await expect(archiveToGitHub(env(kv), '2026-08-28', '# x')).resolves.toBe(true);
     expect(gh().some((c) => c.method === 'PUT' && c.url.includes('/contents/'))).toBe(true);
     expect(pendKeys(kv).length).toBe(0);
   });

@@ -94,7 +94,7 @@ describe('GH_TOKEN 缺失 + 网络错', () => {
   it('GH_TOKEN 缺失 → 缓冲不依赖 token, 写 pend 键且零外呼(刷写时才需凭证)', async () => {
     const kv = memKv();
     mockFetch(() => { throw new Error('any external call is unexpected'); });
-    await expect(archiveToGitHub({ CACHE: kv } as never, '2026-08-28', '# m')).resolves.toBeUndefined();
+    await expect(archiveToGitHub({ CACHE: kv } as never, '2026-08-28', '# m')).resolves.toBe(true);
     expect(pendKeys(kv).length).toBe(1);
     expect(calls.length).toBe(0);
   });
@@ -102,14 +102,14 @@ describe('GH_TOKEN 缺失 + 网络错', () => {
   it('archiveToGitHub 网络全断 → 缓冲照常落 KV, 不 crash 不外呼', async () => {
     globalThis.fetch = (async () => { throw new TypeError('ENOTFOUND'); }) as typeof fetch;
     const kv = memKv();
-    await expect(archiveToGitHub({ GH_TOKEN: 't', GH_ARCHIVE_REPO: 'g/d', CACHE: kv } as never, '2026-08-28', '# m')).resolves.toBeUndefined();
+    await expect(archiveToGitHub({ GH_TOKEN: 't', GH_ARCHIVE_REPO: 'g/d', CACHE: kv } as never, '2026-08-28', '# m')).resolves.toBe(true);
     expect(pendKeys(kv).length).toBe(1);
   });
 
   it('archiveDatedToGitHub 网络抛错 → 不 crash 不中断', async () => {
     globalThis.fetch = (async () => { throw new TypeError('network down'); }) as typeof fetch;
     const kv = memKv();
-    await expect(archiveDatedToGitHub({ GH_TOKEN: 't', GH_ARCHIVE_REPO: 'g/d', CACHE: kv } as never, '2026-08-28-120000', '# x')).resolves.toBeUndefined();
+    await expect(archiveDatedToGitHub({ GH_TOKEN: 't', GH_ARCHIVE_REPO: 'g/d', CACHE: kv } as never, '2026-08-28-120000', '# x')).resolves.toBe(true);
     expect(pendKeys(kv).length).toBe(1);
   });
 
@@ -118,7 +118,7 @@ describe('GH_TOKEN 缺失 + 网络错', () => {
       if (u.includes('?ref=archive')) throw new TypeError('GET blow up');
       return new Response(JSON.stringify({ content: {} }), { status: 201 });
     });
-    await expect(archiveDatedToGitHub({ GH_TOKEN: 't' } as never, '2026-08-28-120000', '# x')).resolves.toBeUndefined();
+    await expect(archiveDatedToGitHub({ GH_TOKEN: 't' } as never, '2026-08-28-120000', '# x')).resolves.toBe(true);
     expect(calls.some((c) => c.method === 'PUT')).toBe(true);
   });
 });

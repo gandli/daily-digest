@@ -29,6 +29,8 @@ function buildEnv(): Env {
   };
   return {
     AI: stubAI,
+    // Actions 侧无 Worker KV: CACHE 全 no-op(读回校验 fail → 回落直接 PUT)。
+    // 边界: 脚本产物与 Worker 状态天然隔离, 勿在此尝试共享 KV(#191 教训: Actions/Worker 状态割裂)。
     CACHE: {
       get: async () => null,
       put: async () => {},

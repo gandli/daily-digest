@@ -27,6 +27,9 @@ const GH_HEADERS = (token: string, json = false): Record<string, string> => ({
   ...(json ? { 'content-type': 'application/json' } : {}),
 });
 
+/** 错误日志: 保留完整堆栈与上下文, 不用 slice 截断(截断会丢线上排障线索)。 */
+const errMsg = (e: unknown): string => (e instanceof Error ? e.stack ?? String(e) : String(e));
+
 // ---------------------------------------------------------------------------
 // 存档缓冲: 待写文件先进 KV(pend:arc:*), 由 flushArchivedPending 用 Git Data API
 // 打成单个 commit 刷上 archive 分支——替代旧"每文件一次 Contents API PUT"的碎片提交。
@@ -55,7 +58,7 @@ async function pendArchive(env: Env, path: string, content: string, message: str
     if ((await env.CACHE.get(key)) !== null) return true; // 读回命中 → 真实 KV, 缓冲成功
     console.error('pend put readback miss, fallback to direct put', path);
   } catch (e) {
-    console.error('pend put failed, fallback to direct put', path, String(e).slice(0, 80));
+    console.error('pend put failed, fallback to direct put', path, errMsg(e));
   }
   return putToArchiveBranchDirect(env, path, b64, message); // Contents API content 字段本就收 base64
 }
@@ -81,7 +84,7 @@ async function putToArchiveBranchDirect(env: Env, path: string, contentB64: stri
     if (!res.ok) console.error(`archive put ${path} ${res.status}: ${await res.text()}`);
     ok = res.ok;
   } catch (e) {
-    console.error(`archive put ${path} network error`, String(e).slice(0, 80));
+    console.error(`archive put ${path} network error`, errMsg(e));
   }
   return ok;
 }
@@ -89,17 +92,17 @@ async function putToArchiveBranchDirect(env: Env, path: string, contentB64: stri
 // GitHub 存档 + Telegraph 备份。两者失败都只记日志,不中断管线。
 // 存档并入主仓(gandli/daily-digest-archive 已合并, GH_ARCHIVE_REPO 覆写留作备用)。
 // 存档文件先进 KV 缓冲(scheduled / webhook 攒够阈值时批量刷写), 不再逐文件即时 PUT。
-export async function archiveToGitHub(env: Env, dateStr: string, markdown: string, year?: string): Promise<void> {
+export async function archiveToGitHub(env: Env, dateStr: string, markdown: string, year?: string): Promise<boolean> {
   if (dateStr.includes('..') || dateStr.startsWith('/')) throw new Error('bad archive name'); // 路径守卫(SSRF/穿越)
   const path = `archive/${year ?? dateStr.slice(0, 4)}/${dateStr}.md`;
-  await pendArchive(env, path, markdown, `digest: ${dateStr}`, 'utf-8');
+  return pendArchive(env, path, markdown, `digest: ${dateStr}`, 'utf-8');
 }
 
 /** X 帖子等带完整时间戳文件名的存档(lookup.ts 同形态)。 */
-export async function archiveDatedToGitHub(env: Env, stamp: string, markdown: string, year?: string): Promise<void> {
+export async function archiveDatedToGitHub(env: Env, stamp: string, markdown: string, year?: string): Promise<boolean> {
   if (stamp.includes('..') || stamp.startsWith('/')) throw new Error('bad archive name'); // 路径守卫(SSRF/穿越)
   const path = `archive/${year ?? stamp.slice(0, 4)}/${stamp}.md`;
-  await pendArchive(env, path, markdown, `archive: ${stamp}`, 'utf-8');
+  return pendArchive(env, path, markdown, `archive: ${stamp}`, 'utf-8');
 }
 
 /** OG 图入库 og-images/<owner>__<repo>.png, 返回 markdown 相对路径; 失败返回 null(调用方回退远程 URL 引用)。 */
@@ -121,7 +124,7 @@ export async function archiveOgImage(env: Env, repoFull: string): Promise<string
     const ok = await pendArchive(env, `og-images/${name}`, encodeBase64(buf), `og-image: ${repoFull}`, 'base64');
     return ok ? `../../og-images/${name}` : null;
   } catch (e) {
-    console.error('archiveOgImage failed', String(e).slice(0, 80));
+    console.error('archiveOgImage failed', errMsg(e));
     return null;
   }
 }
@@ -180,7 +183,7 @@ export async function flushArchivedPending(env: Env): Promise<number> {
         }
         blobShas.push({ path: item.path, sha: ((await r.json()) as { sha?: string }).sha ?? '' });
       } catch (e) {
-        console.error(`flush blob ${item.path} error`, String(e).slice(0, 80));
+        console.error(`flush blob ${item.path} error`, errMsg(e));
         return 0;
       }
     }
@@ -234,13 +237,13 @@ export async function flushArchivedPending(env: Env): Promise<number> {
         base.sha = fresh.sha;
         base.treeSha = fresh.treeSha;
       } catch (e) {
-        console.error('flush commit/ref error', String(e).slice(0, 80));
+        console.error('flush commit/ref error', errMsg(e));
         return 0;
       }
     }
     return 0; // 两次尝试都撞冲突 → 保留 pend 键下次再试
   } catch (e) {
-    console.error('flushArchivedPending failed', String(e).slice(0, 120));
+    console.error('flushArchivedPending failed', errMsg(e));
     return 0;
   }
 }
@@ -264,7 +267,7 @@ async function baseOf(api: string, token: string): Promise<{ sha: string; treeSh
     if (!treeSha) return null;
     return { sha, treeSha };
   } catch (e) {
-    console.error('flush base read error', String(e).slice(0, 80));
+    console.error('flush base read error', errMsg(e));
     return null;
   }
 }
@@ -278,7 +281,7 @@ export async function createTelegraphAccount(): Promise<string | null> {
     const j = (await res.json()) as { ok?: boolean; result?: { access_token?: string } };
     return j.ok && j.result?.access_token ? j.result.access_token : null;
   } catch (e) {
-    console.error('telegraph account failed', String(e).slice(0, 80));
+    console.error('telegraph account failed', errMsg(e));
     return null;
   }
 }
