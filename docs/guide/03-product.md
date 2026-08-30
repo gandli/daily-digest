@@ -1,19 +1,46 @@
-# /hn 今日 HN 酷产品
+### 步骤 1：发送指令
 
-> **事务**：读 archive 分支 JSON 秒回产品卡（含 OG 图）；无当日数据 → repository_dispatch 触发 Actions 生成，回提示。
+在 Telegram 任意对话窗口中，向 Bot 发送命令：
 
-## 操作步骤
+```
+/hn
+```
 
-### 第 1 步 — /hn
+Bot 收到指令后会先查询 `archive` 分支下当日的 Hacker News 产品 JSON 缓存。本示例中假设当天暂无已生成内容，因此进入步骤 2 的等待流程。
 
-![第 1 步界面](assets/03-product-r1.png)
+### 步骤 2：等待首次生成提示
 
-- Bot 回复: ⏳ 今日 Hacker News 酷产品生成中(约 2-5 分钟), 完成后自动推送。
+Bot 会在几秒内回复一条提示消息，告知你内容正在生成中：
 
-### 第 2 步 — /hn
+> ⏳ 今日 Hacker News 酷产品生成中（约 2-5 分钟），完成后自动推送。
 
-![第 2 步界面](assets/03-product-r2.png)
+这条消息的含义是：Bot 已向 GitHub 发起 `repository_dispatch` 事件，触发对应的 GitHub Actions 工作流抓取 Hacker News 热门产品并生成 JSON。结果不会通过回复消息呈现，而是会被写回 `archive` 分支，等待下次推送。
 
-- Bot 回复: 🚀 2026-08-30 Linear — 快得离谱的项目管理工具 👤 by karpathy · about 3 hours ago 📝 一款以速度著称的产品规划与 issue 跟踪工具。 💬 "Linear
+![首次生成提示](assets/03-product-r1.png)
 
-> 本章由 e2e 场景自动生成, 与 Bot 当前行为一致。
+此时你可以正常使用 Bot 的其他功能，或直接静置等待。
+
+### 步骤 3：再次发送指令获取卡片
+
+通常 2 至 5 分钟后 Actions 工作流会将当日的 JSON 写入 `archive` 分支。重新发送同一条命令即可拉取最新的产品卡片：
+
+```
+/hn
+```
+
+这一次 Bot 会直接读取已生成的 JSON，并以结构化卡片的形式秒回你，无需再等待生成：
+
+> 🚀 2026-08-30 Linear — 快得离谱的项目管理工具
+> 👤 by karpathy · about 3 hours ago
+> 📝 一款以速度著称的产品规划与 issue 跟踪工具。
+> 💬 "Linear
+
+卡片包含三部分核心信息：产品名称与一句话定位、作者与发布时间、简介与代表性引用。卡片末尾会自动附带产品的 OG 图（即 Hacker News 帖子的预览图），便于快速预览。
+
+![产品卡片秒回](assets/03-product-r2.png)
+
+### 小贴士
+
+- 首次触发当日内容后，重复 `/hn` 会即时返回缓存的卡片，无需再次等待生成。建议先触发一次，再去忙别的事，回头查收。
+- 如果 5 分钟后再次发送 `/hn` 仍然只收到“生成中”提示，可前往对应仓库的 Actions 页面查看工作流是否运行失败；常见原因是 Actions 配额耗尽或 Hacker News 接口临时不可用。
+- 同一日期的 JSON 在 `archive` 分支中是稳定缓存，重复调用不会反复触发 Actions，可放心多次查询。
