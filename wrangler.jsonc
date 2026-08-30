@@ -11,9 +11,6 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "daily-digest-archive", "database_id": "efd8017f-03ee-46e2-bcde-0658986f23a3" }
   ],
-  "vectorize": [
-    { "binding": "VEC", "index_name": "daily-digest-search" }
-  ],
   "ratelimits": [
     { "name": "RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 20, "period": 60 } }
   ],
