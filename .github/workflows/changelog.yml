@@ -21,7 +21,7 @@ jobs:
 
       - name: Generate CHANGELOG
         run: |
-          npx -y conventional-changelog-cli@5.0.0 -p angular -i CHANGELOG.md -s
+          node scripts/changelog.mjs > CHANGELOG.md
 
       - name: Commit CHANGELOG
         uses: stefanzweifel/git-auto-commit-action@v5
