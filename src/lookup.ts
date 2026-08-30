@@ -466,8 +466,14 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
     let tgPageUrl = '';
     const tgToken = env.TELEGRAPH_TOKEN ?? (await createTelegraphAccount());
     if (tgToken) {
+      // 中文翻译段(摘要)——同 X 帖 Telegraph 页样式; 无摘要则跳过
+      const zhNodes = summaryZh
+        ? [{ tag: 'h3' as const, children: ['🌐 中文翻译'] }, { tag: 'p', children: [summaryZh] }]
+        : [];
       // markdown 转 telegraph nodes: 简易按行分段。Telegraph 仅支持 h3/h4(#/##→h3, ###→h4); li 须嵌 ul
-      const nodes = clipped.split('\n').map((line) => {
+      const nodes = [
+        ...zhNodes,
+        ...clipped.split('\n').map((line) => {
         const l = line.trim();
         if (!l) return { tag: 'br' as const, children: [] };
         if (/^#{1,2} /.test(l)) return { tag: 'h3' as const, children: [l.replace(/^#{1,2} /, '')] };
@@ -476,7 +482,8 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
         if (l.startsWith('```')) return { tag: 'pre' as const, children: [{ tag: 'code', children: [l] }] };
         if (l.startsWith('- ') || l.startsWith('* ')) return { tag: 'ul' as const, children: [{ tag: 'li', children: [l.slice(2)] }] };
         return { tag: 'p', children: [l] };
-      });
+      }),
+      ];
       const pageUrl = await createTelegraphPage(tgToken, titleZh || host, nodes);
       if (pageUrl) {
         tgPageUrl = pageUrl;
