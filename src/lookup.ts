@@ -89,52 +89,31 @@ export async function fanoutRepoRefs(env: Env, chatId: string, text: string, ctx
     if (!seen) fresh.push(r);
   }
   if (!fresh.length) return;
-  // ponytail 方案A: 多 repo 用精简卡(GitHub 描述原文, 不 deepwiki/翻译/三链) —— 每 repo ~2 子请求, 全并发 9 ≈18 < 50
-  // → 单请求能全出(完整 lookupRepo 5-6 子请求/个 ×9 >50 铁超)。单 repo 查询仍走完整 lookupRepo(其他调用)。
+  // 多 repo 精简卡: GitHub 描述原文(不 deepwiki/翻译), 每 repo ~2 fetch(fetchRepo+TG), 全并发 10×2=20 < 50 上限
+  // 分批串行反被 waitUntil 30s 时限砍断(实测只出第一批 3 个); 全并发抢跑才能在时限内全出
+  // 单 repo 查询走 lookupRepo(其他调用), 不进这里
   const stamp = `${today()}-${Date.now() % 86400000}`;
-  // 分批串行(每批 3 个并发, 批间 await)防单请求 50 子请求上限——全并发 10×6=60 铁超, 尾部 repo 静默丢(2026-08-30 实测丢 4/10)
-  for (let i = 0; i < fresh.length; i += 3) {
-    await Promise.all(fresh.slice(i, i + 3).map(async (r, k) => {
-      const idx = i + k; // 真实序号(批次起点+批内位), 供 N/M 编号
+  await Promise.all(
+    fresh.map(async (r, i) => {
       try {
         const item = await fetchRepo(r, env.GH_TOKEN);
         if (!item) return;
-        // 完整三段式: 标题⭐·语言 / 中文摘要(描述翻译) / 标签 / 存档三链 —— 对齐统一排版
+        // 精简: 标题⭐·语言 / 描述原文 / 存档三链 —— 多 repo 批量不做翻译(时限内全出优先)
         const stars = item.stars ? ` ⭐${item.stars >= 1000 ? (item.stars / 1000).toFixed(1) + 'k' : item.stars}` : '';
         const lang = item.lang ? ` · ${item.lang}` : '';
-        // 多仓批量才编号(N/M, 按输入序, 失败仓占位); 单仓不显示 1/1 头
-        const head = fresh.length > 1 ? `<b>${idx + 1}/${fresh.length}</b> ` : '';
-        // 描述优先 wiki 三链(fetchDeepwikiOverview 是 wiki 英文 Overview), 失败回退 GitHub desc
-        let descZh = item.descZh ?? '';
-        if (!isChinese(descZh)) {
-          // 1. wiki: deepwiki Overview(英文) → 翻译
-          const dw = await fetchDeepwikiOverview(r, 300);
-          if (dw && dw.length > 8) {
-            const t = await translateTextZh(env, dw.slice(0, 500));
-            descZh = (isChinese(t ?? '') ? t : null) ?? dw;
-          } else if (item.desc) {
-            // 2. 兜底: GitHub desc(英文)→翻译; 或已是中文
-            if (isChinese(item.desc)) descZh = item.desc;
-            else { const t = item.desc.length > 8 ? (await translateTextZh(env, item.desc.slice(0, 500))) : null; descZh = (isChinese(t ?? '') ? t : null) ?? item.desc; }
-          }
-        }
-        const topicTags = (item.topics ?? []).slice(0, 4).map((x) => `#${x}`).join(' ');
+        const head = fresh.length > 1 ? `<b>${i + 1}/${fresh.length}</b> ` : '';
         const mdLink = `https://github.com/${env.GH_ARCHIVE_REPO || 'gandli/daily-digest'}/blob/archive/archive/${today().slice(0, 4)}/${today()}.md`;
         const html =
           `${head}<b><a href="${esc(item.url)}">${esc(item.title)}</a></b>${stars}${lang}\n\n` +
-          (descZh ? `📝 ${esc(descZh).slice(0, 300)}\n\n` : '') +
-          `#archive${topicTags ? ` ${topicTags}` : ''}\n\n` +
-          // wiki 三链在倒数第二行(存档三链之前)
-          `🗂 <a href="https://deepwiki.com/${esc(item.title)}">deepwiki</a> · <a href="https://zread.ai/${esc(item.title)}">zread</a> · <a href="https://codewiki.google/github.com/${esc(item.title)}">codewiki</a>\n` +
+          (item.desc ? `📝 ${esc(item.desc).slice(0, 300)}\n\n` : '') +
+          `#archive\n\n` +
           `📁 ${archiveLinks(item.url, undefined, mdLink)}`;
         await sendPerRepoMessages(env.BOT_TOKEN, chatId, [{ html, photo: `https://opengraph.githubassets.com/1/${item.title}`, ogUrl: item.url }], env.GH_ARCHIVE_REPO || 'gandli/daily-digest', env.CACHE);
-        // 仍索引(为 /search 可查); indexArchivedItems 内部全吞不抛, 无需 catch
-        await indexArchivedItems(env, [item], stamp);
+        // 索引交 cron backfill 处理(每 repo ~5 子请求, 10×5=50 铁超, 此处只发卡)
         await env.CACHE.put(`lookup:${today()}:${r.toLowerCase()}`, '1', { expirationTtl: 172800 }).catch(() => {});
-        ctx.waitUntil(saveToWayback(item.url));
       } catch { /* 单个失败不影响其它 */ }
-    }));
-  }
+    }),
+  );
 }
 
 /** 三链存档链接: Telegraph(有则主) → web.archive.org(有源 URL, 简称 Wayback) → GitHub md(兜底)。HTML 转义。纯文本链(调用方加前缀)。 */
