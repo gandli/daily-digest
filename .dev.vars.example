@@ -1,0 +1,43 @@
+# 复制为 .dev.vars 并填入真实值:  cp .dev.vars.example .dev.vars
+# 仅用于本地 wrangler dev; 生产 secrets 走 `wrangler secret put` / GitHub repo secrets, 永不落盘。
+# 键名对应 src/types.ts 的 Env 接口。
+
+# —— 必选 (worker 启动即依赖) ——
+
+# Telegram bot token (@BotFather 创建 bot 后获得, 格式 123456:ABC-...)
+BOT_TOKEN=
+
+# 允许使用 bot 的 chat ID (数字: 个人 = 你的 user id; 群 = 群 id, 前面带 -)
+CHAT_ID=
+
+# webhook 验签 secret (任意长随机串; 必须与 setWebhook 的 secret_token 一致)
+WEBHOOK_SECRET=
+
+# GitHub Personal Access Token (需 contents:write 权限, 用于写 archive 分支)
+GH_TOKEN=
+
+# —— 可选 (缺省则对应功能降级/跳过) ——
+
+# Telegraph 匿名 token (digest/X帖建页备份; 缺省跳过 Telegraph 链)
+TELEGRAPH_TOKEN=
+
+# 存档目标仓库 (默认 gandli/daily-digest; fork 部署者改成自己仓库 owner/repo)
+GH_ARCHIVE_REPO=
+
+# Cloudflare Browser Rendering (URL→markdown 兜底; 需 Browser Rendering - Edit 权限)
+CF_ACCOUNT_ID=
+CF_API_TOKEN=
+
+# OpenRouter API key (/hn 深度中文摘要; 缺省回退 CF bart)
+OPENROUTER_API_KEY=
+
+# Jina Reader (r.jina.ai) URL→markdown (有则优先, 干净 markdown)
+JINA_API_KEY=
+
+# md.genedai.me URL→markdown (Jina 失败时的另一兜底)
+GENEDAI_API_KEY=
+
+# —— 仅 scripts/product-digest.ts (Actions 端, 本地跑脚本用) ——
+
+# 每次 digest 抓取产品数 (默认 10)
+PRODUCT_LIMIT=

@@ -93,6 +93,8 @@ BOT_TOKEN · CHAT_ID · WEBHOOK_SECRET · GH_TOKEN · TELEGRAPH_TOKEN(可选)
 
 可选:OPENROUTER_API_KEY(/hn 深度摘要 + 手册 AI 正文,缺省走免费模型池/模板) · JINA_API_KEY / GENEDAI_API_KEY(URL→markdown 兜底链) · CF_ACCOUNT_ID / CF_API_TOKEN(Browser Rendering)
 
+**本地开发:** `cp .dev.vars.example .dev.vars` 填入值(所有键含行内注释说明)。生产 secrets 走 `wrangler secret put` / repo secrets——永不提交 `.dev.vars`(已在 .gitignore)。
+
 ## 🚀 部署
 
 PR 合并 main → GitHub Actions 自动 `wrangler deploy`(需 repo secrets CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID)。部署后自动播种 search:index(脚本从 library.jsonl 生成)。
