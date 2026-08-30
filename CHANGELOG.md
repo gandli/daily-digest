@@ -1,3 +1,4 @@
+# [](https://github.com/gandli/daily-digest/compare/v0.2.0...v) (2026-08-30)
 # [](https://github.com/gandli/daily-digest/compare/v0.1.0...v) (2026-08-29)
 # [](https://github.com/gandli/daily-digest/compare/v0.0.2...v) (2026-08-27)
 
