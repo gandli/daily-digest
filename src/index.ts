@@ -149,8 +149,7 @@ export async function searchArchive(env: Env, chatId: string, query: string, pag
     const head = total ? `🔍 「${eq}」${total} 条命中 (第 ${p + 1}/${maxPage} 页)` : `🔍 没有找到「${eq}」`;
     const text = total ? `${head}:\n\n${lines.join('\n')}` : head;
     if (messageId) await editMessageKbd(env.BOT_TOKEN, chatId, messageId, text, kb);
-    else if (kb.inline_keyboard.length) await sendTelegramKbd(env.BOT_TOKEN, chatId, text, kb);
-    else await sendTelegram(env.BOT_TOKEN, chatId, text);
+    else await sendTelegramKbd(env.BOT_TOKEN, chatId, text, kb);
   } catch (e) {
     console.error('searchArchive failed', String(e).slice(0, 80));
     await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ 搜索失败(网络异常), 请稍后再试。');
@@ -203,7 +202,7 @@ export async function archiveTweet(
   const fixup = isArticle ? null : articleRefFixup(tweet, handle);
   // 提取源双域名兜底: fixupx → fxtwitter(同一服务)。urlToMarkdown 全链失败返回空串(非 null), 须按空判。
   const mdOf = async (u: string): Promise<string | null> => {
-    const m = await urlToMarkdown(env, u, {}).catch(() => null);
+    const m = await urlToMarkdown(env, u, {});
     return m && m.trim() ? m : null;
   };
   const refText = fixup
@@ -222,7 +221,7 @@ export async function archiveTweet(
   // 正文已是中文 → 不翻译(isChinese 占比阈值对含代码/URL 的中文帖会稀释误判; isZhDominant 比字母数不受稀释)
   const isZhBody = isZhDominant(bodyText);
   const textZh = bodyText && !isZhBody
-    ? (fxZh && fxZh !== bodyText && /[\u4e00-\u9fff]/.test(fxZh) ? fxZh : await translateTextZh(env, trunc).catch(() => null))
+    ? (fxZh && fxZh !== bodyText && /[\u4e00-\u9fff]/.test(fxZh) ? fxZh : await translateTextZh(env, trunc))
     : null;
   const hasZh = !!textZh && /[\u4e00-\u9fff]/.test(textZh) && textZh !== bodyText;
   const zhLine = hasZh ? `\n\n<b>🌐 中文翻译</b>\n${esc(textZh!).slice(0, 3500)}` : '';
@@ -270,7 +269,7 @@ export async function archiveTweet(
       ? tweet.article.title
       : isArticlePost && refTitle
         ? refTitle // fixupx 页首标题即文章题, 免 LLM(中文文章得中文题, 确定性)
-        : await generateTitleZh(env, titleText).catch(() => null);
+        : await generateTitleZh(env, titleText);
     let tgLine = '';
     let tgPageUrl = '';
     if (env.TELEGRAPH_TOKEN) {
@@ -295,8 +294,8 @@ export async function archiveTweet(
     // article 帖: 用 article 正文(而非裸链接)做摘要
     let tweetDescZh: string | undefined;
     if (bodyText) {
-      const s = await summarizeZh(env, bodyText.slice(0, 2000)).catch(() => null);
-      tweetDescZh = (s && isChinese(s) ? s : await translateTextZh(env, bodyText.slice(0, 120)).catch(() => null)) ?? undefined;
+      const s = await summarizeZh(env, bodyText.slice(0, 2000));
+      tweetDescZh = (s && isChinese(s) ? s : await translateTextZh(env, bodyText.slice(0, 120))) ?? undefined;
     }
     await indexArchivedItems(env, [{ title: `x/@${handle}`, url: tweet.url ?? '', desc: tweetDescZh, descZh: tweetDescZh } as SourceItem], stamp);
     // 帖子正文含 GitHub repo 链接 → 联动查询(后台独立 waitUntil, 不阻塞主卡; repo 多时分批防子请求上限)
@@ -304,7 +303,7 @@ export async function archiveTweet(
     if (ctx) ctx.waitUntil(saveToWayback(tUrl)); // Wayback 主动保存: web/2 链接只跳转, save 才落真实快照
     const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
     // 统一对齐 product/trending 卡: LLM 生成标题 / 中文内容 / #archive(LLM标签) / 存档三链 — 一张卡一次发送
-    const tags = await generateTagsZh(env, bodyText.slice(0, 300) || tweet.article?.title || '').catch(() => null);
+    const tags = await generateTagsZh(env, bodyText.slice(0, 300) || tweet.article?.title || '');
     const tagLine = `#archive${tags?.length ? ` ${tags.map((t) => `#${t}`).join(' ')}` : ''}`;
     const links = `${tagLine}\n\n📁 ${archiveLinks(tUrl, tgLine ? tgLine.split(' ').pop() : undefined, `https://github.com/${repo}/blob/archive/archive/${stamp.slice(0, 4)}/${stamp}.md`)}`;
     const card = renderTweetHtml(tweet, titleZh ?? '', hasZh ? textZh! : (bodyText || (tweet.text ?? '')), '', links);
@@ -396,10 +395,10 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
 
   // 3. Telegraph 备份页(可选,失败静默)——索引 archive:tg:<date> 供 /archive 优先展示
   let telegraphUrl: string | null = null;
-  const tgToken = env.TELEGRAPH_TOKEN ?? (await createTelegraphAccount().catch(() => null)); // 匿名建号兜底: 未配 token 也能建页
+  const tgToken = env.TELEGRAPH_TOKEN ?? (await createTelegraphAccount()); // 匿名建号兜底: 未配 token 也能建页
   if (tgToken) {
     const titleText = items.slice(0, 5).map((it) => it.title).join(', ');
-    const tgTitle = await generateTitleZh(env, titleText).catch(() => null);
+    const tgTitle = await generateTitleZh(env, titleText);
     telegraphUrl = await createTelegraphPage(tgToken, tgTitle || `digest-${dateStr}`, renderTelegraphNodes(items));
     try {
       if (telegraphUrl) await env.CACHE.put(`archive:tg:${dateStr}`, telegraphUrl);
@@ -852,12 +851,9 @@ export default {
   async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
     await runDigest(env, false); // cron 不读缓存,保证每日新鲜抓取
     // /hn 已迁 Actions(product-digest.yml cron 30 0 * * * 直发 TG), Worker 不再重跑
+    await runProductHunt(env, env.CHAT_ID); // PH 每日热门: 走 Worker 内 GraphQL/Atom 直拉, 无需 Actions 重管线
     await refreshLookupDescriptions(env); // 已查过的 repo 定期重跑 deepwiki/zread, 同步上游描述
     await backfillDescriptions(env, 40); // 星标仓缺/未译描述 → 每天低速补 40 条
-    try {
-      await flushArchivedPending(env); // 把当日缓冲的存档文件一次性 commit 上 archive 分支
-    } catch (e) {
-      console.error('scheduled flush failed', String(e).slice(0, 100)); // 刷写失败保留缓冲, 明日 cron / 下次 webhook 阈值再试
-    }
+    await flushArchivedPending(env); // 把当日缓冲的存档文件一次性 commit 上 archive 分支; 失败内层已吞, 保留缓冲明日再试
   },
 };

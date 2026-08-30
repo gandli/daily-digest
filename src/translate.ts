@@ -116,7 +116,7 @@ export async function resolveDescriptions(env: Env, items: SourceItem[]): Promis
     '改写为项目介绍(仿百科条目, 2-3句, 信息量足): 第1句以"<项目名>是一个…"或"<项目名>是由<作者>构建的…"开头, 点明项目定位与用途; 后续句补充技术底座/关键特性/差异化亮点(从原文提取, 不编造)。删除: "This document/本文档/该文档"等文档视角措辞、URL/链接、(README.md:11-19)等文件行号引用、括号内来源标注。仍只输出中文译文, 不解释。';
   const toTranslate = items.filter((i) => !i.descZh && dwHit.has(i.title));
   for (const it of toTranslate) {
-    it.descZh = (await translateTextZh(env, it.desc!, STYLE).catch(() => null)) ?? undefined;
+    it.descZh = (await translateTextZh(env, it.desc!, STYLE)) ?? undefined;
   }
 }
 
@@ -211,7 +211,7 @@ async function translateZhOpenRouter(env: Env, text: string, styleExtra?: string
 export async function translateTextZh(env: Env, text: string, styleExtra?: string): Promise<string | null> {
   if (!text.trim() || isChinese(text)) return text || null;
   // OpenRouter 免费模型中文翻译优先(有 key), 失败落四级链
-  const or = await translateZhOpenRouter(env, text, styleExtra).catch(() => null);
+  const or = await translateZhOpenRouter(env, text, styleExtra);
   if (or) return or;
   const out = await translateBatch(env, [{ title: 'x', url: '', desc: text } as SourceItem]);
   return out[0]?.descZh ?? null;
@@ -305,7 +305,7 @@ async function viaMyMemory(descs: string[]): Promise<string[]> {
  */
 export async function summarizeZh(env: Env, text: string): Promise<string | null> {
   // OpenRouter 免费模型深度中文摘要优先(zeli 级, 有 key 时), 失败/无 key 回落 CF bart
-  const deep = await summarizeZhDeep(env, text).catch(() => null);
+  const deep = await summarizeZhDeep(env, text);
   if (deep?.summaryZh) return deep.summaryZh;
   try {
     const sum = (await env.AI.run('@cf/facebook/bart-large-cnn', { input_text: text.slice(0, 2000), max_length: 120 })) as {
