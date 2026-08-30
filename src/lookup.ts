@@ -106,14 +106,14 @@ export async function fanoutRepoRefs(env: Env, chatId: string, text: string, ctx
         let descZh = item.descZh ?? '';
         if (!isChinese(descZh)) {
           // 1. wiki: deepwiki Overview(英文) → 翻译
-          const dw = await fetchDeepwikiOverview(r, 300).catch(() => null);
+          const dw = await fetchDeepwikiOverview(r, 300);
           if (dw && dw.length > 8) {
-            const t = await translateTextZh(env, dw.slice(0, 500)).catch(() => null);
+            const t = await translateTextZh(env, dw.slice(0, 500));
             descZh = (isChinese(t ?? '') ? t : null) ?? dw;
           } else if (item.desc) {
             // 2. 兜底: GitHub desc(英文)→翻译; 或已是中文
             if (isChinese(item.desc)) descZh = item.desc;
-            else { const t = item.desc.length > 8 ? (await translateTextZh(env, item.desc.slice(0, 500)).catch(() => null)) : null; descZh = (isChinese(t ?? '') ? t : null) ?? item.desc; }
+            else { const t = item.desc.length > 8 ? (await translateTextZh(env, item.desc.slice(0, 500))) : null; descZh = (isChinese(t ?? '') ? t : null) ?? item.desc; }
           }
         }
         const topicTags = (item.topics ?? []).slice(0, 4).map((x) => `#${x}`).join(' ');
@@ -126,8 +126,8 @@ export async function fanoutRepoRefs(env: Env, chatId: string, text: string, ctx
           `🗂 <a href="https://deepwiki.com/${esc(item.title)}">deepwiki</a> · <a href="https://zread.ai/${esc(item.title)}">zread</a> · <a href="https://codewiki.google/github.com/${esc(item.title)}">codewiki</a>\n` +
           `📁 ${archiveLinks(item.url, undefined, mdLink)}`;
         await sendPerRepoMessages(env.BOT_TOKEN, chatId, [{ html, photo: `https://opengraph.githubassets.com/1/${item.title}`, ogUrl: item.url }], env.GH_ARCHIVE_REPO || 'gandli/daily-digest', env.CACHE);
-        // 仍索引(为 /search 可查)
-        await indexArchivedItems(env, [item], stamp).catch(() => {});
+        // 仍索引(为 /search 可查); indexArchivedItems 内部全吞不抛, 无需 catch
+        await indexArchivedItems(env, [item], stamp);
         await env.CACHE.put(`lookup:${today()}:${r.toLowerCase()}`, '1', { expirationTtl: 172800 }).catch(() => {});
         ctx.waitUntil(saveToWayback(item.url));
       } catch { /* 单个失败不影响其它 */ }
@@ -275,7 +275,7 @@ export async function lookupRepo(env: Env, chatId: string, repo: string): Promis
   }
   // Telegraph 页: 单仓低频, +1 子请求可承受(多仓 fanout 不建——批量预算取舍); Wayback 主动保存
   const tgPageUrl = env.TELEGRAPH_TOKEN
-    ? await createTelegraphPage(env.TELEGRAPH_TOKEN, item.titleZh ?? item.title, renderTelegraphNodes([item])).catch(() => null)
+    ? await createTelegraphPage(env.TELEGRAPH_TOKEN, item.titleZh ?? item.title, renderTelegraphNodes([item]))
     : null;
   // 一条消息: ogUrl 触发 TG link_preview(GitHub repo → opengraph.githubassets 动态生成 OG 卡)
   const chunks = renderMessage(today(), [item], tgPageUrl || undefined);
@@ -336,7 +336,7 @@ export async function refreshLookupDescriptions(env: Env): Promise<void> {
       if (!old?.ts || Date.now() - old.ts < DESC_TTL_MS) continue;
       const repo = k.name.slice('lookup:desc:'.length);
       try {
-        const dw = await fetchDeepwikiOverview(repo).catch(() => null);
+        const dw = await fetchDeepwikiOverview(repo);
         let zh = '';
         if (dw) {
           const done = await translateBatch(env, [{ title: repo, url: '', desc: dw } as SourceItem]);
@@ -375,7 +375,7 @@ export async function backfillDescriptions(env: Env, limit = 40): Promise<void> 
     const cached = await env.CACHE.get(repoKey).catch(() => null);
     if (cached) continue; // 已有(含已译) → 跳过, 避免日复遍历全量
     try {
-      const dw = await fetchDeepwikiOverview(name).catch(() => null);
+      const dw = await fetchDeepwikiOverview(name);
       let zh = '';
       if (dw) {
         const t = await translateBatch(env, [{ title: name, url, desc: dw } as SourceItem]);
@@ -450,7 +450,7 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
   const clipped = md.length > 80_000 ? md.slice(0, 80_000) + '\n\n…(truncated)' : md;
   const stamp = `${today()}-${Date.now() % 86400000}`;
   // 中文摘要(非中文内容翻译; 失败回退原文截断)——回复与 /search 索引共用
-  let summaryZh = await summarizeZh(env, clipped).catch(() => null);
+  let summaryZh = await summarizeZh(env, clipped);
   let translatedOk = false;
   if (!summaryZh) {
     const plain = clipped.replace(/[#>*`\[\]]/g, '').slice(0, 120);
@@ -483,7 +483,7 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
     }
     // Telegraph 存档(单页; 失败静默——增强非必需)
     let tgPageUrl = '';
-    const tgToken = env.TELEGRAPH_TOKEN ?? (await createTelegraphAccount().catch(() => null));
+    const tgToken = env.TELEGRAPH_TOKEN ?? (await createTelegraphAccount());
     if (tgToken) {
       // markdown 转 telegraph nodes: 简易按行分段。Telegraph 仅支持 h3/h4(#/##→h3, ###→h4); li 须嵌 ul
       const nodes = clipped.split('\n').map((line) => {
@@ -512,7 +512,7 @@ export async function archiveUrl(env: Env, chatId: string, url: string, ctx?: Ex
     // 统一印刷: 标题直链(中文优先) / 中文摘要 / 标签 / 存档三链——对齐 repo 卡的 renderMessage 三段结构
     // 标签: 无现成 topics 时用 LLM 生成领域标签
     let tagsZh: string[] | null = null;
-    if (env.OPENROUTER_API_KEY) tagsZh = await generateTagsZh(env, (summaryZh ?? title).slice(0, 400)).catch(() => null);
+    if (env.OPENROUTER_API_KEY) tagsZh = await generateTagsZh(env, (summaryZh ?? title).slice(0, 400));
     const tagLine = `#archive${tagsZh?.length ? ` ${tagsZh.map((t) => `#${t}`).join(' ')}` : ''}`;
     const confirm = [
       `<b><a href="${esc(url)}">${esc(titleZh)}</a></b>`,

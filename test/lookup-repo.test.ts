@@ -232,6 +232,12 @@ describe('fanoutRepoRefs: 存档内容 repo 联动', () => {
     expect(html).toContain('#rust');
     expect(html).not.toContain('#extra'); // topics 截 4
   });
+  it('indexArchivedItems 抛错 → .catch 静默吞, 卡片仍发', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      ghResponse({ full_name: 'x/idx', description: 'd', topics: [] })));
+    await fanoutRepoRefs(makeEnv(), 'chat', 'https://github.com/x/idx', {} as any);
+    expect(sendRepo).toHaveBeenCalledTimes(1);
+  });
 });
 
 // ---------- backfillDescriptions ----------
@@ -297,6 +303,16 @@ describe('archiveUrl: 任意 URL 存档', () => {
     await archiveUrl(makeEnv(), 'chat', 'https://example.com/page', ctx as any);
     expect(sendText).not.toHaveBeenCalled(); // photo 路径直接 return
     expect(ctx.waitUntil).toHaveBeenCalled(); // markProcessed 已入队列
+  });
+  it('sendPhoto 网络抛错 → 外层 catch 兜底提示', async () => {
+    mockExtractOg.mockReturnValue('https://og.example/img.png');
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      const u = String(url);
+      if (u.startsWith('https://api.telegram.org')) throw new Error('network down');
+      return ghResponse({ full_name: 'nousresearch/hermes-agent', description: 'd', stargazers_count: 1, language: 'Rust', topics: [] });
+    }));
+    await archiveUrl(makeEnv(), 'chat', 'https://example.com/page');
+    expect(String(sendText.mock.calls.at(-1)?.[2] ?? '')).toContain('存档失败');
   });
   it('og:title 存在 → 标题优先用 og:title 而非 md 首行', async () => {
     mockExtractOg.mockReturnValue('https://og.example/img.png');

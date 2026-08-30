@@ -102,11 +102,11 @@ export async function runProductHunt(env: Env, chatId: string): Promise<number> 
     return -1;
   }
   // tagline 译中(descZh); 翻译失败保留原文
-  const done = await translateBatch(env, items).catch(() => null);
+  const done = await translateBatch(env, items);
   items.forEach((it, i) => { it.descZh = done?.[i]?.descZh || it.descZh; });
   // GraphQL 双字段翻译: description 也译中截 160 进 quote(💬 长介绍行); 非中文不出行, 保持 100% 中文输出
   if (gqlItems.length) {
-    const qDone = await translateBatch(env, items.map((it) => ({ ...it, desc: it.quote ?? '' }) as SourceItem)).catch(() => null);
+    const qDone = await translateBatch(env, items.map((it) => ({ ...it, desc: it.quote ?? '' }) as SourceItem));
     items.forEach((it, i) => {
       const zh = qDone?.[i]?.descZh;
       it.quote = zh && isChinese(zh) ? zh.slice(0, 160) : undefined;
@@ -114,7 +114,7 @@ export async function runProductHunt(env: Env, chatId: string): Promise<number> 
   }
   // Telegraph 页(增强, 失败静默)
   const tgPageUrl = env.TELEGRAPH_TOKEN
-    ? await createTelegraphPage(env.TELEGRAPH_TOKEN, `Product Hunt · ${dateStr}`, renderTelegraphNodes(items)).catch(() => null)
+    ? await createTelegraphPage(env.TELEGRAPH_TOKEN, `Product Hunt · ${dateStr}`, renderTelegraphNodes(items))
     : null;
   const chunks = renderProductMessage(dateStr, items, tgPageUrl || undefined, env.GH_ARCHIVE_REPO || 'gandli/daily-digest', 'producthunt');
   await sendPerRepoMessages(env.BOT_TOKEN, chatId, chunks.map((html, i) => ({ html, ogUrl: items[i].url })), env.GH_ARCHIVE_REPO || 'gandli/daily-digest', env.CACHE);
@@ -127,7 +127,7 @@ export async function runProductHunt(env: Env, chatId: string): Promise<number> 
     })
     .join('\n');
   const md = `# Product Hunt · ${dateStr}\n\n${tgPageUrl ? `Telegraph: ${tgPageUrl}\n\n` : ''}${mdRows}\n\n---\n由 daily-digest bot 自动生成\n`;
-  await archiveToGitHub(env, `ph-${dateStr}`, md, dateStr.slice(0, 4)).catch(() => {});
+  await archiveToGitHub(env, `ph-${dateStr}`, md, dateStr.slice(0, 4));
   await env.CACHE.put(`ph:${dateStr}`, JSON.stringify({ chunks }), { expirationTtl: 86400 }).catch(() => {});
   console.log('producthunt sent', dateStr, `${chunks.length} items`);
   return chunks.length;

@@ -371,6 +371,49 @@ describe('index webhook: /archive 与 /search 深分支', () => {
     const msg = [...sent(), ...photos()].at(-1);
     expect(String(msg?.body.text)).toContain('owner/repo');
   });
+
+  it('/archive 走 D1 渲染(有 DB) → 列表含 D1 行 + nav 键盘', async () => {
+    const db = {
+      prepare: (sql: string) => ({
+        bind: () => ({
+          all: async () => ({ results: [{ repo: 'd1/only', date: '2026-08-30', url: 'https://github.com/d1/only', summaryZh: 'D1 中文摘要', topics: 'rust,ai' }] }),
+        }),
+        first: async () => ({ n: 3 }),
+      }),
+    } as never;
+    env.DB = db;
+    await post({ message: { chat: { id: 944783507 }, text: '/archive' } });
+    const t = texts().find((x) => x.includes('历史存档'));
+    expect(t).toContain('d1/only');
+    expect(t).toContain('D1 中文摘要');
+    expect(t).toContain('#rust');
+    expect(t).toContain('共 3 条');
+    const kb = [...sent(), ...photos()].at(-1)!.body.reply_markup;
+    expect(JSON.stringify(kb)).toContain('arch:pg:');
+  });
+
+  it('/archive D1 空库回落 KV(无 DB / total 0) → 暂无存档记录', async () => {
+    const db = {
+      prepare: () => ({ bind: () => ({ all: async () => ({ results: [] }) }), first: async () => ({ n: 0 }) }),
+    } as never;
+    env.DB = db;
+    env.CACHE = mkKv();
+    await post({ message: { chat: { id: 944783507 }, text: '/archive' } });
+    expect(texts().some((x) => x.includes('暂无存档记录'))).toBe(true);
+  });
+
+  it('/archive callback 翻页 D1 越界 → 「已到最后一页」', async () => {
+    const db = {
+      prepare: () => ({
+        bind: () => ({ all: async () => ({ results: [] }), first: async () => ({ n: 2 }) }),
+        first: async () => ({ n: 2 }),
+      }),
+    } as never;
+    env.DB = db;
+    await post({ callback_query: { id: 'cqPg', data: 'arch:pg:1', message: { chat: { id: 944783507 }, message_id: 49 } } });
+    const edited = tg.filter((c) => c.url.includes('/editMessageText')).at(-1)?.body.text ?? '';
+    expect(edited).toContain('已到最后一页');
+  });
 });
 
 describe('index webhook: repo 引用与 URL 重发深分支', () => {

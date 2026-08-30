@@ -93,4 +93,20 @@ describe('runDigest', () => {
     expect(vi.mocked(fetchTrending)).not.toHaveBeenCalled();
     expect(sentMessages().length).toBe(3);
   });
+
+  it('GitHub topics 批量抓取抛错 → topics failed 兜底, 不中断主流程', async () => {
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('api.github.com/repos/')) throw new Error('rate limited');
+      if (url.includes('api.telegram.org')) return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      return new Response('{}', { status: 200 });
+    }) as typeof fetch;
+    try {
+      const n = await runDigest(mkEnv());
+      expect(n).toBe(items.length); // topics 失败不影响主流程
+    } finally {
+      globalThis.fetch = orig;
+    }
+  });
 });
