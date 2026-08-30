@@ -873,11 +873,15 @@ export default {
   },
 
   async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+    const flushed = await flushArchivedPending(env); // 先刷存档缓冲(独立子请求, 不受后面任务 CPU/超时拖累; 失败内层已吞, 保留缓冲明日再试)
+    if (flushed === 0) {
+      const pend = await env.CACHE.list({ prefix: 'pend:arc:' }).catch(() => ({ keys: [] as { name: string }[] }));
+      console.warn(`flushArchivedPending returned 0 (${pend.keys.length} pending) — 存档卡缓冲未上分支, 检查 GH_TOKEN 写权限/Git Data API`);
+    }
     await runDigest(env, false); // cron 不读缓存,保证每日新鲜抓取
     // /hn 已迁 Actions(product-digest.yml cron 30 0 * * * 直发 TG), Worker 不再重跑
     await runProductHunt(env, env.CHAT_ID); // PH 每日热门: 走 Worker 内 GraphQL/Atom 直拉, 无需 Actions 重管线
     await refreshLookupDescriptions(env); // 已查过的 repo 定期重跑 deepwiki/zread, 同步上游描述
     await backfillDescriptions(env, 40); // 星标仓缺/未译描述 → 每天低速补 40 条
-    await flushArchivedPending(env); // 把当日缓冲的存档文件一次性 commit 上 archive 分支; 失败内层已吞, 保留缓冲明日再试
   },
 };

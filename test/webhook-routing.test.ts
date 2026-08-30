@@ -435,6 +435,15 @@ describe('webhook 路由全分支', () => {
     await (worker as any).scheduled({} as any, env, ctx);
     expect(allMsgs().length).toBeGreaterThanOrEqual(1);
   });
+
+  it('scheduled: flush 返 0 且缓冲非空 → console.warn 告警(不崩)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // 塞一条 pend 键: mock fetch 的 api.github.com 返 {} → ref 读无 object.sha → baseOf null → flush 返 0
+    await env.CACHE.put('pend:arc:test-00000000', JSON.stringify({ path: 'archive/2026/x.md', content: 'YQ==', encoding: 'utf-8', message: 't' }));
+    await (worker as any).scheduled({} as any, env, ctx);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('flushArchivedPending returned 0'));
+    warnSpy.mockRestore();
+  });
 });
 
 describe('webhook 分支补充(search 深路径 / X 帖失败 / URL 重挂)', () => {
