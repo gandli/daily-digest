@@ -1,3 +1,5 @@
+> 🤖 **AI 部署清单（AI Deployment Manifest）** — 供 AI Agent（Cursor / Devin / Copilot / Hermes）读取: 部署前先读 **[`AGENTS.md`](AGENTS.md)**（机器可读部署指令）。人类请看 **[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)**。
+
 <h1 align="center">daily-digest</h1>
 
 <p align="center">
