@@ -8,7 +8,7 @@ import { extractRepo, extractRepoRefs, today, lookupRepo, seenToday, refreshLook
 import { extractUrl, urlToMarkdown } from './urlmd';
 import { extractTweet, fetchTweet, renderTweetHtml, articleToText, articleRefFixup } from './fxtweet';
 import { matchEntries, type SearchEntry } from './search-index';
-import { buildRssFeed } from './rss';
+import { buildRssFeed, type RssItem } from './rss';
 import { d1ArchivePage } from './d1';
 import { vecSearch } from './vec';
 import { runProductHunt } from './ph';
@@ -657,7 +657,38 @@ function buildArchiveKeyboard(page: number, maxPage: number): InlineKB {
   return kb;
 }
 
-// Telegram webhook 入口:验签 → 秒回200 → waitUntil 后台处理
+// 从 archive 分支拉最近 digest md → 重建 RSS feed（KV miss 惰性回填）
+// ponytail: 只拉当天 digest（YYYY-MM-DD.md）, 翻多天等需求明确
+export async function buildRssFromArchive(env: Env): Promise<string | null> {
+  const repo = (env.GH_ARCHIVE_REPO || 'gandli/daily-digest').replace(/[^A-Za-z0-9_.\/-]/g, '');
+  if (!env.GH_TOKEN) return null;
+  const dateStr = shanghaiDate();
+  const year = dateStr.slice(0, 4);
+  const url = `https://api.github.com/repos/${repo}/contents/archive/${year}/${dateStr}.md?ref=archive`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${env.GH_TOKEN}`, Accept: 'application/vnd.github+json', 'User-Agent': 'daily-digest' },
+  });
+  if (!res.ok) return null;
+  const body: any = await res.json();
+  if (!body.content) return null;
+  const md = new TextDecoder().decode(Uint8Array.from(atob(body.content.replace(/\n/g, '')), (c) => c.charCodeAt(0)));
+  // 解析: N. **[title](url)** ⭐ ...\n   - desc
+  const items: RssItem[] = [];
+  const itemRe = /(\d+)\.\s+\*\*\[(.+?)\]\((.+?)\)\*\*/g;
+  let m: RegExpExecArray | null;
+  while ((m = itemRe.exec(md)) !== null) {
+    const idx = m.index;
+    const title = m[2];
+    const link = m[3];
+    // 取下一个非空行（跳过空行和图片行），以 `- ` 开头为描述
+    const lines = md.slice(idx).split('\n');
+    const descLine = lines.find((l) => l.startsWith('   - ') && !l.includes('<img'));
+    const desc = descLine ? descLine.replace(/^   - /, '').trim() : title;
+    items.push({ title, url: link, desc });
+  }
+  if (!items.length) return null;
+  return buildRssFeed(items, dateStr, `https://daily-digest.gandli-digest.workers.dev`);
+}
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
@@ -673,9 +704,16 @@ export default {
       return Response.json({ ok: true, chunks: n });
     }
     if (req.method === 'GET') {
-      // /rss: RSS 2.0 feed（昨日/最近 digest；KV 未命中则空 feed）
+      // /rss: RSS 2.0 feed（昨日/最近 digest；KV 未命中则从 archive 分支惰性重建）
       if (url.pathname === '/rss') {
-        const feed = await env.CACHE.get('rss:feed').catch(() => null);
+        let feed = await env.CACHE.get('rss:feed').catch(() => null);
+        if (!feed) {
+          feed = await buildRssFromArchive(env).catch(() => null);
+          if (feed) {
+            // 回填 KV(ttl 24h)——下次直接读, 不再拉 GitHub
+            await env.CACHE.put('rss:feed', feed, { expirationTtl: 86400 }).catch(() => {});
+          }
+        }
         return new Response(feed ?? '<?xml version="1.0"?><rss version="2.0"><channel><title>daily-digest</title><link>https://daily-digest.gandli-digest.workers.dev</link><description>No digest yet</description></channel></rss>', {
           headers: {
             'content-type': 'application/rss+xml; charset=utf-8',
