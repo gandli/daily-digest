@@ -16,7 +16,7 @@
 
 GitHub Trending → **Telegram 每日中文摘要 bot**。Cloudflare Workers 免费层单项目。
 
-每天 **08:30(北京时间)** 自动推送 top10 仓库——每仓一条消息:OG 卡图 + 星数/语言/**中文描述**/deepwiki·zread 链接/topics 标签;数据批量 commit 到本仓 [archive 分支](https://github.com/gandli/daily-digest/tree/archive)(每日 cron 或缓冲满 20 条时合并为**一个 commit**,见 [存档批量化](#-存档三链))。
+每天 **08:30(北京时间)** 自动推送 top10 仓库——每仓一条消息:OG 卡图 + 星数/语言/**中文描述**/deepwiki·zread 链接/topics 标签;数据批量 commit 到本仓 [archive 分支](https://github.com/gandli/daily-digest/tree/archive)(每日 cron 首位 flush 或缓冲满 20 条时合并为**一个 commit**,见[存档批量化](#-存档三链))。
 
 📖 **[用户手册](docs/guide/README.md)** — 10 个核心事务的逐步操作说明(带标注聊天截图),由 e2e 场景驱动自动生成,随 CI 与 Bot 功能保持同步(管线见 [scripts/manual/](scripts/manual/) + `.github/workflows/manual.yml`)。
 
@@ -30,8 +30,8 @@ GitHub Trending → **Telegram 每日中文摘要 bot**。Cloudflare Workers 免
 | `/search <关键词>` | **混合检索**:子串 AND 匹配 + Vectorize 语义补页(✨ 标记),覆盖星标/书签/存档 6000+ 条;结果当页英文描述批量译中,分页 + inline keyboard 翻页/跳转 |
 | `/archive [页码]` | 历史存档分页列表,每条约**存档三链**(Telegraph → 互联网档案馆 web.archive.org → GitHub md) |
 | `/start` `/help` 其他 | 使用提示 + 命令菜单注册 |
-| 含 GitHub 仓库链接 | 单仓 → 查询卡(无序号);**多个 repo 链接 → 逐仓联动卡(N/M 序号)**,全部已存档回一句话;当日已查回存档三链卡 |
-| 含 X/Twitter 链接 | FxEmbed 取帖 → **中文摘要 + 三级存档**(Telegraph/互联网档案馆/GitHub md);article 长文帖直接用内嵌标题;帖内多 repo 自动逐仓联动发卡(`N/M` 序号) |
+| 含 GitHub 仓库链接 | 单仓 → 查询卡(无序号);**多个 repo 链接 → 逐仓精简卡全并发(N/M 序号, 原文描述不翻译)**,全部已存档回一句话;当日已查回存档三链卡 |
+| 含 X/Twitter 链接 | FxEmbed 取帖 → **中文摘要 + 三级存档**(Telegraph/互联网档案馆/GitHub md);article 长文帖直接用内嵌标题;帖内多 repo 自动逐仓精简卡(`N/M` 序号, 原文描述) |
 | 含其他网页链接 | markdown 三级链 → **中文摘要(summarizeZh)** → 三级存档;重发 done 回存档链接而非"已处理过" |
 
 卡片序号 `N/M` 仅在多条批量时出现(trending/product 推送、多 repo 联动);单条卡不带序号。
@@ -65,7 +65,7 @@ deepwiki 概述(剥模板开场白)
 - `src/translate.ts` 四级翻译回退 + isChinese 守卫 + CF Summarization 摘要
 - `src/render.ts` Telegram HTML / GitHub markdown / Telegraph nodes 三种渲染
 - `src/archive.ts` 存档批量化:KV pending 缓冲(`pend:arc:*`) → Git Data API 合并 push 为一个 commit(每日 cron + 缓冲 ≥20 触发;KV 故障回落 Contents API 直推) + Telegraph createPage + 分块 base64 编码
-- `src/lookup.ts` 单仓库查询管线(URL 存档/OG 四级图链/repo 联动/去重)
+- `src/lookup.ts` 仓库查询管线(URL 存档/OG 四级图链/repo 联动去重/多 repo 精简卡全并发)
 - `src/d1.ts` D1 存档镜像:元数据 upsert + flush 后 markdown 冗余;/archive 查询 D1 优先、KV 兜底(每次调用恒 1 子请求)
 - `src/vec.ts` Vectorize 语义索引镜像(bge-m3 1024 维):/search 混合检索的补页来源,子串命中不足一页才查询省子请求
 - `src/urlmd.ts` 任意 URL→markdown 三级免费链(Markdown for Agents → AI.toMarkdown → Browser Rendering)
@@ -82,7 +82,7 @@ npm install
 npm run dev        # wrangler dev --test-scheduled
 curl http://localhost:8787/__scheduled   # 手动触发 cron 管线
 npx tsc --noEmit   # 类型检查
-npm test           # vitest 697 用例(51 文件)
+npm test           # vitest 836 用例(57 文件)
 npm test -- --coverage  # 覆盖率报告
 npm run manual     # 用户手册全管线: e2e 场景 → 标注截图 → AI 正文(无 key 自动模板兜底)
 ```
@@ -109,11 +109,11 @@ main push 另触发 changelog workflow 自动更新 [CHANGELOG.md](CHANGELOG.md)
 
 ## 🗺️ 路线
 
-- 短期:描述缓存 refresh 调优、search 翻译结果缓存回索引、archive:idx 补 url 字段(repo 重发三链更精确)
+- 短期:描述缓存 refresh 调优、search 翻译结果缓存回索引、VEC 索引重建(历史条目从未 upsert,语义检索退化)
 - 长线:网页收藏源 / X 帖子源 —— 各一个 fetch 函数接入 `src/sources/index.ts` 即可,管线零改动
 
 ---
 
 <p align="center">
-  <sub>Cloudflare 免费层全家桶:Workers · KV · D1 · Vectorize · AI · 697 tests · CI 自动部署 · changelog 自动生成 · 用户手册自动生成</sub>
+  <sub>Cloudflare 免费层全家桶:Workers · KV · D1 · Vectorize · AI · 836 tests · CI 自动部署 · changelog 自动生成 · 用户手册自动生成</sub>
 </p>
