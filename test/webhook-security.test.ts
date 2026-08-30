@@ -171,10 +171,10 @@ describe('callback_query 安全', () => {
 });
 
 describe('路由: 路径与方法', () => {
-  it('GET /telegram → 200 banner(非 404; GET 分支兜底返回 running)', async () => {
+  it('GET /telegram → 200 banner(非 404; GET 分支兜底返回 HTML 状态页)', async () => {
     const res = await worker.fetch(new Request('https://x/telegram'), env, ctx);
     expect(res.status).toBe(200);
-    expect(await res.text()).toContain('daily-digest worker running');
+    expect(await res.text()).toContain('daily-digest');
   });
   it('POST /other → 404', async () => {
     const res = await post('https://x/other', 'sec', {});

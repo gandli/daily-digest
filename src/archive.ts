@@ -28,7 +28,7 @@ const GH_HEADERS = (token: string, json = false): Record<string, string> => ({
 });
 
 /** 错误日志: 保留完整堆栈与上下文, 不用 slice 截断(截断会丢线上排障线索)。 */
-const errMsg = (e: unknown): string => (e instanceof Error ? e.stack ?? String(e) : String(e));
+export const errMsg = (e: unknown): string => (e instanceof Error ? e.stack ?? String(e) : String(e));
 
 // ---------------------------------------------------------------------------
 // 存档缓冲: 待写文件先进 KV(pend:arc:*), 由 flushArchivedPending 用 Git Data API
