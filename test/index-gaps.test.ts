@@ -628,7 +628,7 @@ describe('lookup: fanoutRepoRefs 描述链', () => {
     return undefined;
   };
 
-  it('deepwiki 命中 → 翻译中文上卡; 两 repo 带 N/M 序号与 ⭐k 格式', async () => {
+  it('多 repo → 全并发精简卡(原文desc不翻译); 两 repo 带 N/M 序号与 ⭐k 格式', async () => {
     installFetch({ raw: ghStub() });
     const e = fanEnv();
     const c = { waitUntil: (p: Promise<unknown>) => pending.push(p) } as any;
@@ -639,10 +639,10 @@ describe('lookup: fanoutRepoRefs 描述链', () => {
     expect(caps.some((t) => t.includes('<b>1/2</b>'))).toBe(true);
     expect(caps.some((t) => t.includes('<b>2/2</b>'))).toBe(true);
     expect(caps[0]).toContain('⭐1.5k');
-    expect(caps[0]).toContain('📝 这是转译出来的中文描述内容');
+    expect(caps[0]).toContain('📝 a rust cli tool for testing'); // 精简卡: 原文 desc, 不翻译
   });
 
-  it('deepwiki miss → GitHub desc 翻译兜底; 单 repo 无序号', async () => {
+  it('单 repo → 无序号; 原文 desc 上卡', async () => {
     installFetch({ raw: (u) => (u.includes('api.github.com/repos/aa/bb')
       ? new Response(JSON.stringify({ full_name: 'aa/bb', description: 'a rust cli tool for testing', stargazers_count: 50 }), { status: 200 })
       : undefined) }); // deepwiki 落默认 {} → null
@@ -653,7 +653,7 @@ describe('lookup: fanoutRepoRefs 描述链', () => {
     expect(caps.length).toBe(1);
     expect(caps[0]).not.toMatch(/<b>\d+\/\d+<\/b>/);
     expect(caps[0]).toContain('⭐50');
-    expect(caps[0]).toContain('📝 这是转译出来的中文描述内容');
+    expect(caps[0]).toContain('📝 a rust cli tool for testing'); // 精简卡: 原文 desc
   });
 
   it('fetchRepo 非 200 / 无 full_name → 跳过该仓不崩', async () => {

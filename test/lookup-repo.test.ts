@@ -198,16 +198,17 @@ describe('fanoutRepoRefs: 存档内容 repo 联动', () => {
     await fanoutRepoRefs(makeEnv(), 'chat', 'https://github.com/a/private', {} as any);
     expect(sendRepo).not.toHaveBeenCalled(); // 静默跳过
   });
-  it('精简卡描述链: deepwiki 命中且翻译中文 → 用翻译', async () => {
+  it('精简卡: 原文 desc 上卡, 不 deepwiki/翻译', async () => {
     mockDw.mockResolvedValue('An English overview paragraph long enough here');
     const env = makeEnv();
     vi.stubGlobal('fetch', vi.fn(async (url: string | URL) =>
       ghResponse({ full_name: 'x/y', description: 'gh desc', stargazers_count: 1200, language: 'Go', topics: ['t1'] })));
     await fanoutRepoRefs(env, 'chat', 'https://github.com/x/y', {} as any);
     const html = String((sendRepo.mock.calls[0][2] as { html: string }[])[0].html);
-    expect(html).toContain('这是翻译后的中文描述内容'); // translateTextZh 返回值
+    expect(html).toContain('gh desc'); // 原文 desc, 不翻译
+    expect(mockDw).not.toHaveBeenCalled();
   });
-  it('精简卡描述链: deepwiki miss → GitHub desc 英文翻译兜底', async () => {
+  it('精简卡描述链: deepwiki miss → GitHub desc 英文上卡', async () => {
     mockDw.mockResolvedValue(null);
     vi.stubGlobal('fetch', vi.fn(async () =>
       ghResponse({ full_name: 'x/z', description: 'A github description here', topics: [] })));
@@ -223,20 +224,14 @@ describe('fanoutRepoRefs: 存档内容 repo 联动', () => {
     const html = String((sendRepo.mock.calls[0][2] as { html: string }[])[0].html);
     expect(html).toContain('这已经是中文描述了');
   });
-  it('stars ≥1000 → k 格式化; topics → 标签', async () => {
+  it('stars ≥1000 → k 格式化; 精简卡无 topics 标签', async () => {
     vi.stubGlobal('fetch', vi.fn(async () =>
       ghResponse({ full_name: 'x/pop', description: 'd', stargazers_count: 23400, topics: ['rust', 'cli', 'web', 'db', 'extra'] })));
     await fanoutRepoRefs(makeEnv(), 'chat', 'https://github.com/x/pop', {} as any);
     const html = String((sendRepo.mock.calls[0][2] as { html: string }[])[0].html);
     expect(html).toContain('⭐23.4k');
-    expect(html).toContain('#rust');
-    expect(html).not.toContain('#extra'); // topics 截 4
-  });
-  it('indexArchivedItems 抛错 → .catch 静默吞, 卡片仍发', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () =>
-      ghResponse({ full_name: 'x/idx', description: 'd', topics: [] })));
-    await fanoutRepoRefs(makeEnv(), 'chat', 'https://github.com/x/idx', {} as any);
-    expect(sendRepo).toHaveBeenCalledTimes(1);
+    expect(html).not.toContain('#rust'); // 精简卡不渲染 topics
+    expect(html).not.toContain('#extra');
   });
 });
 

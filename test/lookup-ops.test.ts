@@ -97,50 +97,20 @@ describe('fanoutRepoRefs: ctx 缺省 / repo 过滤 / 单仓失败', () => {
     await fanoutRepoRefs(env, 'chat', 'https://github.com/o/r', { waitUntil: (p) => p } as any);
     expect(sendRepo).not.toHaveBeenCalled();
   });
-  it('repo 未 seen → 逐个查+发精简卡; fetchRepo 返回 null → 跳过不影响其它; Wayback save 触发', async () => {
-    const saves: string[] = [];
+  it('repo 未 seen → 全并发发精简卡(原文desc, 不deepwiki/翻译/wayback/索引); fetchRepo null 跳过', async () => {
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const u = String(input);
-      if (u.startsWith('https://web.archive.org/save/')) { saves.push(u); return new Response('ok', { status: 200 }); }
       if (u.includes('api.github.com/repos/o/r')) return new Response(JSON.stringify({ full_name: 'o/r', description: 'a rust cli', stargazers_count: 5, language: 'Rust', topics: ['rust'] }), { status: 200 });
       if (u.includes('api.github.com/repos/p/q')) return new Response('{}', { status: 404 });
       throw new Error(`unexpected ${u}`);
     }) as typeof fetch;
-    mockDw.mockResolvedValue(null);
     await fanoutRepoRefs(makeEnv(), 'chat', 'https://github.com/o/r https://github.com/p/q', { waitUntil: (p) => p } as any);
     expect(sendRepo).toHaveBeenCalledTimes(1); // 只有 o/r 发卡(p/q 404 → fetchRepo null → 跳过)
-    // 序号按 fresh 批量: 失败仓占位, o/r 仍为 1/2
     expect(String((sendRepo.mock.calls[0][2] as { html: string }[])[0].html)).toContain('<b>1/2</b> ');
-    expect(saves).toEqual(['https://web.archive.org/save/https://github.com/o/r']); // 只存成功发卡的仓
-    await Promise.allSettled([]);
+    expect(mockDw).not.toHaveBeenCalled(); // 精简卡不 deepwiki
+    expect(mockTranslate).not.toHaveBeenCalled(); // 不翻译
   });
-  it('deepwiki 命中 → descZh 用翻译后的中文', async () => {
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
-      const u = String(input);
-      if (u.includes('api.github.com/repos/o/r')) return new Response(JSON.stringify({ full_name: 'o/r', description: 'a rust cli', stargazers_count: 5, language: 'Rust', topics: ['rust'] }), { status: 200 });
-      throw new Error(`unexpected ${u}`);
-    }) as typeof fetch;
-    mockDw.mockResolvedValue('This is a deepwiki overview in english');
-    mockTranslate.mockResolvedValue('这是 deepwiki 翻译后的中文描述');
-    await fanoutRepoRefs(makeEnv(), 'chat', 'https://github.com/o/r', { waitUntil: (p) => p } as any);
-    expect(mockTranslate).toHaveBeenCalledWith(expect.anything(), 'This is a deepwiki overview in english');
-    const html = sendRepo.mock.calls[0]?.[2]?.[0]?.html ?? '';
-    expect(html).toContain('这是 deepwiki 翻译后的中文描述');
-    expect(String(html)).not.toMatch(/<b>\d+\/\d+<\/b>/); // 单仓批量无序号头
-  });
-  it('deepwiki 未命中 → 走 GitHub desc 翻译兜底', async () => {
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
-      const u = String(input);
-      if (u.includes('api.github.com/repos/o/r')) return new Response(JSON.stringify({ full_name: 'o/r', description: 'a rust cli tool', stargazers_count: 5, language: 'Rust', topics: ['rust'] }), { status: 200 });
-      throw new Error(`unexpected ${u}`);
-    }) as typeof fetch;
-    mockDw.mockResolvedValue(null);
-    await fanoutRepoRefs(makeEnv(), 'chat', 'https://github.com/o/r', { waitUntil: (p) => p } as any);
-    expect(mockTranslate).toHaveBeenCalledWith(expect.anything(), 'a rust cli tool'.slice(0, 500));
-    const html = sendRepo.mock.calls[0]?.[2]?.[0]?.html ?? '';
-    expect(html).toContain('这是中文翻译内容');
-  });
-  it('4 repo 跨 2 批(每批 3)→ 全部发卡, 编号 1/4-4/4 按输入序(2026-08-30 分批修复)', async () => {
+  it('4 repo 全并发 → 全部发卡, 编号 1/4-4/4 按输入序', async () => {
     const repos = ['a/b', 'c/d', 'e/f', 'g/h'];
     const make = (full: string) => JSON.stringify({ full_name: full, description: `desc of ${full}`, stargazers_count: 3, language: 'Go', topics: ['go'] });
     globalThis.fetch = (async (input: RequestInfo | URL) => {
