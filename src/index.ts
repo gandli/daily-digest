@@ -808,10 +808,31 @@ export default {
         const body = sections.map((s) => `<h2>${esc(s.name)}</h2><ul>${s.items.map((it, i) => `<li>${i + 1}. <a href="${esc(it.url)}">${esc(it.title)}</a><br><small style="color:#656d76">${esc(it.desc)}</small></li>`).join('\n')}</ul>`).join('\n');
         return new Response(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${esc(dateStr)} · daily-digest</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui,sans-serif;max-width:640px;margin:3rem auto;padding:0 1rem;color:#1f2328}a{color:#0969da;text-decoration:none}ul{line-height:1.8}small{display:block}h2{border-bottom:1px solid #d0d7de;padding-bottom:4px}</style></head><body><h1>${esc(dateStr)}</h1>${body}<p><a href="/">← 首页</a></p></body></html>`, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=300' } });
       }
-      // /api/today: 当天 digest 原始 JSON(pretty-print, 第三方集成)
+      // /api/today: 当天三源聚合 JSON(pretty-print, 第三方集成) — 与 /archive 页同源
       if (url.pathname === '/api/today') {
-        const items = await fetchArchiveMd(env, shanghaiDate()).catch(() => null);
-        const obj = items ? { date: shanghaiDate(), count: items.length, items } : { date: shanghaiDate(), count: 0, items: [] };
+        const dateStr = shanghaiDate();
+        const repo = (env.GH_ARCHIVE_REPO || 'gandli/daily-digest').replace(/[^A-Za-z0-9_./-]/g, '');
+        const [trending, ph] = await Promise.all([
+          fetchArchiveMd(env, dateStr).catch(() => null),
+          fetchArchiveMd(env, dateStr, 'ph-').catch(() => null),
+        ]);
+        let hn: { title: string; url: string; desc: string }[] = [];
+        try {
+          const hnData = await fetchFirstJson(
+            `https://raw.githubusercontent.com/${repo}/archive/archive/${dateStr.slice(0, 4)}/hn-${dateStr}.json`,
+            `https://raw.githubusercontent.com/${repo}/archive/product/${dateStr}.json`
+          );
+          if (hnData?.items?.length) {
+            hn = hnData.items.map((it: any) => ({ title: it.title ?? '', url: it.url ?? '', desc: it.descZh ?? it.desc ?? '' }));
+          }
+        } catch { /* HN 缺失不影响 */ }
+        const obj = {
+          date: dateStr,
+          count: (trending?.length ?? 0) + hn.length + (ph?.length ?? 0),
+          github_trending: trending ?? [],
+          hacker_news: hn,
+          product_hunt: ph ?? [],
+        };
         return new Response(JSON.stringify(obj, null, 2), { headers: { 'content-type': 'application/json; charset=utf-8' } });
       }
       // /random: 随机一条(从 search:index 抽样)

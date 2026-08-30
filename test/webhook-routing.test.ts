@@ -663,12 +663,15 @@ describe('webhook 分支补充(search 深路径 / X 帖失败 / URL 重挂)', ()
       const res = await get('https://x/archive/notadate');
       expect(res.status).toBe(400);
     });
-    it('/api/today → JSON(mock 无 content → count 0)', async () => {
+    it('/api/today → JSON(mock 有 HN 1 条 → count 1 三源结构)', async () => {
       const res = await get('https://x/api/today');
       expect(res.status).toBe(200);
       const j: any = await res.json();
-      expect(j.count).toBe(0);
       expect(j.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(j.count).toBe(1);
+      expect(Array.isArray(j.github_trending)).toBe(true);
+      expect(Array.isArray(j.hacker_news)).toBe(true);
+      expect(Array.isArray(j.product_hunt)).toBe(true);
     });
     it('/random → 从 search:index 抽样出一条', async () => {
       const res = await get('https://x/random');
