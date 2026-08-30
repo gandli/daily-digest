@@ -42,7 +42,7 @@ export function makeEnv() {
     OPENROUTER_API_KEY: 'sk-test',
     GH_ARCHIVE_REPO: 'gandli/daily-digest',
     AI: undefined,
-  } as any;
+  } as any; // ponytail: env 类型不全, 场景 runner 用最小子集, 加全类型需同步 Env 接口
 }
 
 // fetch 路由: match(url) 命中 → reply(值/函数/Response 原样)。用于给 worker 的外网请求供 canned 数据。
@@ -136,7 +136,7 @@ export async function runScenario(
         body: JSON.stringify(update),
       }),
       env,
-      { waitUntil: (p: Promise<unknown>) => waitUntil.push(p) } as any,
+      { waitUntil: (p: Promise<unknown>) => waitUntil.push(p) } as any, // ponytail: ExecutionContext 最小子集(仅 waitUntil)
     );
     await Promise.all(waitUntil);
     harvest(fetcher, steps);
@@ -155,7 +155,7 @@ export async function runScheduled(
 ): Promise<Scenario> {
   const steps: Step[] = [{ actor: 'user', sys: true, text: '⏰ 每天 08:30(北京时间)自动推送', note: '定时任务触发, 无需用户操作' }];
   // scheduled 处理器全 await, 不用 ctx.waitUntil, 直接传 null
-  await (worker as any).scheduled({ cron: '30 0 * * *' }, env, null);
+  await (worker as any).scheduled({ cron: '30 0 * * *' }, env, null); // ponytail: worker.scheduled 签名未导出, 仅 test harness 调用
   harvest(fetcher, steps);
   return { id, title, outline, steps };
 }

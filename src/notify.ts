@@ -73,7 +73,7 @@ export async function sendPerRepoMessages(
   token: string,
   chatId: string,
   messages: { html: string; repo?: string; ogUrl?: string; photo?: string }[],
-  archiveRepo?: string,
+  _archiveRepo?: string, // ponytail: 参数保留(调用方统一传), 函数体未用——删参数需动 8 个调用点
   cache?: { get: (k: string) => Promise<string | null>; put: (k: string, v: string) => Promise<void> },
 ): Promise<void> {
   for (const m of messages) {
