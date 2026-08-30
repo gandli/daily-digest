@@ -92,8 +92,10 @@ export async function fanoutRepoRefs(env: Env, chatId: string, text: string, ctx
   // ponytail 方案A: 多 repo 用精简卡(GitHub 描述原文, 不 deepwiki/翻译/三链) —— 每 repo ~2 子请求, 全并发 9 ≈18 < 50
   // → 单请求能全出(完整 lookupRepo 5-6 子请求/个 ×9 >50 铁超)。单 repo 查询仍走完整 lookupRepo(其他调用)。
   const stamp = `${today()}-${Date.now() % 86400000}`;
-  await Promise.all(
-    fresh.map(async (r, i) => {
+  // 分批串行(每批 3 个并发, 批间 await)防单请求 50 子请求上限——全并发 10×6=60 铁超, 尾部 repo 静默丢(2026-08-30 实测丢 4/10)
+  for (let i = 0; i < fresh.length; i += 3) {
+    await Promise.all(fresh.slice(i, i + 3).map(async (r, k) => {
+      const idx = i + k; // 真实序号(批次起点+批内位), 供 N/M 编号
       try {
         const item = await fetchRepo(r, env.GH_TOKEN);
         if (!item) return;
@@ -101,7 +103,7 @@ export async function fanoutRepoRefs(env: Env, chatId: string, text: string, ctx
         const stars = item.stars ? ` ⭐${item.stars >= 1000 ? (item.stars / 1000).toFixed(1) + 'k' : item.stars}` : '';
         const lang = item.lang ? ` · ${item.lang}` : '';
         // 多仓批量才编号(N/M, 按输入序, 失败仓占位); 单仓不显示 1/1 头
-        const head = fresh.length > 1 ? `<b>${i + 1}/${fresh.length}</b> ` : '';
+        const head = fresh.length > 1 ? `<b>${idx + 1}/${fresh.length}</b> ` : '';
         // 描述优先 wiki 三链(fetchDeepwikiOverview 是 wiki 英文 Overview), 失败回退 GitHub desc
         let descZh = item.descZh ?? '';
         if (!isChinese(descZh)) {
@@ -131,8 +133,8 @@ export async function fanoutRepoRefs(env: Env, chatId: string, text: string, ctx
         await env.CACHE.put(`lookup:${today()}:${r.toLowerCase()}`, '1', { expirationTtl: 172800 }).catch(() => {});
         ctx.waitUntil(saveToWayback(item.url));
       } catch { /* 单个失败不影响其它 */ }
-    }),
-  );
+    }));
+  }
 }
 
 /** 三链存档链接: Telegraph(有则主) → web.archive.org(有源 URL, 简称 Wayback) → GitHub md(兜底)。HTML 转义。纯文本链(调用方加前缀)。 */

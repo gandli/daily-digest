@@ -140,6 +140,23 @@ describe('fanoutRepoRefs: ctx 缺省 / repo 过滤 / 单仓失败', () => {
     const html = sendRepo.mock.calls[0]?.[2]?.[0]?.html ?? '';
     expect(html).toContain('这是中文翻译内容');
   });
+  it('4 repo 跨 2 批(每批 3)→ 全部发卡, 编号 1/4-4/4 按输入序(2026-08-30 分批修复)', async () => {
+    const repos = ['a/b', 'c/d', 'e/f', 'g/h'];
+    const make = (full: string) => JSON.stringify({ full_name: full, description: `desc of ${full}`, stargazers_count: 3, language: 'Go', topics: ['go'] });
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const u = String(input);
+      for (const r of repos) if (u.includes(`api.github.com/repos/${r}`)) return new Response(make(r), { status: 200 });
+      if (u.startsWith('https://web.archive.org/save/')) return new Response('ok', { status: 200 });
+      throw new Error(`unexpected ${u}`);
+    }) as typeof fetch;
+    mockDw.mockResolvedValue(null);
+    await fanoutRepoRefs(makeEnv(), 'chat', repos.map((r) => `https://github.com/${r}`).join(' '), { waitUntil: (p) => p } as any);
+    expect(sendRepo).toHaveBeenCalledTimes(4);
+    const htmls = sendRepo.mock.calls.map((c) => (c[2] as { html: string }[])[0].html);
+    htmls.forEach((h, k) => expect(h).toContain(`<b>${k + 1}/4</b> `));
+    // 顺序 = 输入序(批次不重排)
+    repos.forEach((r, k) => expect(htmls[k]).toContain(`>${r}</a>`));
+  });
   it('单仓异常 → 不阻断其它仓发卡', async () => {
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const u = String(input);
