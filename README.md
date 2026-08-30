@@ -1,3 +1,5 @@
+> 🤖 **AI Deployment Manifest** — For AI agents (Cursor / Devin / Copilot / Hermes): read **[`AGENTS.md`](AGENTS.md)** first for machine-readable deploy instructions. Humans: see **[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)**.
+
 <h1 align="center">daily-digest</h1>
 
 <p align="center">
