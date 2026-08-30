@@ -88,8 +88,7 @@
       },
       {
         "actor": "bot",
-        "text": "🚀 <b>2026-08-30</b>\n\n<b><a href=\"https://linear.app\">Linear — 快得离谱的项目管理工具</a></b>\n👤 by karpathy · about 3 hours ago\n\n📝 一款以速度著称的产品规划与 issue 跟踪工具。\n\n💬 \"Linear is a better way to build products\"\n #product #saas #planning\n\n📁 <a href=\"https://telegra.ph/product-page\">Telegraph</a> · <a href=\"https://web.archive.org/web/2/https://linear.app\">Wayback</a> · <a href=\"https://github.com/gandli/daily-digest/blob/archive/archive/2026/2026-08-30.md\">Archive</a>",
-        "photo": "https://opengraph.githubassets.com/1/antirez/kilo",
+        "text": "⏳ 今日 Hacker News 酷产品生成中(约 2-5 分钟), 完成后自动推送。",
         "note": "先显示「正在输入…」",
         "annotate": {
           "target": "bubble",
