@@ -22,13 +22,17 @@
 - [x] GitHub repo / X 帖 / 任意 URL 链接处理（各含 translate + summarize + archive）
 - [x] 卡片序号 `N/M` 仅多条批量显示 (trending/product/fanout 多仓)； 单仓卡无序号
 
-### 工程
-- [x] CI: tsc + 836+ tests (57 文件) + GitGuardian + dry-run → merge 自动 deploy
+### 工程质量
+- [x] CI: tsc + 841 tests (57 文件) + GitGuardian + dry-run → merge 自动 deploy
 - [x] webhook `allowed_updates=["message","callback_query"]` (翻页可用)
-- [x] coverage 99.78% 语句/94.27% 分支 (vitest coverage-v8, 2026-08-30 实测)
+- [x] 覆盖率 100% 语句/100% 函数/100% 行/94.28% 分支 (vitest coverage-v8, 2026-08-30 实测)
 - [x] KV 单键索引规避 50 子请求上限 (免费版)
 - [x] 存档批量化: KV `pend:arc:*` 缓冲 + Git Data API 单 commit 推 archive 分支 (每日 cron + ≥20 阈值; 失败保留重试; KV 故障回落直推)
 - [x] 用户手册自动化管线: e2e 场景驱动真实 worker → 合成聊天标注截图 (Playwright) → AI 生成逐步说明 (无 key 模板兜底) → manual.yml 随代码变更重生成 [docs/guide/](guide/README.md)
+- [x] 审计根治: 全量审计白皮书 (P0/P1/P2 全清, 评分 100/A+, 技术债清零, PR #193/#194/#195)
+- [x] 死代码零容忍: tsc `noUnusedLocals` + `noUnusedParameters` 开, 清除 8 处 TS6133
+- [x] 治理三件套: SECURITY.md / CONTRIBUTING.md / CODEOWNERS
+- [x] data/ 文档化: data/README.md 说明 5 个文件的用途与边界
 
 ## 进行中 🔄
 
@@ -67,3 +71,5 @@
 - 存档批量化后 GitHub md 链接最终一致 (最长延迟到下次 flush； Telegraph/Wayback 即时)
 - 存档并发 flush 无分布式互斥， 极端下同批内容可能重复成两个 commit (内容幂等无害)
 - 免费模型池偶发 429 → 手册个别章自动落模板兜底 (下次重生成自愈)
+- `sendPerRepoMessages` 第 4 参数 `_archiveRepo` 未用 (8 调用点统一传值, 保留签名, 已 ponytail 标注)
+- `fetchTweet` 的 `_handle` 参数未用 (v1 兼容签名, 已 ponytail 标注)
