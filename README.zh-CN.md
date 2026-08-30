@@ -87,13 +87,11 @@ npm test -- --coverage  # 覆盖率报告
 npm run manual     # 用户手册全管线: e2e 场景 → 标注截图 → AI 正文(无 key 自动模板兜底)
 ```
 
-## 🔑 Secrets(wrangler secret put)
+## 🔑 Secrets 与部署
 
-BOT_TOKEN · CHAT_ID · WEBHOOK_SECRET · GH_TOKEN · TELEGRAPH_TOKEN(可选)
+➡️ **完整部署说明见 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)**（资源创建、secrets 配置、CI/CD 设置、验证步骤）。
 
-可选:OPENROUTER_API_KEY(/hn 深度摘要 + 手册 AI 正文,缺省走免费模型池/模板) · JINA_API_KEY / GENEDAI_API_KEY(URL→markdown 兜底链) · CF_ACCOUNT_ID / CF_API_TOKEN(Browser Rendering)
-
-**本地开发:** `cp .dev.vars.example .dev.vars` 填入值(所有键含行内注释说明)。生产 secrets 走 `wrangler secret put` / repo secrets——永不提交 `.dev.vars`(已在 .gitignore)。
+快速开始: `cp .dev.vars.example .dev.vars` → 填入值 → `npx wrangler dev` 本地跑；PR 合并 main → CI 自动部署。
 
 ## 🚀 部署
 
