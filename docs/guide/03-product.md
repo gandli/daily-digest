@@ -1,41 +1,43 @@
 ## /product — 今日 HN 酷产品
 
-`/product`(命令别名 `/hn`)为你带来每日精选的 Hacker News 高分产品。Bot 会先从 archive 分支读取当日 JSON,如尚未生成则触发 GitHub Actions 工作流,几分钟后自动推送产品卡。
+通过 `/product` 命令(或别名 `/hn`)获取 Hacker News 当日热度最高的产品资讯。Bot 会优先从 archive 分支的 JSON 缓存秒回产品卡(含标题、作者、发布时间、简介和 OG 预览图);若当日尚未生成,则通过 `repository_dispatch` 触发 GitHub Actions 抓取流程,并在完成后自动推送。
 
-### 步骤 1: 发起查询
+### 步骤 1: 发送命令触发查询
 
-在 Bot 对话中发送 `/product` 或 `/hn`。
+在 Bot 对话框中输入 `/product` 或 `/hn` 并发送。
 
-Bot 立即响应,提示数据正在准备:
+Bot 收到指令后会先检查 archive 分支缓存:
+- **命中缓存**:立即返回产品卡片(参见步骤 3);
+- **未命中缓存**(当日尚无数据):返回生成提示(参见步骤 2)。
 
-> ⏳ 今日 Hacker News 酷产品生成中(约 2-5 分钟), 完成后自动推送。
+### 步骤 2: 等待 Actions 生成(首次或新一天)
 
-若当日 archive 分支已有 JSON,Bot 会直接返回产品卡(跳到步骤 3);若尚未生成,则进入等待。
+如果当天还未抓取过,Bot 会回复正在生成的提示,并通过 `repository_dispatch` 事件触发 GitHub Actions 工作流,工作流会抓取 Hacker News 今日 Top 故事、筛选产品类条目并写入 archive 分支的 JSON 文件。
 
-![首次请求后 Bot 的等待提示](assets/03-product-r1.png)
+![生成中提示](assets/03-product-r1.png)
 
-### 步骤 2: 等待 Actions 触发
+此时请耐心等待 2–5 分钟,无需重复发送命令。生成完成后,Bot 会主动将产品卡推送到当前对话。
 
-首次调用后,Bot 通过 `repository_dispatch` 事件唤醒 GitHub Actions。该工作流抓取 Hacker News 当日高分条目、筛选产品类项目、生成结构化 JSON 并提交到 archive 分支,通常耗时 2 至 5 分钟。期间你可以正常进行其他操作,无需重复触发。
+### 步骤 3: 接收产品卡片
 
-### 步骤 3: 接收产品卡
+Actions 工作流完成后,Bot 会自动推送今日产品卡片,包含日期、产品名称(链接到 HN 讨论)、作者、发布时间、简介以及 OG 预览图。
 
-工作流完成后,Bot 主动推送产品卡消息:
+![产品卡片示例](assets/03-product-r2.png)
 
-> 🚀 2026-08-30 Linear — 快得离谱的项目管理工具
-> 👤 by karkarpathy · about 3 hours ago
-> 📝 一款以速度著称的产品规划与 issue 跟踪工具。
-> 💬 "Linear is purpose-built to be fast…"
+卡片示例:
 
-卡片包含日期、产品名、一句话简介、作者、HN 热度时间以及 OG 预览图。
+> 🚀 2026-08-30 Linear — 快得离谱的项目管理工具 👤 by karpathy · about 3 hours ago 📝 一款以速度著称的产品规划与 issue 跟踪工具。 💬 "Linear …"
 
-![Bot 推送的产品卡详情](assets/03-product-r2.png)
+点击卡片中的产品名称即可跳转到 Hacker News 对应讨论页,查看完整评论与延伸链接。
 
-### 步骤 4: 查看与互动
+### 步骤 4: 重复查询或换天使用
 
-点开消息中的 OG 图可查看产品截图;若对产品感兴趣,直接访问 Hacker News 讨论串围观评论。卡片会被缓存到 archive 分支,后续 `/product` 重复调用时秒回。
+- 当天内再次发送 `/product`:直接返回同一张缓存卡片,不会重复触发 Actions;
+- 跨天后再次发送:archive 分支没有新一天的 JSON,会重复步骤 2 的生成流程;
+- 如需刷新缓存,可联系管理员清空 archive 分支对应日期的 JSON 文件。
 
-- **小贴士**
-  - 等待期间可继续其他对话,完成后 Bot 会自动推送,无需再次输入命令。
-  - 若 5 分钟后仍未推送,可再发一次 `/product`,Bot 会读取 archive 分支的缓存 JSON 直接返回。
-  - 想查看历史产品?访问仓库 archive 分根浏览 `data/` 目录下的日期文件即可。
+## 小贴士
+
+- **别名等价**:`/product` 与 `/hn` 功能完全一致,根据习惯任选其一即可。
+- **避免重复触发**:看到「生成中」提示后请勿连续发送命令,多次触发会重复调用 Actions,浪费配额且可能造成竞态写入。
+- **OG 图加载**:卡片中的预览图来源于产品官网或 HN 链接的 OG 元数据,部分站点未配置 og:image 时可能回退为占位图,属正常现象。
