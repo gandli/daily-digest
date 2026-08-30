@@ -117,3 +117,16 @@
 * **vec:** 语义补页加相似度阈值(0.55), 防低分噪声污染 /search (#181)
 * **wrangler:** 摘除 D1 binding — DB 在 CF 账号不存在, 阻塞 deploy; 摘除 Vectorize binding — index 不存在阻塞 deploy
 
+# [v0.3.0](https://github.com/gandli/daily-digest/compare/v0.3.0) (2026-08-30)
+### Features
+
+* **undefined:** /api/today 三源聚合 — GT + HN + PH 分组 JSON(与 /archive 页同源) (#208); 三源存档对齐 — HN 迁 archive/YYYY/hn-前缀, 与 GT/PH 同目录 (#207); /archive 页三源聚合 — GitHub Trending + HN + PH 分组展示 (#206); /api/today pretty-print + bot 地址(根页+RSS) (#205); 网页玩法四连 — /search /archive/date /api/today /random + RSS 近7天合并 (#204); X帖 md 存档标题复用 LLM 生成(titleZh), 无标题回退 X Post · @handle (#202); 根页面 HTML 状态页 + RSS 2.0 订阅 (digest 时存 KV, /rss 路由) (#201)
+
+### Bug Fixes
+
+* **undefined:** /rss KV miss 时从 archive 分支惰性重建 feed(修冷启动空 feed) (#203); 审计P0/P1 — workflow secrets收窄+GH_ARCHIVE_REPO走vars、archive返回值透传+全栈错误日志、Actions CACHE隔离注释 (#193); changelog 自动化换原生脚本, 弃坏 CLI (#192)
+
+### Refactors
+
+* **undefined:** 审计P2全清 — 治理文件+data文档+死代码零容忍+tsc静态增强 (#194)
+
