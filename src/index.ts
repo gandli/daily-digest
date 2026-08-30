@@ -6,12 +6,12 @@ import { sendPerRepoMessages, sendTelegram, sendChatAction, sendPhotoOrText, reg
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage, createTelegraphAccount, flushArchivedPending } from './archive';
 import { extractRepo, extractRepoRefs, today, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, markProcessed, archiveLinks, backfillDescriptions, saveToWayback } from './lookup';
 import { extractUrl, urlToMarkdown } from './urlmd';
-import { extractTweet, fetchTweet, renderTweetHtml, articleToText, articleRefFixup, type FxTweet } from './fxtweet';
+import { extractTweet, fetchTweet, renderTweetHtml, articleToText, articleRefFixup } from './fxtweet';
 import { matchEntries, type SearchEntry } from './search-index';
 import { d1ArchivePage } from './d1';
 import { vecSearch } from './vec';
 import { runProductHunt } from './ph';
-import { summarizeZh, summarizeZhDeep, translateTextZh, translateBatch, isChinese, isZhDominant, generateTitleZh, generateTagsZh } from './translate';
+import { summarizeZh, translateTextZh, translateBatch, isChinese, isZhDominant, generateTitleZh, generateTagsZh } from './translate';
 
 // 北京时间日期串 YYYY-MM-DD(UTC+8 无 DST,直接偏移即可)
 export const shanghaiDate = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
@@ -224,7 +224,6 @@ export async function archiveTweet(
     ? (fxZh && fxZh !== bodyText && /[\u4e00-\u9fff]/.test(fxZh) ? fxZh : await translateTextZh(env, trunc))
     : null;
   const hasZh = !!textZh && /[\u4e00-\u9fff]/.test(textZh) && textZh !== bodyText;
-  const zhLine = hasZh ? `\n\n<b>🌐 中文翻译</b>\n${esc(textZh!).slice(0, 3500)}` : '';
   // 卡片媒体: video→sendVideo 内嵌播放; photo→直链图; 无媒体→帖内 repo og 图/s2 保底。
   // 提前算好 photo/video, 但不在 publisher 前发——统一到存档后一张对齐卡(renderTweetHtml 一次发送)。
   const media0 = (tweet.media?.all ?? [])[0];
@@ -238,7 +237,6 @@ export async function archiveTweet(
     (tweet.text?.includes('github.com')
       ? `https://opengraph.githubassets.com/1/${repoRef}`
       : `https://www.google.com/s2/favicons?domain=x.com&sz=64`);
-  const isVideo = media0?.type === 'video' && !!media0.url;
   const stamp = `${shanghaiDate()}-${Date.now() % 86400000}`;
   const tUrl = tweet.url ?? `https://x.com/${handle}/status/${id}`;
   const md = [

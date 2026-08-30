@@ -92,7 +92,7 @@ export async function fanoutRepoRefs(env: Env, chatId: string, text: string, ctx
   // 多 repo 精简卡: GitHub 描述原文(不 deepwiki/翻译), 每 repo ~2 fetch(fetchRepo+TG), 全并发 10×2=20 < 50 上限
   // 分批串行反被 waitUntil 30s 时限砍断(实测只出第一批 3 个); 全并发抢跑才能在时限内全出
   // 单 repo 查询走 lookupRepo(其他调用), 不进这里
-  const stamp = `${today()}-${Date.now() % 86400000}`;
+  // ponytail: stamp 内联到 fanoutRepoRefs 产物(多 repo 场景 stamp 不唯一, 但函数内未用, 保留签名兼容)
   await Promise.all(
     fresh.map(async (r, i) => {
       try {

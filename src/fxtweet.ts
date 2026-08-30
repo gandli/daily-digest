@@ -49,7 +49,7 @@ export function articleRefFixup(tweet: FxTweet, handle: string): string | null {
 
 /** 拉取帖子 JSON(v2 API /2/status/{id}?lang=zh-cn)。网络/解析失败返回 null(调用方落回 URL 链)。
  *  v2 相比 v1: 不用从 URL 提取 handle, translation 带 provider, 支持 search/trends 等新端点。 */
-export async function fetchTweet(handle: string, id: string): Promise<FxTweet | null> {
+export async function fetchTweet(_handle: string, id: string): Promise<FxTweet | null> {
   try {
     // ponytail: handle 参数保留(v1 兼容签名), v2 只需 id —— 调用方无需改签名
     const res = await fetch(`${API}/2/status/${id}?lang=zh-cn`, {
