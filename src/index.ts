@@ -461,6 +461,15 @@ export async function runDigest(env: Env, useCache = true): Promise<number> {
 // 当日 Worker 缓存 hn:<date>: JSON 命中过一次后, 重复 /hn 零外呼重放;
 // miss → repository_dispatch 触发 Actions 生成 + 占位提示 + pending 标记(10 分钟内重复 /hn 不再重复触发)。
 // 重活(抓取/urlToMarkdown/深摘要/存档/直发)全在 scripts/product-digest.ts(Actions), Worker 零重活。
+// 依次尝试多个 URL, 返回第一个成功的 JSON(null 全失败)
+async function fetchFirstJson(...urls: string[]): Promise<{ items?: SourceItem[]; telegraphUrl?: string } | null> {
+  for (const u of urls) {
+    const r = await fetch(u, { signal: AbortSignal.timeout(8000) }).catch(() => null);
+    if (r?.ok) try { return await r.json(); } catch { /* 坏 JSON → 试下一个 */ }
+  }
+  return null;
+}
+
 export async function runProductThin(env: Env, chatId: string, ctx?: ExecutionContext): Promise<number> {
   const dateStr = shanghaiDate();
   const repo = env.GH_ARCHIVE_REPO || 'gandli/daily-digest';
@@ -472,24 +481,20 @@ export async function runProductThin(env: Env, chatId: string, ctx?: ExecutionCo
       return chunks.length;
     } catch { /* 坏缓存 → 走正常链 */ }
   }
-  const jsonUrl = `https://raw.githubusercontent.com/${repo}/archive/product/${dateStr}.json`;
-  const res = await fetch(jsonUrl, { signal: AbortSignal.timeout(8000) }).catch(() => null);
-  if (res?.ok) {
-    try {
-      const data = (await res.json()) as { items?: SourceItem[]; telegraphUrl?: string };
-      const items = data.items ?? [];
-      if (items.length) {
-        const chunks = renderProductMessage(dateStr, items, data.telegraphUrl, repo);
-        await env.CACHE.put(`hn:${dateStr}`, JSON.stringify({ chunks }), { expirationTtl: 86400 }).catch(() => {});
-        await sendPerRepoMessages(env.BOT_TOKEN, chatId, chunks.map((html, i) => ({ html, photo: items[i].photo, ogUrl: items[i].url })), repo, env.CACHE);
-        // product 含 GitHub repo → 后台 fanout 精简 repo 卡(与 X 帖一致)
-        if (ctx && items.some((it) => /github\.com\//i.test(`${it.url} ${it.desc} ${it.title}`))) {
-          ctx.waitUntil(fanoutRepoRefs(env, chatId, items.map((it) => `github.com/${it.title} ${it.url} ${it.desc}`).join(' '), ctx));
-        }
-        console.log('product thin sent', dateStr, `${items.length} items`);
-        return chunks.length;
-      }
-    } catch { /* 坏 JSON → 走 dispatch 兜底 */ }
+  // 新路径 archive/YYYY/hn-YYYY-MM-DD.json, fallback 旧 product/YYYY-MM-DD.json
+  const newUrl = `https://raw.githubusercontent.com/${repo}/archive/archive/${dateStr.slice(0, 4)}/hn-${dateStr}.json`;
+  const oldUrl = `https://raw.githubusercontent.com/${repo}/archive/product/${dateStr}.json`;
+  const data = await fetchFirstJson(newUrl, oldUrl);
+  if (data?.items?.length) {
+    const items = data.items;
+    const chunks = renderProductMessage(dateStr, items, data.telegraphUrl ?? undefined, repo);
+    await env.CACHE.put(`hn:${dateStr}`, JSON.stringify({ chunks }), { expirationTtl: 86400 }).catch(() => {});
+    await sendPerRepoMessages(env.BOT_TOKEN, chatId, chunks.map((html, i) => ({ html, photo: items[i].photo, ogUrl: items[i].url })), repo, env.CACHE);
+    if (ctx && items.some((it) => /github\.com\//i.test(`${it.url} ${it.desc} ${it.title}`))) {
+      ctx.waitUntil(fanoutRepoRefs(env, chatId, items.map((it) => `github.com/${it.title} ${it.url} ${it.desc}`).join(' '), ctx));
+    }
+    console.log('product thin sent', dateStr, `${items.length} items`);
+    return chunks.length;
   }
   // miss: 触发 Actions 生成(repository_dispatch), 占位提示; pending 标记 10 分钟——生成期间重复 /hn 不再重复触发
   const pendingKey = `hn:pending:${dateStr}`;
@@ -787,11 +792,12 @@ export default {
         // HN: product/<date>.json (Actions 生成, SourceItem[]; 同 runProductThin 的 raw 路径)
         let hn: { title: string; url: string; desc: string }[] | null = null;
         try {
-          const r = await fetch(`https://raw.githubusercontent.com/${repo}/archive/product/${dateStr}.json`, { signal: AbortSignal.timeout(8000) });
-          if (r.ok) {
-            const data: any = await r.json();
-            hn = (data.items ?? []).map((it: any) => ({ title: it.title ?? '', url: it.url ?? '', desc: it.descZh ?? it.desc ?? '' }));
-            if (!hn?.length) hn = null;
+          const hnData = await fetchFirstJson(
+            `https://raw.githubusercontent.com/${repo}/archive/archive/${dateStr.slice(0, 4)}/hn-${dateStr}.json`,
+            `https://raw.githubusercontent.com/${repo}/archive/product/${dateStr}.json`
+          );
+          if (hnData?.items?.length) {
+            hn = hnData.items.map((it: any) => ({ title: it.title ?? '', url: it.url ?? '', desc: it.descZh ?? it.desc ?? '' }));
           }
         } catch { /* HN 缺失不影响 */ }
         const sections: { name: string; items: { title: string; url: string; desc: string }[] }[] = [];
