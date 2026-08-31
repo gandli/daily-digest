@@ -12,7 +12,7 @@ import { buildRssFeed, type RssItem } from './rss';
 import { d1ArchivePage } from './d1';
 import { vecSearch } from './vec';
 import { runProductHunt } from './ph';
-import { summarizeZh, translateTextZh, translateBatch, isChinese, isZhDominant, generateTitleZh, generateTagsZh } from './translate';
+import { summarizeZh, translateTextZh, translateBatch, isChinese, isZhDominant, generateTitleZh, generateTweetTitle, generateTagsZh } from './translate';
 
 // 北京时间日期串 YYYY-MM-DD(UTC+8 无 DST,直接偏移即可)
 export const shanghaiDate = (): string => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
@@ -247,7 +247,7 @@ export async function archiveTweet(
     ? tweet.article.title
     : isArticlePost && refTitle
       ? refTitle // fixupx 页首标题即文章题, 免 LLM(中文文章得中文题, 确定性)
-      : await generateTitleZh(env, titleText);
+      : await generateTweetTitle(env, titleText);
   // md 标题: LLM 标题优先, 无则回退 "X Post · @handle"
   const mdTitle = titleZh ? `# ${titleZh}` : `# X Post · @${tweet.author?.screen_name ?? handle}`;
   const md = [

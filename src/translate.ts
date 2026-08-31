@@ -71,6 +71,33 @@ export async function generateTitleZh(env: Env, text: string): Promise<string | 
   return out.replace(/^标题[:：]\s*/, '').replace(/^["'`“”]+|["'`“”]+$/g, '').slice(0, 20);
 }
 
+/**
+ * X 帖标题: LLM 优先, 失败/无 key → 确定性截断兜底(不留英文裸显整段)。
+ * 只在 X 卡路径用; 文章卡有真标题, 不能过这里(会被截 20 字)。
+ */
+export async function generateTweetTitle(env: Env, text: string): Promise<string | null> {
+  return (await generateTitleZh(env, text)) ?? heuristicTitle(text);
+}
+
+// ponytail: 无 key/LLM 全挂时的免依赖标题(首句/首行去噪截 20)。升级路径: 接本地小模型或强制配 OPENROUTER_API_KEY。
+function heuristicTitle(s: string): string | null {
+  let t = s.replace(/https?:\/\/\S+/g, ' ').replace(/@\w+/g, ' ').replace(/[#]/g, '').trim();
+  t = t.split('\n').find((l) => l.trim())?.trim() ?? t;
+  const m = t.match(/^[^。！？.!?\n]{4,60}[。！？.!?]/);
+  if (m) t = m[0].replace(/[。！？.!?]+$/, '');
+  t = t.replace(/\s+/g, ' ').trim();
+  if (!t) return null;
+  const cjk = (t.match(/[一-鿿]/g) ?? []).length;
+  if (cjk >= 4) return t.slice(0, 20);
+  let out = '';
+  for (const w of t.split(/\s+/).filter(Boolean)) {
+    const cand = out ? `${out} ${w}` : w;
+    if (cand.length > 20) break;
+    out = cand;
+  }
+  return out || t.slice(0, 20);
+}
+
 /** 由正文生成领域标签(LLM)。返回空格分隔的英文/数字标签(带#), ≤4个。失败/无 key → null。 */
 export async function generateTagsZh(env: Env, text: string): Promise<string[] | null> {
   if (!env.OPENROUTER_API_KEY) return null;
