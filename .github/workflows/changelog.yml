@@ -24,7 +24,7 @@ jobs:
           node scripts/changelog.mjs > CHANGELOG.md
 
       - name: Commit CHANGELOG
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "chore: update CHANGELOG"
           file_pattern: CHANGELOG.md
