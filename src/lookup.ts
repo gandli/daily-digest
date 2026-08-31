@@ -24,7 +24,10 @@ export function saveToWayback(url?: string): Promise<unknown> {
 /** 同一 repo 当日已查过 → 跳过重复回复与存档。TTL 48h(跨过午夜即视为新一天)。 */
 export async function seenToday(env: Env, repo: string): Promise<boolean> {
   const key = `lookup:${today()}:${repo.toLowerCase()}`;
-  const hit = await env.CACHE.get(key);
+  // KV 读失败视同 miss(走重查), 不得让抛错穿透 webhook → 500 → TG 退避 = "没反应"
+  // try 而非 .catch: 兼容同步返回的 CACHE mock(真实 KV 为 Promise, await 后 throw 同样被吞)
+  let hit: string | null = null;
+  try { hit = await env.CACHE.get(key); } catch { hit = null; }
   if (hit) return true;
   try {
     await env.CACHE.put(key, '1', { expirationTtl: 172800 });
@@ -295,7 +298,7 @@ type DescCache = { zh: string; ts: number };
 const descKey = (repo: string) => `lookup:desc:${repo.toLowerCase()}`;
 
 async function getFreshDesc(env: Env, repo: string): Promise<string | null> {
-  const raw = await env.CACHE.get(descKey(repo));
+  const raw = await env.CACHE.get(descKey(repo)).catch(() => null);
   if (!raw) return null;
   try {
     const c = JSON.parse(raw) as DescCache;
