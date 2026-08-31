@@ -312,7 +312,9 @@ export async function archiveTweet(
     // Tweet 卡链接预览 = Telegraph 页(og:image 由 Telegraph 渲染), 无 Telegraph 回退原推 URL。
     // 多图帖用 mosaic 实体图发 sendPhoto; 单图/视频/无媒体走 ogUrl 链接预览。
     // ponytail: 单图 sendPhoto 实体图(有 file_id 缓存), 多图 mosaic 拼图, 无媒体/视频回退 ogUrl 链接预览
-    await sendPerRepoMessages(env.BOT_TOKEN, chatId, [{ html: card, photo: mosaicUrl || (photos.length === 1 ? photo : undefined), ogUrl: tgPageUrl || tUrl }], repo);
+    const sent = await sendPerRepoMessages(env.BOT_TOKEN, chatId, [{ html: card, photo: mosaicUrl || (photos.length === 1 ? photo : undefined), ogUrl: tgPageUrl || tUrl }], repo);
+    // 发卡失败不再靠 throw(发送层已吞错)——按返回值显式提示, 否则用户静默收不到任何东西
+    if (!sent) await sendTelegram(env.BOT_TOKEN, chatId, '⚠️ 已取到帖子但发送失败(Telegram 接口异常), 请重发一次该链接重试。');
     // 重发去重记录: 成功 → 标记质量(下次重发回缓存卡片); 失败落 catch 不标记(placeholder 保持 retry)
     ctx?.waitUntil?.(markProcessed(env, `https://x.com/${handle}/status/${id}`, !!hasZh || isZhBody, true, stamp, titleZh ?? tweet.article?.title, bodyText?.slice(0, 300)));
   } catch (e) {
@@ -1058,8 +1060,10 @@ export default {
             await replyProcessed(env, chatId, url, r);
           } else {
             // 老记录无 md——重挂一次归档补上存档信息, 回给用户(而非"无需重复")
+            // 必须走 waitUntil: inline await 会把整条 reader 链(最坏 ~3min)压在 webhook 响应前,
+            // Telegram 等不到回包就退避重试 → 用户侧表现为"发了没反应"。
             await sendTelegram(env.BOT_TOKEN, chatId, '♻️ 已识别此前处理过, 重新归档取回存档链接…');
-            await archiveUrl(env, chatId, url, ctx);
+            ctx.waitUntil(archiveUrl(env, chatId, url, ctx));
           }
         } else {
           ctx.waitUntil(archiveUrl(env, chatId, url, ctx));

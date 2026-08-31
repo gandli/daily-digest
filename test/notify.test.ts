@@ -33,9 +33,9 @@ describe('sendPerRepoMessages 纯文字链路(OG 图已删)', () => {
     expect((msgs[0].body.link_preview_options as any)?.url).toContain('github.com/owner/repo');
   });
 
-  it('sendMessage 失败 → 静默(不抛)', async () => {
+  it('sendMessage 失败 → 不抛, 返回 false(调用方降级)', async () => {
     mockStatus(() => 500);
-    await expect(sendPerRepoMessages('t', '123', msg as any, 'gandli/daily-digest')).resolves.toBeUndefined();
+    await expect(sendPerRepoMessages('t', '123', msg as any, 'gandli/daily-digest')).resolves.toBe(false);
   });
 
   it('无 ogUrl → 仍发 sendMessage(无 link_preview)', async () => {

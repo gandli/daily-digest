@@ -168,11 +168,12 @@ describe('archiveTweet', () => {
     expect(calls.some((c) => c.url.includes('api.telegram.org'))).toBe(true);
   });
 
-  it('发卡失败(sendPerRepoMessages reject) → sendTelegram ⚠️ 存档失败', async () => {
+  it('发卡失败(TG 网络错) → 仍有一条 ⚠️ 提示送达(发送层吞错, 靠返回值降级)', async () => {
     mode = 'fail-send';
     const kv = memKv();
     await archiveTweet(mkEnv(kv), '944783507', 'fe2o3', '123', ctx);
+    await Promise.allSettled(pending);
     const msgs = sendMessages();
-    expect(msgs.some((c) => String(c.body?.text).includes('⚠️ 已取到帖子但存档失败'))).toBe(true);
+    expect(msgs.some((c) => String(c.body?.text).includes('⚠️ 已取到帖子但发送失败'))).toBe(true);
   });
 });

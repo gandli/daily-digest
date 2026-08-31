@@ -155,11 +155,11 @@ describe('trending: fetchTrending 边缘', () => {
 describe('notify: sendTelegram 非 200 → 只记日志不抛', () => {
   it('500 响应不抛', async () => {
     globalThis.fetch = vi.fn(async () => new Response('err', { status: 500 }));
-    await expect(sendTelegram('t', 'c', 'hi')).resolves.toBeUndefined();
+    await expect(sendTelegram('t', 'c', 'hi')).resolves.toBe(false); // 非 200 → false, 不抛
   });
   it('sendPhotoOrText 图床缓存 key=null(非 https) → 跳过 file_id 读', async () => {
     globalThis.fetch = vi.fn(async () => new Response('{}', { status: 404 }));
-    await expect(sendPhotoOrText('t', 'c', 'data:image/png,abc', 'cap')).resolves.toBeUndefined();
+    await expect(sendPhotoOrText('t', 'c', 'data:image/png,abc', 'cap')).resolves.toBe(false);
   });
 });
 

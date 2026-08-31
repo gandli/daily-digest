@@ -11,19 +11,28 @@ export async function sendChatAction(token: string, chatId: string, action = 'ty
   } catch { /* 状态失败不影响主流程 */ }
 }
 
-export async function sendTelegram(token: string, chatId: string, html: string): Promise<void> {
-  const res = await fetch(`${API}/bot${token}/sendMessage`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text: html, parse_mode: 'HTML', disable_web_page_preview: true }),
-  });
-  if (!res.ok) console.error(`sendMessage ${res.status}: ${await res.text()}`);
+/** 发一条文本。返回是否真的送达(供调用方决定是否降级提示)。
+ *  网络抛错必须在此吞掉: 此函数被所有失败提示路径(⚠️/❌/♻️)调用, 抛出会让整条
+ *  waitUntil 管线静默死亡 —— 连"失败了"这句都发不出去(线上"发链接没反应"来源之一)。 */
+export async function sendTelegram(token: string, chatId: string, html: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API}/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: html, parse_mode: 'HTML', disable_web_page_preview: true }),
+    });
+    if (!res.ok) console.error(`sendMessage ${res.status}: ${await res.text()}`);
+    return res.ok;
+  } catch (e) {
+    console.error(`sendMessage network: ${String(e).slice(0, 120)}`);
+    return false;
+  }
 }
 
 /** 图卡合一: photo=直链图 → sendPhoto(caption=html); 失败 → 纯文字 sendMessage。每条消息必带图的总入口。
  * cache 可选(telegram 图床): 首次 sendPhoto 用 URL 上传, TG 返回 file_id 存 KV; 同图复用 file_id 免重复抓取/免存 GitHub。
  * key 用 photo URL 本身(normalize), 稳定复用。ponytail: 不校验 file_id 有效性, TG 失败即回退重传。 */
-export async function sendPhotoOrText(token: string, chatId: string, photo: string | undefined, html: string, cache?: { get: (k: string) => Promise<string | null>; put: (k: string, v: string) => Promise<void> }): Promise<void> {
+export async function sendPhotoOrText(token: string, chatId: string, photo: string | undefined, html: string, cache?: { get: (k: string) => Promise<string | null>; put: (k: string, v: string) => Promise<void> }): Promise<boolean> {
   if (photo) {
     // 图床 key = photo URL(短 hash)。重复图直接复用已存 file_id。
     const key = photo.startsWith('https://') ? `og:${photo}` : undefined;
@@ -40,11 +49,11 @@ export async function sendPhotoOrText(token: string, chatId: string, photo: stri
       if (cache && key && !fileId) {
         try { const j = await res.clone().json() as { result?: { photo?: { file_id?: string }[] } }; if (j.result?.photo?.[0]?.file_id) await cache.put(key, j.result.photo[0].file_id); } catch { /* 图床缓存失败不影响本次 */ }
       }
-      return;
+      return true;
     }
     console.error(`sendPhoto ${res?.status ?? 'net'}, fallback text`);
   }
-  await sendTelegram(token, chatId, html);
+  return sendTelegram(token, chatId, html);
 }
 
 /** Telegram 机器人命令菜单(bot 输入框 "/" 弹菜单)。幂等,setMyCommands repeated 安全。 */
@@ -69,24 +78,31 @@ export async function registerCommands(token: string): Promise<void> {
 // OG 图 + 文字合一: 每项目一条 sendPhoto(图=GitHub OG 卡, caption=完整条目)。
 // ponytail: 串行 for(10×12s OG 抓取=120s)→ 超 30s waitUntil 墙。Promise.all 并发 → 爆 50 子请求上限。
 // 删 OG 图抓取: 只发文字 + link_preview_options, 子请求降到 10 个, 跑在 50 限内。
+/** 返回是否全部送达。false = 有消息发送失败(网络/4xx), 调用方负责降级提示——
+ *  不抛错: 抛出会让调用方 catch 之后的 sendTelegram 再抛, 用户彻底收不到任何回复。 */
 export async function sendPerRepoMessages(
   token: string,
   chatId: string,
   messages: { html: string; repo?: string; ogUrl?: string; photo?: string }[],
   _archiveRepo?: string, // ponytail: 参数保留(调用方统一传), 函数体未用——删参数需动 8 个调用点
   cache?: { get: (k: string) => Promise<string | null>; put: (k: string, v: string) => Promise<void> },
-): Promise<void> {
+): Promise<boolean> {
+  let ok = true;
   for (const m of messages) {
     // 实体图优先(sendPhoto, 经 TG 图床缓存 file_id) → 无 photo 回落 link_preview(ogUrl)
     if (m.photo) {
-      await sendPhotoOrText(token, chatId, m.photo, m.html, cache);
+      ok = (await sendPhotoOrText(token, chatId, m.photo, m.html, cache)) && ok;
       continue;
     }
-    await fetch(`${API}/bot${token}/sendMessage`, {
+    ok = (await fetch(`${API}/bot${token}/sendMessage`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, text: m.html, parse_mode: 'HTML', link_preview_options: m.ogUrl ? { url: m.ogUrl, prefer_large_media: true } : undefined }),
-    }).then(r => r.text()); // 消费 body 防 stalled HTTP response
+    })
+      // 消费 body 防 stalled HTTP response
+      .then(async (r) => { if (!r.ok) console.error(`sendMessage ${r.status}: ${await r.text()}`); return r.ok; })
+      .catch(() => false)) && ok;
   }
+  return ok;
 }
 
 // timing-safe 比较 webhook secret
