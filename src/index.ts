@@ -1,7 +1,7 @@
 import type { Env, SourceItem } from './types';
 import { fetchTrending } from './sources/trending';
 import { resolveDescriptions } from './translate';
-import { renderMessage, renderMarkdown, renderTelegraphNodes, renderProductMessage, esc, yearOf } from './render';
+import { renderMessage, renderMarkdown, renderTelegraphNodes, renderProductMessage, esc, yearOf, wikiLinks } from './render';
 import { sendPerRepoMessages, sendTelegram, sendChatAction, sendPhotoOrText, registerCommands, safeEqual, sendTelegramKbd, answerCallbackQuery, editMessageKbd, type InlineKB } from './notify';
 import { archiveToGitHub, archiveDatedToGitHub, createTelegraphPage, createTelegraphAccount, flushArchivedPending, errMsg } from './archive';
 import { extractRepo, extractRepoRefs, today, lookupRepo, seenToday, refreshLookupDescriptions, indexArchivedItems, archiveUrl, fanoutRepoRefs, shouldReprocess, markProcessed, archiveLinks, backfillDescriptions, saveToWayback } from './lookup';
@@ -546,8 +546,10 @@ async function replyArchived(env: Env, chatId: string, repo: string): Promise<vo
       `♻️ <b><a href="${esc(repoUrl)}">${esc(it.repo)}</a></b> · 今日已存档\n\n` +
       (d ? `📝 ${esc(d).slice(0, 300)}\n\n` : '') +
       (it.topics?.length ? `🏷 ${it.topics.map((t) => `#${t}`).join(' ')}\n\n` : '') +
-      `📁 ${archiveLinks(repoUrl, tgUrl || undefined, link)}`;
-  const photo = `https://raw.githubusercontent.com/${archiveRepo}/archive/og-images/${it.repo.replace('/', '__')}.png`;
+      `🗂 ${wikiLinks(it.repo)}\n📁 ${archiveLinks(repoUrl, tgUrl || undefined, link)}`;
+  // OG 图与首查卡同源(opengraph.githubassets): 归档 raw 路径在 pend 缓冲 flush 前/入库失败时 404 → 掉图。
+  // file_id 图床(og:<url>)让重发卡复用同一 file_id, 零额外抓取。
+  const photo = `https://opengraph.githubassets.com/1/${it.repo}`;
   await sendPhotoOrText(env.BOT_TOKEN, chatId, photo, html, env.CACHE);
 }
 
