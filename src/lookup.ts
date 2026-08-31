@@ -1,7 +1,7 @@
 import type { Env, SourceItem } from './types';
 import { resolveDescriptions, translateBatch, translateTextZh, isChinese, summarizeZh, generateTagsZh, generateTitleZh } from './translate';
 import { fetchDeepwikiOverview } from './deepwiki';
-import { renderMessage, renderMarkdown, renderTelegraphNodes, esc } from './render';
+import { renderMessage, renderMarkdown, renderTelegraphNodes, esc, wikiLinks } from './render';
 import { sendPerRepoMessages, sendTelegram } from './notify';
 import { archiveToGitHub, archiveOgImage, createTelegraphAccount, createTelegraphPage } from './archive';
 import { d1UpsertArchiveIdx } from './d1';
@@ -107,6 +107,7 @@ export async function fanoutRepoRefs(env: Env, chatId: string, text: string, ctx
           `${head}<b><a href="${esc(item.url)}">${esc(item.title)}</a></b>${stars}${lang}\n\n` +
           (item.desc ? `📝 ${esc(item.desc).slice(0, 300)}\n\n` : '') +
           `#archive\n\n` +
+          `🗂 ${wikiLinks(item.title)}\n` +
           `📁 ${archiveLinks(item.url, undefined, mdLink)}`;
         await sendPerRepoMessages(env.BOT_TOKEN, chatId, [{ html, photo: `https://opengraph.githubassets.com/1/${item.title}`, ogUrl: item.url }], env.GH_ARCHIVE_REPO || 'gandli/daily-digest', env.CACHE);
         // 索引交 cron backfill 处理(每 repo ~5 子请求, 10×5=50 铁超, 此处只发卡)
@@ -265,6 +266,10 @@ export async function lookupRepo(env: Env, chatId: string, repo: string): Promis
   // 索引独立写入, 不依赖 archive 成功(archive 抛错 → 索引仍落, 避免 seenToday 死循环)
   // 文件名带 repo 标识(owner__repo-日期-ms), 否则纯日期名在 archive 分支无法辨识, 像丢了
   const stamp = `${item.title.replace(/\//g, '__')}-${today()}-${Date.now() % 86400000}`; // 单次计算: 索引 date 必须等于实际文件名
+  // Telegraph 页 URL 落 KV: ♻️重发卡(replyArchived)按 archive:tg:<date=stamp> 读回, 缺了它存档三链只剩两链
+  if (tgPageUrl) {
+    try { await env.CACHE.put(`archive:tg:${stamp}`, tgPageUrl); } catch { /* KV 额度忽略 */ }
+  }
   try {
     await indexArchivedItems(env, [item], stamp); // /search 索引
   } catch {

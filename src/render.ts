@@ -17,6 +17,10 @@ const relTime = (iso?: string): string => {
   return `about ${days} days ago`;
 };
 
+// wiki 三链(单行 HTML)。renderMessage 与 ♻️重发卡/fanout 批量卡共用, 防某条路径漏链。
+export const wikiLinks = (repo: string): string =>
+  `<a href="https://deepwiki.com/${esc(repo)}">deepwiki</a> · <a href="https://zread.ai/${esc(repo)}">zread</a> · <a href="https://codewiki.google/github.com/${esc(repo)}">codewiki</a>`;
+
 // Telegram HTML 消息。一个项目一条消息(首条带头部), 标题/描述/wiki 分层, 带 topics 标签 + 存档三链。
 // archiveRepo: GitHub 存档仓库(用于拼 md 链接); 三链 = Telegraph(当日页,有则) → web.archive → GitHub md。
 export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl?: string, archiveRepo = 'gandli/daily-digest'): string[] {
@@ -28,8 +32,7 @@ export function renderMessage(dateStr: string, items: SourceItem[], telegraphUrl
     l.push(`<a href="${wb}">Wayback</a>`);
     l.push(`<a href="${esc(mdPath)}">Archive</a>`);
     // wiki 三链在倒数第二行(存档三链之前), 存档在最后一行
-    const wikis = `<a href="https://deepwiki.com/${esc(it.title)}">deepwiki</a> · <a href="https://zread.ai/${esc(it.title)}">zread</a> · <a href="https://codewiki.google/github.com/${esc(it.title)}">codewiki</a>`;
-    return `\n\n🗂 ${wikis}\n📁 ${l.join(' · ')}`;
+    return `\n\n🗂 ${wikiLinks(it.title)}\n📁 ${l.join(' · ')}`;
   };
   return items.map((it, i) => {
     const langTag = it.lang ? ` · #${it.lang}` : '';
@@ -102,7 +105,7 @@ export function renderMarkdown(dateStr: string, items: SourceItem[], telegraphUr
           it.starsToday ? ` (+${fmtK(it.starsToday)})` : ''
         }${it.lang ? ` · ${it.lang}` : ''}${
           isChinese(it.descZh) ? `\n   - ${unesc(it.descZh!)}` : '' // 仅来自 zread/deepwiki 的中文, 双缺跳过
-        }\n   - [deepwiki](https://deepwiki.com/${it.title}) · [zread](https://zread.ai/${it.title})\n\n   <img src="${ogPaths?.get(it.title) ?? `https://opengraph.githubassets.com/1/${it.title}`}" width="400" alt="${it.title} OG 卡">`,
+        }\n   - [deepwiki](https://deepwiki.com/${it.title}) · [zread](https://zread.ai/${it.title}) · [codewiki](https://codewiki.google/github.com/${it.title})\n\n   <img src="${ogPaths?.get(it.title) ?? `https://opengraph.githubassets.com/1/${it.title}`}" width="400" alt="${it.title} OG 卡">`,
     )
     .join('\n');
   return (

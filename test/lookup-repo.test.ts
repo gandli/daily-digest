@@ -20,6 +20,7 @@ vi.mock('../src/render', () => ({
   renderMarkdown: () => '# md',
   renderTelegraphNodes: () => [],
   esc: (s: unknown) => String(s),
+  wikiLinks: (repo: string) => `<a href="https://deepwiki.com/${repo}">deepwiki</a> · <a href="https://zread.ai/${repo}">zread</a> · <a href="https://codewiki.google/github.com/${repo}">codewiki</a>`,
 }));
 vi.mock('../src/deepwiki', () => ({
   fetchDeepwikiOverview: (...a: unknown[]) => mockDw(...a),
