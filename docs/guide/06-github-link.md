@@ -1,29 +1,13 @@
-## 单仓查询
+# 粘贴 GitHub 仓库链接
 
-通过向 Bot 发送 GitHub 仓库链接,可以快速获取仓库的归档信息。首次查询时会自动抓取仓库元数据并生成描述卡片,后续再次发送同一链接则会直接返回已有的归档记录。
+> **事务**：粘贴 `https://github.com/owner/repo` → 已查过 → ♻️ 带描述的归档卡；首次 → 抓 repo 元数据 + deepwiki/zread 描述 + 存档 + 卡片。
 
-### 步骤 1:发送仓库链接
+## 操作步骤
 
-在 Telegram 对话中找到 Bot,直接粘贴一个 GitHub 仓库地址,例如 `https://github.com/antirez/kilo`,然后发送出去。Bot 会自动识别该链接属于 GitHub 仓库类型,并进入单仓查询流程。
+### 第 1 步 — https://github.com/antirez/kilo
 
-### 步骤 2:查看首次查询结果
+![第 1 步界面](assets/06-github-link-r1.png)
 
-Bot 检测到这是该仓库首次被查询,会立即向 GitHub API 抓取仓库元数据,同时请求 deepwiki 或 zread 获取仓库描述,完成存档后返回一张带描述的卡片。卡片内容包含仓库名称、Star 数、主要语言标签、作者、仓库简介,以及自动提取的话题标签。
+- Bot 回复: antirez/kilo ⭐ 3.2k · #C 👤 antirez 这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。 #trending #c #editor 🗂 <a href="
 
-以 `https://github.com/antirez/kilo` 为例,Bot 返回:
-
-> antirez/kilo ⭐ 3.2k · #C 👤 antirez 这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。 #trending #c #editor 🗂
-
-这张卡片即为该仓库的归档快照,首次查询的实际效果如下:
-
-![首次查询 antirez/kilo 返回的归档卡片](assets/06-github-link-r1.png)
-
-### 步骤 3:再次发送同一链接
-
-当你再次向 Bot 发送 `https://github.com/antirez/kilo` 时,Bot 会发现该仓库已经存档,直接返回之前生成好的带描述的归档卡,不再重复抓取和请求描述。这一行为保证了重复查询的响应速度,也避免了对外部 API 的浪费。
-
-### 小贴士
-
-- 链接格式必须是标准的 `https://github.com/owner/repo` 形式,粘贴时无需额外说明,Bot 会自动识别。
-- 如果 Bot 返回的是纯归档卡片而非描述卡片,通常意味着该链接之前已被他人查询过,描述由其他用户触发并保存。
-- 卡片中的 `#trending`、`#c` 等话题标签由 Bot 根据仓库元数据自动生成,可作为快速识别仓库分类的参考。
+> 本章由 e2e 场景自动生成, 与 Bot 当前行为一致。
