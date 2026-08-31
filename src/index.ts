@@ -520,7 +520,7 @@ export async function runProductThin(env: Env, chatId: string, ctx?: ExecutionCo
 
 /** 当日已查过的 repo: 回存档数据(索引里的描述+存档链接), 不再提示"已查询过"。 */
 async function replyArchived(env: Env, chatId: string, repo: string): Promise<void> {
-  const raw = await env.CACHE.get(`archive:idx:${repo.toLowerCase()}`);
+  const raw = await env.CACHE.get(`archive:idx:${repo.toLowerCase()}`).catch(() => null);
   let it: { repo: string; date: string; url?: string; desc?: string; descZh?: string; topics?: string[] } | null = null;
   if (raw) {
     try {
@@ -1011,6 +1011,9 @@ export default {
     } else {
       // GitHub 链接 → 单仓库 lookup; X 帖子 → FxEmbed API 存档; 任意 URL → 转 markdown; 都不是 → 帮助
       if (text.trim()) ctx.waitUntil(sendChatAction(env.BOT_TOKEN, chatId));
+      // 分派前的 KV 读(seenToday/shouldReprocess/CACHE.get)一旦抛错, 整个 handler 变 500 →
+      // Telegram 收不到 200 就退避重试, 用户侧表现即"发链接没反应"。兜底: 回 200 + 后台重跑通用归档。
+      try {
       const repo = extractRepo(text);
       const tweet = extractTweet(text);
       const url = extractUrl(text);
@@ -1072,6 +1075,12 @@ export default {
         }
       } else {
         ctx.waitUntil(sendTelegram(env.BOT_TOKEN, chatId, HELP));
+      }
+      } catch (e) {
+        console.error('dispatch failed', String(e).slice(0, 120));
+        // 仍须给用户一条消息: 有链接就后台重跑通用归档(自带失败提示), 无链接回帮助
+        const u = extractUrl(text);
+        ctx.waitUntil(u ? archiveUrl(env, chatId, u, ctx) : sendTelegram(env.BOT_TOKEN, chatId, HELP));
       }
     }
 
