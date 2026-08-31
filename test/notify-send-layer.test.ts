@@ -45,7 +45,7 @@ describe('sendPerRepoMessages 多 chunk', () => {
 
   it('空 chunks 不 crash, 不发请求', async () => {
     mockRespond(() => new Response('{}', { status: 200 }));
-    await expect(sendPerRepoMessages('t', '123', [] as any)).resolves.toBeUndefined();
+    await expect(sendPerRepoMessages('t', '123', [] as any)).resolves.toBe(true);
     expect(calls.length).toBe(0);
   });
 
@@ -76,11 +76,11 @@ describe('sendPhotoOrText 回落链', () => {
     expect(msgs[0].body.text).toBe('cap');
   });
 
-  it('sendPhoto 网络错 → 回落 sendMessage 尝试发生; 但 sendTelegram 无 catch → 最终抛(见 bug)', async () => {
+  it('sendPhoto 网络错 → 回落 sendMessage, 网络错被吞(修复后不抛)', async () => {
     mockNet();
-    await expect(sendPhotoOrText('t', '1', 'https://x.com/img.png', 'cap')).rejects.toThrow();
+    await expect(sendPhotoOrText('t', '1', 'https://x.com/img.png', 'cap')).resolves.toBe(false); // 回落也网络错 → false, 不抛
     const msgs = calls.filter((c) => c.url.includes('/sendMessage'));
-    expect(msgs.length).toBe(1); // 回落确实尝试了
+    expect(msgs.length).toBe(1); // 回落确实尝试了(内部 sendTelegram 吞错不抛)
   });
 
   it('photoUrl 空 → 直接 sendMessage, 不发 sendPhoto', async () => {

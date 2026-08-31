@@ -150,7 +150,7 @@ describe('notify: 边界', () => {
     const origF = globalThis.fetch;
     globalThis.fetch = vi.fn(async () => new Response('{"ok":true,"result":{"photo":[{"file_id":"f1"}]}}', { status: 200 }));
     const cache = { get: async () => { throw new Error('kv down'); }, put: vi.fn() };
-    await expect(sendPhotoOrText('t', '1', 'https://x.com/i.png', 'cap', cache)).resolves.toBeUndefined();
+    await expect(sendPhotoOrText('t', '1', 'https://x.com/i.png', 'cap', cache)).resolves.toBe(true);
     globalThis.fetch = origF;
   });
   it('setMyCommands 500 → 只记日志', async () => {
@@ -162,7 +162,7 @@ describe('notify: 边界', () => {
   it('sendTelegram 500 → 只记日志不抛', async () => {
     const origF = globalThis.fetch;
     globalThis.fetch = vi.fn(async () => new Response('err', { status: 500 }));
-    await expect(sendTelegram('t', '1', 'hi')).resolves.toBeUndefined();
+    await expect(sendTelegram('t', '1', 'hi')).resolves.toBe(false); // 非 200 → false, 但不抛
     globalThis.fetch = origF;
   });
 });
