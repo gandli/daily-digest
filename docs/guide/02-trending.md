@@ -1,22 +1,56 @@
-# /gt 今日 GitHub Trending
+## /trending — 今日 GitHub Trending
 
-> **事务**：拉当天 Trending。缓存命中 → 秒回卡片；未命中 → 先回「⏳ 生成中(10-30秒)」占位，后台跑完整管线（抓取→翻译→存档→发卡）。
+通过 `/trending` 命令(命令别名为 `/gt`)获取当天 GitHub Trending 仓库。Bot 会自动抓取、翻译摘要并以卡片形式推送;首次调用会经历一次占位等待,后续调用则可直接秒回。
 
-## 操作步骤
+### 步骤 1: 发送命令
 
-### 第 1 步 — /gt
+在 Bot 对话窗口中输入:
 
-![第 1 步界面](assets/02-trending-r1.png)
+```
+/trending
+```
 
-- Bot 回复: ⏳ GitHub Trending 生成中(10-30 秒), 完成后自动推送。
-- Bot 回复: 1/2 antirez/kilo ⭐ 3.2k 👤 antirez 这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。 #trending #c #editor 🗂 <a
-- Bot 回复: 2/2 sharkdp/bat ⭐ 50.0k 👤 sharkdp 这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。 #trending 🗂 <a href="https:
+或使用等价别名:
 
-### 第 2 步 — /gt
+```
+/gt
+```
 
-![第 2 步界面](assets/02-trending-r2.png)
+### 步骤 2: 收到占位提示(首次或缓存失效时)
 
-- Bot 回复: 1/2 antirez/kilo ⭐ 3.2k 👤 antirez 这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。 #trending #c #editor 🗂 <a
-- Bot 回复: 2/2 sharkdp/bat ⭐ 50.0k 👤 sharkdp 这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。 #trending 🗂 <a href="https:
+Bot 会立即回复一条占位消息,告知任务已进入后台处理队列:
 
-> 本章由 e2e 场景自动生成, 与 Bot 当前行为一致。
+> ⏳ GitHub Trending 生成中(10-30 秒), 完成后自动推送。
+
+此时无需操作,等待即可。该消息在缓存命中场景下不会出现,Bot 会直接进入步骤 3。
+
+![首次调用占位提示与后续卡片推送](assets/02-trending-r1.png)
+
+### 步骤 3: 接收 Trending 卡片(分条推送)
+
+占位等待结束后,Bot 会按 1/2、2/2 的顺序逐条推送当天的 Trending 仓库卡片。每张卡片包含:
+
+- **排名与仓库全称**:如 `antirez/kilo`、`sharkdp/bat`
+- **Star 数**:如 ⭐ 3.2k、⭐ 50.0k
+- **作者**:如 👤 antirez、👤 sharkdp
+- **中文摘要**:对仓库用途与亮点的一句话介绍
+- **标签**:如 `#trending #c #editor`
+- **🔗 链接**:跳转至 GitHub 仓库详情页
+
+示例卡片内容:
+
+> 1/2 antirez/kilo ⭐ 3.2k 👤 antirez 这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。 #trending #c #editor 🗂 [链接]
+>
+> 2/2 sharkdp/bat ⭐ 50.0k 👤 sharkdp 这个仓库实现了经典的文本编辑器, 代码精炼, 适合学习 C 语言。 #trending 🗂 [链接]
+
+### 步骤 4: 二次调用(缓存命中)
+
+当天再次发送 `/trending` 或 `/gt` 时,Bot 不再走完整管线,而是直接从缓存中读取并立刻推送卡片,不再出现“⏳ 生成中”的占位消息。
+
+![二次调用直接秒回卡片](assets/02-trending-r2.png)
+
+### 小贴士
+
+- **首次等待属正常现象**:看到“⏳ 生成中”请耐心等待 10-30 秒,管线包含抓取、翻译、存档多个环节,完成后 Bot 会主动推送,无需再次发送命令。
+- **等价别名**:在移动端或快捷指令中,`/gt` 与 `/trending` 完全等价,可任选其一以减少输入。
+- **缓存粒度按天**:当天所有调用共享同一份结果,若 GitHub 当天 Trending 发生变化,需等到次日或缓存失效后才会更新。
