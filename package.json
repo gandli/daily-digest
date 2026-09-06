@@ -9,11 +9,11 @@
     "manual": "vitest run scripts/manual && tsx scripts/manual/render.mts && tsx scripts/manual/generate.mts"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260827.1",
-    "@types/node": "^26.4.0",
+    "@cloudflare/workers-types": "^5.20260903.1",
+    "@types/node": "^26.4.1",
     "@vitest/coverage-v8": "^4.1.11",
     "playwright": "^1.62.1",
-    "tsx": "^4.23.12",
+    "tsx": "^4.23.13",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   }
