@@ -110,7 +110,8 @@ async function viaMarkdownForAgents(url: string): Promise<string | null> {
     // 非 CF 转换站点会无视 Accept 返回 HTML —— 嗅探拒绝
     if (text.slice(0, 200).toLowerCase().includes('<!doctype html')) return null;
     if (text.slice(0, 200).toLowerCase().includes('<html')) return null;
-    return text.trim() ? text : null;
+    // 长度门槛(与其它档位一致): 短/空响应多为错误页或 JSON 壳, 收了只会产出空卡
+    return text.trim().length > 40 ? text : null;
   } catch {
     return null;
   }
@@ -209,6 +210,16 @@ export async function urlToMarkdown(
 
 /** 从消息文本提取首个 http(s) URL(URL 按规范只含 ASCII, 中文跟随自然截断; 尾部标点剥离)。 */
 export function extractUrl(text: string): string | null {
-  const m = text.match(/https?:\/\/[^\s<>"')\]\u007f-\uffff]+/i);
-  return m ? m[0].replace(/[.,;!?]+$/, '') : null;
+  const m = text.match(/https?:\/\/[^\s<>"'\]\u007f-\uffff]+/i);
+  if (!m) return null;
+  // 右括号在路径里合法(维基/函数名: /wiki/Rust_(programming_language))——
+  // 只在 URL 尾部不配平时才当作句末标点剥掉, 否则截断出的 URL 抓不到内容
+  let u = m[0].replace(/[.,;!?]+$/, '');
+  for (let guard = 0; guard < 8; guard++) {
+    const opens = (u.match(/\(/g) ?? []).length;
+    const closes = (u.match(/\)/g) ?? []).length;
+    if (closes <= opens || !u.endsWith(')')) break;
+    u = u.slice(0, -1);
+  }
+  return u;
 }

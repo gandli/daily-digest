@@ -894,8 +894,19 @@ export default {
       return new Response('forbidden', { status: 403 });
     }
 
+    type Ent = { type?: string; url?: string };
+    type TgMsg = {
+      chat?: { id?: number };
+      message_id?: number;
+      text?: string;
+      caption?: string;             // 图/视频/文件的说明文字, 链接常写在这里
+      entities?: Ent[];             // 自定义超链接(text_link)只把 URL 放在实体里
+      caption_entities?: Ent[];
+    };
     const update = (await req.json().catch(() => ({}))) as {
-      message?: { chat?: { id?: number }; text?: string };
+      message?: TgMsg;
+      edited_message?: TgMsg;       // 编辑后的消息(补发链接)也是合法输入
+      channel_post?: TgMsg;         // 频道消息
       callback_query?: {
         id?: string;
         data?: string;
@@ -903,9 +914,18 @@ export default {
         message?: { chat?: { id?: number }; message_id?: number };
       };
     };
+    // 入口归一: 3 种载体 → 同一个 msg, 避免"形态没覆盖"静默丢更新
+    const msg = update.message ?? update.edited_message ?? update.channel_post;
     // chatId: message 或 callback 所属消息; callback 无 message(消息已删/inline 模式)→ from.id 兜底
-    const chatId = String(update.message?.chat?.id ?? update.callback_query?.message?.chat?.id ?? update.callback_query?.from?.id ?? '');
-    const text = (update.message?.text ?? '').trim();
+    const chatId = String(msg?.chat?.id ?? update.callback_query?.message?.chat?.id ?? update.callback_query?.from?.id ?? '');
+    let text = (msg?.text ?? msg?.caption ?? '').trim();
+    // 链接不在正文里(TG 的 text_link 实体: 显示自定义文字, URL 藏在 entities)→ 从实体里捞
+    if (text && !/https?:\/\//i.test(text)) {
+      const entUrl = [...(msg?.entities ?? []), ...(msg?.caption_entities ?? [])]
+        .find((e) => e?.type === 'text_link' && e.url);
+      if (entUrl?.url) text = `${text}\n${entUrl.url}`;
+    }
+    // 编辑/频道形态与 message 同权: 归一后走同一条分派链, 避免"形态没覆盖"静默丢更新
 
     // c) 白名单外:不响应任何动作
     if (!chatId || chatId !== env.CHAT_ID) return new Response('ok');
